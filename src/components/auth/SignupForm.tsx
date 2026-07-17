@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react"; // تم استيراد الأيقونات
 import { useTranslations } from "@/i18n/use-translations";
 import { generateDeviceFingerprint } from "@/lib/security/anti-abuse";
 
@@ -12,6 +13,7 @@ export function SignupForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // حالة لإظهار/إخفاء كلمة المرور
   const [role, setRole] = useState<"registered" | "professional" | "company">("registered");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
@@ -73,14 +75,30 @@ export function SignupForm() {
           <label className="text-xs text-slate-400">{t("auth.email")}</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white focus:border-[#3B5998] focus:outline-none" />
         </div>
-        <div>
+        
+        {/* حقل كلمة المرور مع أيقونة العين */}
+        <div className="relative">
           <label className="text-xs text-slate-400">{t("auth.password")}</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white focus:border-[#3B5998] focus:outline-none" />
+          <input 
+            type={showPassword ? "text" : "password"} 
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)} 
+            required 
+            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white focus:border-[#3B5998] focus:outline-none" 
+          />
+          <button 
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-9 text-slate-500 hover:text-white"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
           <p className="mt-1 text-[10px] text-slate-500">{t("auth.passwordHint")}</p>
           {pwErrors.map((e) => (
             <p key={e} className="text-[10px] text-red-400">{e}</p>
           ))}
         </div>
+
         <div>
           <label className="text-xs text-slate-400">{t("auth.accountType")}</label>
           <select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white focus:border-[#3B5998] focus:outline-none">
