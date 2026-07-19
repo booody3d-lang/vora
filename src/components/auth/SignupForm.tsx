@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/i18n/use-translations";
 import { generateDeviceFingerprint } from "@/lib/security/anti-abuse";
+import type { UserGender } from "@/types/profile";
 
 export function SignupForm() {
   const { t } = useTranslations();
@@ -13,6 +14,7 @@ export function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false); // مضافة لإظهار/إخفاء كلمة المرور
+  const [gender, setGender] = useState<UserGender | "">("");
   const [role, setRole] = useState<"registered" | "professional" | "company">("registered");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +39,15 @@ export function SignupForm() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, fullName, role, fingerprint, dataProcessingConsent: consent }),
+        body: JSON.stringify({
+          email,
+          password,
+          fullName,
+          role,
+          ...(role !== "company" && gender ? { gender } : {}),
+          fingerprint,
+          dataProcessingConsent: consent,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -103,6 +113,22 @@ export function SignupForm() {
           ))}
         </div>
 
+        {role !== "company" && (
+          <div>
+            <label className="text-xs text-slate-400">{t("auth.gender")}</label>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value as UserGender)}
+              required
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white focus:border-[#3B5998] focus:outline-none"
+            >
+              <option value="">{t("auth.selectGender")}</option>
+              <option value="male">{t("auth.genderMale")}</option>
+              <option value="female">{t("auth.genderFemale")}</option>
+            </select>
+          </div>
+        )}
+
         <div>
           <label className="text-xs text-slate-400">{t("auth.accountType")}</label>
           <select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white focus:border-[#3B5998] focus:outline-none">
@@ -115,7 +141,7 @@ export function SignupForm() {
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" required />
           {t("auth.consentGdpr")}
         </label>
-        <button type="submit" disabled={loading || !consent} className="w-full rounded-xl bg-[#3B5998] py-3 text-sm font-semibold text-white hover:bg-[#2d4373] disabled:opacity-50">
+        <button type="submit" disabled={loading || !consent || (role !== "company" && !gender)} className="w-full rounded-xl bg-[#3B5998] py-3 text-sm font-semibold text-white hover:bg-[#2d4373] disabled:opacity-50">
           {loading ? t("auth.creating") : t("auth.createAccount")}
         </button>
       </form>
