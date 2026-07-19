@@ -7,28 +7,42 @@ import { VoraLogo } from "@/components/brand/VoraLogo";
 import { DualDashboardToggle } from "@/components/navigation/DualDashboardToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
+import { UserAvatar } from "@/components/ui/UserAvatar";
+import { useCurrentProfile } from "@/hooks/use-current-profile";
 import { useTranslations } from "@/i18n/use-translations";
-import { DEMO_SERVICES } from "@/lib/freelance/mock-data";
+import { getCurrentUserProfileUrl } from "@/lib/network/urls";
+import type { MarketplaceService } from "@/types/freelance";
 import { cn } from "@/lib/utils";
 
 export function MarketplaceSearch() {
   const router = useRouter();
   const { t } = useTranslations();
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<typeof DEMO_SERVICES>([]);
+  const [suggestions, setSuggestions] = useState<MarketplaceService[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  function handleInput(value: string) {
+  async function handleInput(value: string) {
     setQuery(value);
-    if (value.trim().length > 1) {
-      const filtered = DEMO_SERVICES.filter(
-        (s) =>
-          s.title.toLowerCase().includes(value.toLowerCase()) ||
-          s.storeName.toLowerCase().includes(value.toLowerCase())
-      ).slice(0, 5);
+    if (value.trim().length <= 1) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/marketplace/services");
+      const data = await res.json();
+      const filtered =
+        (data.services as MarketplaceService[] | undefined)
+          ?.filter(
+            (s) =>
+              s.title.toLowerCase().includes(value.toLowerCase()) ||
+              s.storeName.toLowerCase().includes(value.toLowerCase())
+          )
+          .slice(0, 5) ?? [];
       setSuggestions(filtered);
       setShowSuggestions(true);
-    } else {
+    } catch {
       setSuggestions([]);
       setShowSuggestions(false);
     }
@@ -85,11 +99,13 @@ export function MarketplaceSearch() {
 
 export function FreelanceNav() {
   const { t } = useTranslations();
+  const { fullName, avatarUrl, profilePhotoUrl, gender } = useCurrentProfile();
+  const profileHref = getCurrentUserProfileUrl();
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#EA580C]/10 bg-white shadow-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6">
-        <VoraLogo />
+        <VoraLogo size="md" href="/freelance" />
         <DualDashboardToggle />
         <nav className="flex items-center gap-3">
           <NotificationBell variant="dark" />
@@ -99,6 +115,14 @@ export function FreelanceNav() {
           <LocaleSwitcher variant="dark" />
           <Link href="/freelance/dashboard" className="text-sm font-medium text-[#EA580C] hover:underline">
             {t("common.myStore")}
+          </Link>
+          <Link href={profileHref}>
+            <UserAvatar
+              photoUrl={profilePhotoUrl || avatarUrl}
+              gender={gender}
+              name={fullName}
+              className="h-8 w-8 border-2 border-[#EA580C]/40"
+            />
           </Link>
         </nav>
       </div>

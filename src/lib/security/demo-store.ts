@@ -1,5 +1,16 @@
 import type { AuthUser, ContentReport, PrivacySettings, UserSession, VoraRole } from "@/types/security";
 import { DEFAULT_PRIVACY_SETTINGS } from "@/types/security";
+import {
+  MAX_ADMIN_ACCOUNTS,
+  MANUAL_TEST_USER_EMAIL,
+  MANUAL_TEST_USER_ID,
+  MANUAL_TEST_USER_PASSWORD,
+  PLATFORM_OWNER_EMAIL,
+  PLATFORM_OWNER_INITIAL_PASSWORD,
+  countAdminRoleAccounts,
+  isManualTestUserEmail,
+  isPlatformOwnerEmail,
+} from "@/lib/security/roles";
 
 export interface DemoAccount extends AuthUser {
   passwordHash: string;
@@ -20,6 +31,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     email: "buyer@vora.sa",
     fullName: "Fatima Al-Qahtani",
     role: "registered",
+    gender: "female",
     phone: "+966501234567",
     phoneVerified: true,
     totpEnabled: false,
@@ -34,6 +46,9 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     email: "alex@vora.sa",
     fullName: "Alex Morgan",
     role: "professional",
+    gender: "male",
+    profileSlug: "alex-morgan",
+    storeSlug: "alex-design-studio",
     phone: "+966509876543",
     phoneVerified: true,
     totpEnabled: false,
@@ -70,14 +85,42 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     passwordHash: "",
   },
   {
+    id: "platform-owner-1",
+    email: PLATFORM_OWNER_EMAIL,
+    fullName: "Platform Owner",
+    role: "owner",
+    phone: "+966500000001",
+    phoneVerified: true,
+    totpEnabled: false,
+    isBanned: false,
+    professionalUnlocked: true,
+    hasFreelancerStore: false,
+    hasProfessionalProfile: true,
+    passwordHash: "",
+  },
+  {
     id: "user-owner-1",
     email: "owner@vora.sa",
-    fullName: "VORA Owner",
-    role: "owner",
+    fullName: "VORA Owner (Legacy)",
+    role: "admin",
     phoneVerified: false,
     totpEnabled: false,
     isBanned: false,
     professionalUnlocked: true,
+    hasFreelancerStore: false,
+    hasProfessionalProfile: true,
+    passwordHash: "",
+  },
+  {
+    id: MANUAL_TEST_USER_ID,
+    email: MANUAL_TEST_USER_EMAIL,
+    fullName: "B3D Test User",
+    role: "registered",
+    gender: "male",
+    phoneVerified: false,
+    totpEnabled: false,
+    isBanned: false,
+    professionalUnlocked: false,
     hasFreelancerStore: false,
     hasProfessionalProfile: true,
     passwordHash: "",
@@ -89,7 +132,13 @@ let accountsInitialized = false;
 export async function initDemoAccounts(hashFn: (p: string) => Promise<string>) {
   if (accountsInitialized) return;
   for (const acc of DEMO_ACCOUNTS) {
-    acc.passwordHash = await hashFn("Vora@2026!");
+    if (isPlatformOwnerEmail(acc.email)) {
+      acc.passwordHash = await hashFn(PLATFORM_OWNER_INITIAL_PASSWORD);
+    } else if (isManualTestUserEmail(acc.email)) {
+      acc.passwordHash = await hashFn(MANUAL_TEST_USER_PASSWORD);
+    } else {
+      acc.passwordHash = await hashFn("Vora@2026!");
+    }
   }
   accountsInitialized = true;
 }
@@ -150,7 +199,6 @@ export function revokeAllSessions(accountId: string, exceptSessionId?: string): 
 }
 
 export function isSessionValid(sessionId: string): boolean {
-  if (process.env.NODE_ENV === "development") return Boolean(sessionId);
   return sessions.has(sessionId);
 }
 
@@ -229,24 +277,46 @@ export function toPublicUser(account: DemoAccount): AuthUser {
   return rest;
 }
 
+export function syncAccountPasswordHash(accountId: string, passwordHash: string): boolean {
+  const account = findAccountById(accountId);
+  if (!account) return false;
+  account.passwordHash = passwordHash;
+  return true;
+}
+
 export function registerDemoUser(input: {
   email: string;
   fullName: string;
   passwordHash: string;
   role?: VoraRole;
+  gender?: "male" | "female";
+  profileSlug?: string;
+  storeSlug?: string;
+  id?: string;
 }): DemoAccount {
+  const role = input.role ?? "registered";
+  if (role === "admin" && countAdminRoleAccounts(DEMO_ACCOUNTS) >= MAX_ADMIN_ACCOUNTS) {
+    throw new Error(`Maximum of ${MAX_ADMIN_ACCOUNTS} admin accounts allowed`);
+  }
+  if (role === "owner" && !isPlatformOwnerEmail(input.email)) {
+    throw new Error("Owner role is reserved for the platform owner email");
+  }
+
   const account: DemoAccount = {
-    id: `user-${Date.now()}`,
+    id: input.id ?? `user-${Date.now()}`,
     email: input.email,
     fullName: input.fullName,
-    role: input.role ?? "registered",
+    role: role,
     phoneVerified: false,
     totpEnabled: false,
     isBanned: false,
     professionalUnlocked: input.role === "professional",
-    hasFreelancerStore: false,
-    hasProfessionalProfile: input.role === "professional",
+    hasFreelancerStore: Boolean(input.storeSlug),
+    hasProfessionalProfile: input.role === "professional" || input.role === "registered",
     passwordHash: input.passwordHash,
+    gender: input.gender,
+    profileSlug: input.profileSlug,
+    storeSlug: input.storeSlug,
   };
   DEMO_ACCOUNTS.push(account);
   return account;

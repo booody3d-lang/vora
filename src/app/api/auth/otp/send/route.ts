@@ -43,7 +43,6 @@ export async function POST(request: Request) {
       success: true,
       phone,
       message: "OTP sent via SMS (Saudi telecom networks)",
-      demoCode: process.env.NODE_ENV !== "production" ? code : undefined,
     });
   } catch {
     return NextResponse.json({ error: "Failed to send OTP" }, { status: 500 });

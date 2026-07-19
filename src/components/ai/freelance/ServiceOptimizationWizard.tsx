@@ -3,11 +3,11 @@
 import { useState } from "react";
 import type { ServiceOptimizeResult, PricingRecommendResult } from "@/types/ai";
 import { AILoadingSpinner, AIPanelShell, AISourceBadge, useAI } from "@/components/ai/AIPanelShell";
-import { useLocale } from "@/providers/LocaleProvider";
+import { useTranslations } from "@/i18n/use-translations";
 import { formatSar } from "@/lib/billing/engine";
 
 export function ServiceOptimizationWizard() {
-  const { locale } = useLocale();
+  const { t, locale } = useTranslations();
   const { invoke, loading, error, source } = useAI<ServiceOptimizeResult>();
   const pricingAI = useAI<PricingRecommendResult>();
   const [title, setTitle] = useState("");
@@ -28,17 +28,14 @@ export function ServiceOptimizationWizard() {
 
   return (
     <AIPanelShell
-      title="AI Service & Store Optimization"
-      titleAr="تحسين الخدمة والمتجر بالذكاء الاصطناعي"
-      description="SEO tags, title improvements & SAR pricing recommendations"
-      descriptionAr="وسوم SEO وتحسين العناوين وتوصيات التسعير بالريال"
-      locale={locale}
+      titleKey="ai.serviceOptimize.title"
+      descriptionKey="ai.serviceOptimize.description"
+      badgeKey="ai.serviceOptimize.badge"
       isPremium={true}
-      badge="Freelance AI"
     >
       <div className="space-y-3">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={locale === "ar" ? "عنوان الخدمة" : "Service Title"} className="ai-input" />
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={locale === "ar" ? "الوصف" : "Description"} rows={3} className="ai-input" />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("ai.serviceOptimize.titlePlaceholder")} className="ai-input" />
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("ai.serviceOptimize.descPlaceholder")} rows={3} className="ai-input" />
         <div className="flex gap-2">
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="ai-input flex-1">
             <option>Design</option>
@@ -50,15 +47,15 @@ export function ServiceOptimizationWizard() {
         </div>
       </div>
       <button type="button" onClick={optimize} disabled={loading || !title} className="ai-btn mt-3">
-        {locale === "ar" ? "تحسين واقتراح السعر" : "Optimize & Price"}
+        {t("ai.serviceOptimize.optimizeButton")}
       </button>
       {(loading || pricingAI.loading) && <AILoadingSpinner />}
       {error && <p className="text-sm text-red-600">{error}</p>}
       {seoResult && (
         <div className="mt-4 space-y-3">
           <AISourceBadge source={source} />
-          <p className="text-sm"><strong>EN:</strong> {seoResult.improvedTitle.en}</p>
-          <p className="text-sm" dir="rtl"><strong>AR:</strong> {seoResult.improvedTitle.ar}</p>
+          <p className="text-sm"><strong>{t("ai.serviceOptimize.labelEn")}</strong> {seoResult.improvedTitle.en}</p>
+          <p className="text-sm" dir="rtl"><strong>{t("ai.serviceOptimize.labelAr")}</strong> {seoResult.improvedTitle.ar}</p>
           <div className="flex flex-wrap gap-1">
             {(locale === "ar" ? seoResult.seoTags.ar : seoResult.seoTags.en).map((t) => (
               <span key={t} className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] text-[#EA580C]">#{t}</span>

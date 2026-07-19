@@ -19,13 +19,15 @@ export function ServiceDetailView({ service }: ServiceDetailViewProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const images = [service.thumbnailUrl, ...service.galleryUrls];
+  const basePrice = service.price ?? 0;
+  const hasFixedPrice = service.price != null && service.price > 0;
   const addonsTotal = service.addons
     .filter((a) => selectedAddons.includes(a.id))
     .reduce((sum, a) => sum + a.price, 0);
   const extraDays = service.addons
     .filter((a) => selectedAddons.includes(a.id))
     .reduce((sum, a) => sum + a.extraDays, 0);
-  const totalPrice = service.price + addonsTotal;
+  const totalPrice = hasFixedPrice ? basePrice + addonsTotal : addonsTotal;
   const deliveryDays = Math.max(1, service.deliveryDays + extraDays);
 
   function toggleAddon(id: string) {
@@ -121,7 +123,9 @@ export function ServiceDetailView({ service }: ServiceDetailViewProps) {
 
             <div className="mt-4 rounded-xl bg-orange-50 p-4">
               <p className="text-xs uppercase tracking-wider text-slate-400">Base Price</p>
-              <p className="text-3xl font-bold text-[#EA580C]">SAR {service.price}</p>
+              <p className="text-3xl font-bold text-[#EA580C]">
+                {hasFixedPrice ? `SAR ${service.price}` : t("marketplace.contactForPrice")}
+              </p>
             </div>
 
             {service.addons.length > 0 && (
@@ -163,7 +167,11 @@ export function ServiceDetailView({ service }: ServiceDetailViewProps) {
             <div className="mt-4 border-t border-slate-100 pt-4">
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
-                <span className="text-[#EA580C]">SAR {totalPrice}</span>
+                <span className="text-[#EA580C]">
+                  {hasFixedPrice || addonsTotal > 0
+                    ? `SAR ${totalPrice}`
+                    : t("marketplace.contactForPrice")}
+                </span>
               </div>
             </div>
 

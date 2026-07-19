@@ -19,6 +19,8 @@ import {
   toPublicUser,
 } from "@/lib/security/demo-store";
 import { checkMultiAccount } from "@/lib/security/anti-abuse";
+import { createProfileForAccount } from "@/lib/profile/profile-store";
+import { persistSession } from "@/lib/security/auth-store";
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
@@ -37,6 +39,7 @@ export async function POST(request: Request) {
       password: string;
       fullName: string;
       role?: "registered" | "professional" | "company";
+      gender?: "male" | "female";
       fingerprint?: string;
       dataProcessingConsent?: boolean;
     };
@@ -57,12 +60,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email already registered" }, { status: 409 });
     }
 
+    const role = body.role ?? "registered";
+    if (role !== "company" && !body.gender) {
+      return NextResponse.json({ error: "Gender selection is required" }, { status: 400 });
+    }
+
     const passwordHash = await hashPassword(body.password);
+    const accountId = `user-${Date.now()}`;
+    const link = createProfileForAccount({
+      accountId,
+      fullName: body.fullName,
+      email: body.email,
+      role,
+      gender: body.gender,
+      hasFreelancerStore: role === "professional",
+    });
+
     const account = registerDemoUser({
+      id: accountId,
       email: body.email,
       fullName: body.fullName,
       passwordHash,
-      role: body.role ?? "registered",
+      role,
+      gender: body.gender,
+      profileSlug: link.profileSlug,
+      storeSlug: link.storeSlug,
     });
 
     if (body.fingerprint) {
@@ -73,7 +95,16 @@ export async function POST(request: Request) {
     }
 
     const ua = request.headers.get("user-agent") ?? "unknown";
-    const { sessionId } = createSession(account.id, { userAgent: ua, ip });
+    const { sessionId, session } = createSession(account.id, { userAgent: ua, ip });
+    persistSession({
+      sessionId,
+      accountId: account.id,
+      userAgent: ua,
+      ip,
+      deviceLabel: session.deviceLabel,
+      createdAt: session.createdAt,
+      lastActiveAt: session.lastActiveAt,
+    });
     const token = await signSessionToken({
       sub: account.id,
       email: account.email,

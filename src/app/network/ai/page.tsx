@@ -6,10 +6,12 @@ import { MissingSkillsPredictor } from "@/components/ai/network/MissingSkillsPre
 import { AIResumeArchitect } from "@/components/ai/network/AIResumeArchitect";
 import { ATSScanner } from "@/components/ai/network/ATSScanner";
 import { MatchmakingPanel } from "@/components/ai/MatchmakingPanel";
-import { DEMO_CURRENT_USER } from "@/lib/network/mock-data";
+import { useCurrentProfile } from "@/hooks/use-current-profile";
+import { useTranslations } from "@/i18n/use-translations";
 
 export default function NetworkAIPage() {
-  const profile = DEMO_CURRENT_USER;
+  const { profile, loading } = useCurrentProfile();
+  const { t } = useTranslations();
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
@@ -25,17 +27,38 @@ export default function NetworkAIPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          <AIProfileOptimizer profile={profile} />
-          <MissingSkillsPredictor isPremium={profile.isPremium} />
-          <AIResumeArchitect profile={profile} />
-          <ATSScanner isPremium={profile.isPremium} />
+      {loading && (
+        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+          {t("common.loading")}
         </div>
-        <div>
-          <MatchmakingPanel />
+      )}
+
+      {!loading && !profile && (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
+          <p className="text-sm font-medium text-[#0F172A]">{t("network.profileCard.emptyTitle")}</p>
+          <p className="mt-1 text-sm text-slate-500">{t("network.profileCard.emptyBody")}</p>
+          <Link
+            href="/network/settings/profile"
+            className="mt-4 inline-flex rounded-lg bg-[#3B5998] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2d4373]"
+          >
+            {t("network.profileCard.completeProfile")}
+          </Link>
         </div>
-      </div>
+      )}
+
+      {profile && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-6">
+            <AIProfileOptimizer profile={profile} />
+            <MissingSkillsPredictor isPremium={profile.isPremium} />
+            <AIResumeArchitect profile={profile} />
+            <ATSScanner isPremium={profile.isPremium} />
+          </div>
+          <div>
+            <MatchmakingPanel />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

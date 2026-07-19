@@ -3,9 +3,14 @@ import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Noto_Sans_Arabic } from "next/font/google";
 import { VoraProviders } from "@/providers/VoraProviders";
+import { CurrentProfileProvider } from "@/providers/CurrentProfileProvider";
+import { CurrentCompanyProvider } from "@/providers/CurrentCompanyProvider";
 import { LocaleProvider } from "@/providers/LocaleProvider";
+import { SidebarProvider } from "@/providers/SidebarProvider";
 import { NotificationProvider } from "@/providers/NotificationProvider";
 import { PlatformThemeShell } from "@/components/layout/PlatformThemeShell";
+import { AppShell } from "@/components/layout/AppShell";
+import { MessagingDockRoot } from "@/components/network/messaging/MessagingDockRoot";
 import { LOCALE_COOKIE, getDirection, coerceLocale } from "@/i18n/config";
 import { buildPageMetadata } from "@/lib/seo/metadata";
 import { organizationJsonLd } from "@/lib/seo/json-ld";
@@ -66,11 +71,21 @@ export default async function RootLayout({
         data-locale={locale}
       >
         <VoraProviders>
+          <CurrentProfileProvider>
+          <CurrentCompanyProvider>
           <LocaleProvider initialLocale={locale}>
-            <NotificationProvider>
-              <PlatformThemeShell>{children}</PlatformThemeShell>
-            </NotificationProvider>
+            <SidebarProvider>
+              <NotificationProvider>
+                <PlatformThemeShell>
+                  <MessagingDockRoot>
+                    <AppShell>{children}</AppShell>
+                  </MessagingDockRoot>
+                </PlatformThemeShell>
+              </NotificationProvider>
+            </SidebarProvider>
           </LocaleProvider>
+          </CurrentCompanyProvider>
+          </CurrentProfileProvider>
         </VoraProviders>
       </body>
     </html>

@@ -4,10 +4,10 @@ import { useState } from "react";
 import type { FullProfessionalProfile } from "@/types/network";
 import type { ResumeArchitectResult } from "@/types/ai";
 import { AILoadingSpinner, AIPanelShell, AISourceBadge, useAI } from "@/components/ai/AIPanelShell";
-import { useLocale } from "@/providers/LocaleProvider";
+import { useTranslations } from "@/i18n/use-translations";
 
 export function AIResumeArchitect({ profile }: { profile: FullProfessionalProfile }) {
-  const { locale } = useLocale();
+  const { t, locale } = useTranslations();
   const { invoke, loading, error, source } = useAI<ResumeArchitectResult>();
   const [result, setResult] = useState<ResumeArchitectResult | null>(null);
 
@@ -31,18 +31,15 @@ export function AIResumeArchitect({ profile }: { profile: FullProfessionalProfil
 
   return (
     <AIPanelShell
-      title="AI Resume Architect"
-      titleAr="مهندس السيرة الذاتية"
-      description="Generate ATS-friendly PDF resumes from your VORA profile"
-      descriptionAr="إنشاء سيرة ذاتية PDF متوافقة مع ATS من ملف VORA"
-      locale={locale}
+      titleKey="ai.resumeArchitect.title"
+      descriptionKey="ai.resumeArchitect.description"
+      badgeKey="ai.ats.badge"
       isPremium={profile.isPremium}
-      badge="Network AI"
     >
       {profile.isPremium && (
         <>
           <button type="button" onClick={generate} disabled={loading} className="ai-btn">
-            {locale === "ar" ? "إنشاء السيرة" : "Generate Resume"}
+            {t("ai.resumeArchitect.generate")}
           </button>
           {loading && <AILoadingSpinner />}
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
@@ -56,7 +53,7 @@ export function AIResumeArchitect({ profile }: { profile: FullProfessionalProfil
                 </div>
               ))}
               <button type="button" onClick={printResume} className="w-full rounded-xl border border-[#3B5998] py-2 text-sm font-semibold text-[#3B5998]">
-                {locale === "ar" ? "تحميل PDF / طباعة" : "Download PDF / Print"}
+                {t("ai.resumeArchitect.downloadPrint")}
               </button>
             </div>
           )}

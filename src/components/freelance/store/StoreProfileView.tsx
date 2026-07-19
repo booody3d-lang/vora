@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { CrossPlatformLink } from "@/components/navigation/DualDashboardToggle";
 import { PremiumBadge } from "@/components/billing/PremiumBadge";
 import { ServiceCard } from "@/components/freelance/marketplace/ServiceCard";
+import { MessageButton } from "@/components/network/connections/MessageButton";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import type { FreelancerStore, MarketplaceService, PortfolioItem, StoreReview, StoreTab } from "@/types/freelance";
-import { getProfileUrl } from "@/lib/network/mock-data";
+import { getProfileUrl } from "@/lib/network/urls";
 import { useLocale } from "@/providers/LocaleProvider";
 import { cn } from "@/lib/utils";
 
@@ -14,9 +17,11 @@ interface StoreProfileViewProps {
   services: MarketplaceService[];
   portfolio: PortfolioItem[];
   reviews: StoreReview[];
+  isOwnStore?: boolean;
+  storeOwnerAccountId?: string;
 }
 
-export function StoreProfileView({ store, services, portfolio, reviews }: StoreProfileViewProps) {
+export function StoreProfileView({ store, services, portfolio, reviews, isOwnStore, storeOwnerAccountId }: StoreProfileViewProps) {
   const { t } = useLocale();
   const [activeTab, setActiveTab] = useState<StoreTab>("services");
 
@@ -35,14 +40,21 @@ export function StoreProfileView({ store, services, portfolio, reviews }: StoreP
           {store.coverImageUrl && (
             <img src={store.coverImageUrl} alt="" className="h-full w-full object-cover" />
           )}
+          {isOwnStore && (
+            <Link
+              href={`/freelance/store/${store.slug}/edit`}
+              className="absolute end-3 top-3 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-[#EA580C] shadow-sm hover:bg-white"
+            >
+              {t("profile.header.editSection")}
+            </Link>
+          )}
         </div>
         <div className="relative px-5 pb-5 md:px-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="flex items-end gap-4">
-              <img
-                src={store.logoUrl}
-                alt={store.storeName}
-                className="-mt-10 h-20 w-20 rounded-2xl border-4 border-white bg-white object-cover md:-mt-12 md:h-24 md:w-24"
+              <UserAvatar
+                photoUrl={store.logoUrl}
+                className="-mt-10 h-20 w-20 rounded-2xl border-4 border-white md:-mt-12 md:h-24 md:w-24"
               />
               <div>
                 <div className="flex items-center gap-2">
@@ -61,6 +73,29 @@ export function StoreProfileView({ store, services, portfolio, reviews }: StoreP
                 type="professional-profile"
                 href={getProfileUrl(store.professionalProfileSlug)}
               />
+            )}
+            {!isOwnStore && storeOwnerAccountId && (
+              <MessageButton
+                targetAccountId={storeOwnerAccountId}
+                targetName={store.storeName}
+                className="border-[#EA580C] text-[#EA580C] hover:bg-orange-50"
+              />
+            )}
+            {isOwnStore && (
+              <>
+                <Link
+                  href={`/freelance/store/${store.slug}/manage`}
+                  className="rounded-lg bg-[#EA580C] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                >
+                  {t("storeManage.manageStore")}
+                </Link>
+                <Link
+                  href={`/freelance/store/${store.slug}/edit`}
+                  className="rounded-lg border border-[#EA580C] px-4 py-2 text-sm font-semibold text-[#EA580C] hover:bg-orange-50"
+                >
+                  {t("storeEdit.editStore")}
+                </Link>
+              </>
             )}
           </div>
           <p className="mt-4 text-sm leading-relaxed text-slate-600">{store.description}</p>
@@ -85,11 +120,33 @@ export function StoreProfileView({ store, services, portfolio, reviews }: StoreP
           ))}
         </nav>
         <div className="p-5">
+          {isOwnStore && (
+            <div className="mb-4 flex justify-end">
+              <Link
+                href={`/freelance/store/${store.slug}/edit`}
+                className="text-sm font-semibold text-[#EA580C] hover:underline"
+              >
+                {t("profile.header.editSection")} →
+              </Link>
+            </div>
+          )}
           {activeTab === "services" && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {services.map((s) => (
-                <ServiceCard key={s.id} service={s} />
+                <div key={s.id} className="flex flex-col gap-2">
+                  <ServiceCard service={s} />
+                  {!isOwnStore && storeOwnerAccountId && (
+                    <MessageButton
+                      targetAccountId={storeOwnerAccountId}
+                      targetName={store.storeName}
+                      className="w-full border-[#EA580C] text-[#EA580C] hover:bg-orange-50"
+                    />
+                  )}
+                </div>
               ))}
+              {services.length === 0 && (
+                <p className="col-span-full text-sm text-slate-500">{t("marketplace.emptyBody")}</p>
+              )}
             </div>
           )}
           {activeTab === "portfolio" && (

@@ -19,13 +19,11 @@ export default function AdminVerificationPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">{t("admin.verification.title")}</h1>
-        <p className="text-sm text-slate-400">
-          Review identification documents & commercial registers for Official Verification Badge
-        </p>
+        <p className="text-sm text-slate-400">{t("admin.verification.subtitle")}</p>
       </div>
 
       <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-400">
-        {pending.length} application{pending.length !== 1 ? "s" : ""} pending review
+        {t("admin.verification.pendingBanner").replace("{count}", String(pending.length))}
       </div>
 
       <div className="space-y-4">
@@ -45,7 +43,8 @@ export default function AdminVerificationPage() {
                 </div>
                 <p className="mt-1 text-sm text-slate-400">{app.documentType}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Submitted {new Date(app.submittedAt).toLocaleString("en-SA")}
+                  {t("admin.verification.submitted")}{" "}
+                  {new Date(app.submittedAt).toLocaleString()}
                 </p>
               </div>
               {app.status === "pending" && (
@@ -55,21 +54,23 @@ export default function AdminVerificationPage() {
                     onClick={() => updateStatus(app.id, "approved")}
                     className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
                   >
-                    Approve Badge
+                    {t("admin.verification.approveBadge")}
                   </button>
                   <button
                     type="button"
                     onClick={() => updateStatus(app.id, "rejected")}
                     className="rounded-lg bg-red-600/80 px-4 py-2 text-xs font-semibold text-white hover:bg-red-500"
                   >
-                    Reject
+                    {t("admin.verification.reject")}
                   </button>
                 </div>
               )}
             </div>
             <div className="mt-4 rounded-xl border border-dashed border-slate-700 bg-slate-900/50 p-6 text-center">
-              <p className="text-sm text-slate-500">📄 Document Preview</p>
-              <p className="mt-1 text-xs text-slate-600">{app.documentType} — click to view full document</p>
+              <p className="text-sm text-slate-500">{t("admin.verification.documentPreview")}</p>
+              <p className="mt-1 text-xs text-slate-600">
+                {t("admin.verification.documentHint").replace("{type}", app.documentType)}
+              </p>
             </div>
           </div>
         ))}

@@ -38,3 +38,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local profile uploads & data
+/.data/
+
+# static project backup (restore point — not part of active build)
+/Abadi.Vora/
+/Abadi.Vora.zip

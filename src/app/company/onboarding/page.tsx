@@ -25,7 +25,7 @@ export default function CompanyOnboardingPage() {
   return (
     <div className="min-h-screen bg-[#F1F5F9]" data-platform="network">
       <header className="border-b border-slate-200 bg-white px-6 py-4">
-        <VoraLogo href="/" />
+        <VoraLogo href="/" size="md" />
       </header>
 
       <div className="mx-auto max-w-lg px-4 py-12">

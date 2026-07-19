@@ -48,7 +48,7 @@ export interface MarketplaceService {
   thumbnailUrl: string;
   galleryUrls: string[];
   videoUrl?: string;
-  price: number;
+  price?: number | null;
   deliveryDays: number;
   revisionsIncluded: number;
   rating: number;

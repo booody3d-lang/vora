@@ -35,7 +35,10 @@ export function AdminOverviewClient() {
           <MetricCard
             label={overview.totalUsers.label}
             value={overview.totalUsers.value}
-            sublabel={`${overview.basicUsers.toLocaleString()} Basic · ${overview.professionalUsers.toLocaleString()} Professional`}
+            sublabel={t("admin.overview.userBreakdown", {
+              basic: overview.basicUsers.toLocaleString(),
+              professional: overview.professionalUsers.toLocaleString(),
+            })}
             growthPercent={overview.totalUsers.growthPercent}
             accent="blue"
           />
@@ -127,10 +130,11 @@ export function AdminOverviewClient() {
         </Link>
       )}
 
-      <section className="grid gap-4 sm:grid-cols-3">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { href: "/admin/finance", labelKey: "admin.nav.financialSuite", descKey: "admin.overview.quickFinance" },
           { href: "/admin/users", labelKey: "admin.nav.userManagement", descKey: "admin.overview.quickUsers" },
+          { href: "/admin/companies", labelKey: "admin.nav.companyOversight", descKey: "admin.overview.quickCompanies" },
           { href: "/admin/security", labelKey: "admin.nav.securityAudit", descKey: "admin.overview.quickSecurity" },
         ].map((link) => (
           <Link

@@ -28,7 +28,7 @@ export const DEMO_STORE: FreelancerStore = {
   conversionRate: 3.8,
 };
 
-function baseService(overrides: Partial<MarketplaceService> & Pick<MarketplaceService, "id" | "slug" | "title" | "price" | "category">): MarketplaceService {
+function baseService(overrides: Partial<MarketplaceService> & Pick<MarketplaceService, "id" | "slug" | "title" | "category">): MarketplaceService {
   return {
     storeId: DEMO_STORE.id,
     storeSlug: DEMO_STORE.slug,
@@ -49,6 +49,7 @@ function baseService(overrides: Partial<MarketplaceService> & Pick<MarketplaceSe
     isFeatured: false,
     isSponsored: false,
     isNew: false,
+    price: 299,
     description:
       "## What You Get\n\n- Professional logo design in multiple formats (AI, SVG, PNG, PDF)\n- Full brand color palette and typography guide\n- Social media kit (profile + cover templates)\n- Unlimited revisions within scope\n- 100% original work — no templates\n\n## Process\n\n1. Brief review & moodboard\n2. Initial concepts (3 directions)\n3. Refinement & final delivery\n\nAll files delivered via VORA escrow upon your approval.",
     faq: [

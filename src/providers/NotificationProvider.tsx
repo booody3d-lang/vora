@@ -11,7 +11,6 @@ import {
 } from "react";
 import type { NotificationPayload, NotificationPreferences } from "@/types/notifications";
 import { DEFAULT_NOTIFICATION_PREFERENCES } from "@/types/notifications";
-import { DEMO_NOTIFICATIONS } from "@/lib/notifications/mock-data";
 import { subscribeNotifications } from "@/lib/notifications/engine";
 import { createClient } from "@/lib/supabase/client";
 
@@ -30,7 +29,7 @@ const NotificationCtx = createContext<NotificationContextValue | null>(null);
 const PREFS_KEY = "vora_notification_prefs";
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState(DEMO_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
   const [preferences, setPreferences] = useState<NotificationPreferences>(() => {
     if (typeof window === "undefined") return DEFAULT_NOTIFICATION_PREFERENCES;
     try {

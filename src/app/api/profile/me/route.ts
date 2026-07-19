@@ -1,0 +1,232 @@
+import { NextResponse } from "next/server";
+import { changeAccountPassword, resetAccountPassword } from "@/lib/security/account-password";
+import {
+  createPasswordResetRequest,
+  getPasswordResetRequest,
+  getRecoveryChannel,
+  markPasswordResetUsed,
+  setRecoveryChannel,
+  type RecoveryChannel,
+} from "@/lib/security/auth-store";
+import { findAccountByEmail, findAccountByPhone } from "@/lib/security/demo-store";
+import { generateOtpCode, hashOtp, normalizeSaudiPhone, verifyOtp } from "@/lib/security/otp";
+import { buildTriggerNotification } from "@/lib/notifications/triggers";
+import { serverDispatchNotification } from "@/lib/notifications/server-dispatch";
+import {
+  getGenderForAccount,
+  getProfileByAccountId,
+  getProfileSlugForAccount,
+  getStoreByAccountId,
+  getStoreSlugForAccount,
+} from "@/lib/profile/profile-store";
+import { resolveAvatarUrl } from "@/lib/profile/avatar";
+import { getOnboardingProgress, isOnboardingComplete } from "@/lib/profile/onboarding";
+import { getEffectiveSubscription } from "@/lib/subscription/resolve-subscription";
+import { getAuthenticatedUser } from "@/lib/security/session";
+import { resolveAdminCapabilities } from "@/lib/security/roles";
+import { stripPrivateProfileFields } from "@/lib/profile/private-fields";
+import { getSocialProfileContext } from "@/lib/network/social-store";
+
+const PASSWORD_SECURITY = {
+  changePassword: {
+    method: "PATCH" as const,
+    url: "/api/profile/me",
+    action: "changePassword",
+    fields: ["currentPassword", "newPassword"],
+  },
+  forgotPassword: {
+    method: "POST" as const,
+    url: "/api/auth/password/forgot",
+    fields: ["emailOrPhone", "channel"],
+  },
+  resetPassword: {
+    method: "POST" as const,
+    url: "/api/auth/password/reset",
+    fields: ["token", "code", "newPassword"],
+  },
+  setRecoveryChannel: {
+    method: "PATCH" as const,
+    url: "/api/profile/me",
+    action: "setRecoveryChannel",
+    fields: ["channel"],
+  },
+};
+
+export async function GET() {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ authenticated: false });
+  }
+
+  const profile = getProfileByAccountId(auth.user.id);
+  const store = getStoreByAccountId(auth.user.id);
+  const profileSlug = getProfileSlugForAccount(auth.user.id);
+  const storeSlug = getStoreSlugForAccount(auth.user.id);
+  const gender = profile?.gender ?? getGenderForAccount(auth.user.id);
+  const onboardingComplete = profile ? isOnboardingComplete(profile) : false;
+  const onboardingProgress = profile ? getOnboardingProgress(profile) : null;
+  const subscription = getEffectiveSubscription(auth.user.id, "user");
+  const recoveryChannel = getRecoveryChannel(auth.user.id);
+  const social = getSocialProfileContext(auth.user.id, auth.user.id);
+
+  return NextResponse.json({
+    authenticated: true,
+    profileSlug,
+    storeSlug,
+    gender,
+    onboardingComplete,
+    onboardingProgress,
+    avatarUrl: resolveAvatarUrl({
+      photoUrl: profile?.profilePhotoUrl,
+      gender,
+    }),
+    profile: profile
+      ? {
+          ...stripPrivateProfileFields(profile),
+          isPremium: subscription.isPremium,
+          privateMobileNumber: profile.privateMobileNumber,
+          backupEmail: profile.backupEmail,
+        }
+      : null,
+    store,
+    subscription,
+    circle: {
+      endpoint: "/api/social/circle",
+      followerCount: social.followerCount,
+      followingCount: social.followingCount,
+    },
+    privateContact: {
+      privateMobileNumber: profile?.privateMobileNumber ?? "",
+      backupEmail: profile?.backupEmail ?? "",
+      updateVia: "PATCH /api/profile",
+      fields: ["privateMobileNumber", "backupEmail"],
+    },
+    security: {
+      password: PASSWORD_SECURITY,
+      recoveryChannel,
+      capabilities: resolveAdminCapabilities(auth.user),
+    },
+  });
+}
+
+export async function PATCH(request: Request) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = (await request.json()) as {
+      action?: string;
+      currentPassword?: string;
+      newPassword?: string;
+      channel?: RecoveryChannel;
+      emailOrPhone?: string;
+      token?: string;
+      code?: string;
+    };
+
+    switch (body.action) {
+      case "changePassword": {
+        if (!body.currentPassword || !body.newPassword) {
+          return NextResponse.json(
+            { error: "currentPassword and newPassword are required" },
+            { status: 400 }
+          );
+        }
+        const result = await changeAccountPassword(
+          auth.user.id,
+          body.currentPassword,
+          body.newPassword
+        );
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: 400 });
+        }
+        return NextResponse.json({ ok: true, action: "changePassword" });
+      }
+
+      case "setRecoveryChannel": {
+        if (body.channel !== "email" && body.channel !== "sms") {
+          return NextResponse.json({ error: "channel must be email or sms" }, { status: 400 });
+        }
+        setRecoveryChannel(auth.user.id, body.channel);
+        return NextResponse.json({ ok: true, recoveryChannel: body.channel });
+      }
+
+      case "forgotPassword": {
+        const identifier = body.emailOrPhone?.trim() ?? auth.user.email;
+        const normalizedPhone = normalizeSaudiPhone(identifier);
+        const account =
+          findAccountByEmail(identifier) ??
+          (normalizedPhone ? findAccountByPhone(normalizedPhone) : undefined) ??
+          findAccountByEmail(auth.user.email);
+
+        if (!account || account.id !== auth.user.id) {
+          return NextResponse.json({
+            ok: true,
+            message: "If an account exists, a recovery code has been sent.",
+          });
+        }
+
+        const channel = body.channel ?? getRecoveryChannel(account.id);
+        const code = generateOtpCode();
+        const codeHash = await hashOtp(code);
+        const { token, expiresAt } = createPasswordResetRequest({
+          accountId: account.id,
+          email: account.email,
+          channel,
+          codeHash,
+        });
+
+        await serverDispatchNotification(
+          buildTriggerNotification({
+            trigger: "password_reset",
+            title: "Password Reset Request",
+            body: `Your VORA password reset code is ${code}. Token: ${token}. Expires ${expiresAt}.`,
+            href: `/auth/reset-password?token=${encodeURIComponent(token)}`,
+            channels: channel === "sms" ? ["in_app"] : ["email", "in_app"],
+          }),
+          { recipientEmail: channel === "email" ? account.email : undefined }
+        );
+
+        return NextResponse.json({
+          ok: true,
+          action: "forgotPassword",
+          channel,
+          token,
+          expiresAt,
+        });
+      }
+
+      case "resetPassword": {
+        if (!body.token || !body.code || !body.newPassword) {
+          return NextResponse.json(
+            { error: "token, code, and newPassword are required" },
+            { status: 400 }
+          );
+        }
+        const resetRequest = getPasswordResetRequest(body.token);
+        if (!resetRequest || resetRequest.used || resetRequest.accountId !== auth.user.id) {
+          return NextResponse.json({ error: "Invalid or expired reset token" }, { status: 400 });
+        }
+        if (new Date(resetRequest.expiresAt).getTime() < Date.now()) {
+          return NextResponse.json({ error: "Reset token has expired" }, { status: 400 });
+        }
+        if (!(await verifyOtp(body.code, resetRequest.codeHash))) {
+          return NextResponse.json({ error: "Invalid recovery code" }, { status: 400 });
+        }
+        const result = await resetAccountPassword(auth.user.id, body.newPassword);
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: 400 });
+        }
+        markPasswordResetUsed(body.token);
+        return NextResponse.json({ ok: true, action: "resetPassword" });
+      }
+
+      default:
+        return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    }
+  } catch {
+    return NextResponse.json({ error: "Profile security action failed" }, { status: 500 });
+  }
+}

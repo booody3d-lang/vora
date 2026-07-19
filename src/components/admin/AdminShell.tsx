@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAdminAuth } from "@/components/admin/AdminAuthGate";
+import { VoraLogo } from "@/components/brand/VoraLogo";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { useTranslations } from "@/i18n/use-translations";
 import { getUrgentDisputeCount } from "@/lib/admin/mock-data";
@@ -12,6 +13,8 @@ const NAV_KEYS = [
   { href: "/admin", labelKey: "admin.nav.commandCenter", icon: "⬡" },
   { href: "/admin/finance", labelKey: "admin.nav.financialSuite", icon: "◈" },
   { href: "/admin/users", labelKey: "admin.nav.userManagement", icon: "◎" },
+  { href: "/admin/subscriptions", labelKey: "admin.nav.subscriptions", icon: "★" },
+  { href: "/admin/companies", labelKey: "admin.nav.companyOversight", icon: "🏢" },
   { href: "/admin/verification", labelKey: "admin.nav.verificationDesk", icon: "✓" },
   { href: "/admin/moderation", labelKey: "admin.nav.moderation", icon: "⚑" },
   { href: "/admin/disputes", labelKey: "admin.nav.disputeHub", icon: "⚠", badge: true },
@@ -28,13 +31,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[#0B1120]">
-      <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-red-900/20 bg-[#0F172A]">
+      <aside className="fixed inset-y-0 start-0 z-40 flex w-64 flex-col border-e border-red-900/20 bg-[#0F172A]">
         <div className="border-b border-slate-800 p-5">
-          <Link href="/admin" className="block">
-            <span className="text-lg font-bold text-white">VORA</span>
-            <span className="ml-1 text-lg font-bold text-red-500">{t("admin.ownerBrand")}</span>
-          </Link>
-          <p className="mt-0.5 text-[10px] uppercase tracking-widest text-slate-500">
+          <VoraLogo
+            size="md"
+            href="/admin"
+            linkClassName="block transition-opacity hover:opacity-90"
+          />
+          <p className="mt-2 text-[10px] uppercase tracking-widest text-slate-500">
             {t("admin.superAdminSuite")}
           </p>
         </div>
@@ -92,7 +96,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="ml-64 flex-1">
+      <div className="ps-64 flex-1">
         <header className="sticky top-0 z-30 border-b border-slate-800 bg-[#0B1120]/95 backdrop-blur">
           <div className="flex items-center justify-between px-8 py-3">
             <div className="flex items-center gap-2">

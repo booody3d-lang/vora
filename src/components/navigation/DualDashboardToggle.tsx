@@ -1,13 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePlatform } from "@/providers/VoraProviders";
+import { useRouter } from "next/navigation";
+import { usePlatform } from "@/providers/PlatformProvider";
 import { useTranslations } from "@/i18n/use-translations";
 import { cn } from "@/lib/utils";
 
 export function DualDashboardToggle({ className }: { className?: string }) {
   const { platform, setPlatform } = usePlatform();
+  const router = useRouter();
   const { t } = useTranslations();
+
+  function switchPlatform(next: "network" | "freelance") {
+    setPlatform(next);
+    router.push(next === "network" ? "/network" : "/freelance");
+  }
 
   return (
     <div
@@ -22,7 +29,7 @@ export function DualDashboardToggle({ className }: { className?: string }) {
         type="button"
         role="tab"
         aria-selected={platform === "network"}
-        onClick={() => setPlatform("network")}
+        onClick={() => switchPlatform("network")}
         className={cn(
           "rounded-full px-4 py-2 text-sm font-semibold transition-all",
           platform === "network"
@@ -36,7 +43,7 @@ export function DualDashboardToggle({ className }: { className?: string }) {
         type="button"
         role="tab"
         aria-selected={platform === "freelance"}
-        onClick={() => setPlatform("freelance")}
+        onClick={() => switchPlatform("freelance")}
         className={cn(
           "rounded-full px-4 py-2 text-sm font-semibold transition-all",
           platform === "freelance"
@@ -54,16 +61,19 @@ interface CrossPlatformLinkProps {
   type: "visit-store" | "professional-profile";
   href: string;
   className?: string;
+  label?: string;
+  "data-testid"?: string;
 }
 
-export function CrossPlatformLink({ type, href, className }: CrossPlatformLinkProps) {
+export function CrossPlatformLink({ type, href, className, label, "data-testid": testId }: CrossPlatformLinkProps) {
   const { t } = useTranslations();
-  const label =
+  const defaultLabel =
     type === "visit-store" ? t("common.visitStore") : t("common.professionalProfile");
 
   return (
     <Link
       href={href}
+      data-testid={testId}
       className={cn(
         "inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors",
         type === "visit-store"
@@ -72,7 +82,7 @@ export function CrossPlatformLink({ type, href, className }: CrossPlatformLinkPr
         className
       )}
     >
-      {label}
+      {label ?? defaultLabel}
       <span aria-hidden="true">→</span>
     </Link>
   );

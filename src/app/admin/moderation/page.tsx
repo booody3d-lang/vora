@@ -36,7 +36,7 @@ export default function AdminModerationPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">{t("admin.moderation.title")}</h1>
-        <p className="text-sm text-slate-400">Content guardrails · Corporate audit · Reported listings</p>
+        <p className="text-sm text-slate-400">{t("admin.moderation.subtitle")}</p>
       </div>
 
       <div className="flex gap-1 rounded-xl bg-slate-900 p-1">
@@ -62,17 +62,19 @@ export default function AdminModerationPage() {
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-white">{store.storeName}</h3>
                   {store.isHidden && (
-                    <span className="rounded bg-slate-700 px-2 py-0.5 text-[10px] text-slate-400">Hidden</span>
+                    <span className="rounded bg-slate-700 px-2 py-0.5 text-[10px] text-slate-400">{t("admin.moderation.hidden")}</span>
                   )}
                   {store.reportCount > 0 && (
                     <span className="rounded bg-red-500/20 px-2 py-0.5 text-[10px] text-red-400">
-                      {store.reportCount} reports
+                      {t("admin.moderation.reports").replace("{count}", String(store.reportCount))}
                     </span>
                   )}
                 </div>
                 <p className="text-sm text-slate-400">{store.ownerName} · {store.servicesCount} services · ★ {store.rating}</p>
                 {store.lastReportReason && (
-                  <p className="mt-1 text-xs text-red-400/80">Report: {store.lastReportReason}</p>
+                  <p className="mt-1 text-xs text-red-400/80">
+                    {t("admin.moderation.reportLabel").replace("{reason}", store.lastReportReason ?? "")}
+                  </p>
                 )}
               </div>
               <div className="flex gap-2">
@@ -81,10 +83,10 @@ export default function AdminModerationPage() {
                   onClick={() => toggleStoreHidden(store.id)}
                   className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-300"
                 >
-                  {store.isHidden ? "Unhide" : "Hide"}
+                  {store.isHidden ? t("admin.moderation.unhide") : t("admin.moderation.hide")}
                 </button>
                 <button type="button" className="rounded-lg bg-red-600/80 px-3 py-1.5 text-xs text-white">
-                  Delete
+                  {t("admin.moderation.delete")}
                 </button>
               </div>
             </div>
@@ -97,11 +99,11 @@ export default function AdminModerationPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-700 text-left text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-5 py-3">Service</th>
-                <th className="px-5 py-3">Store</th>
-                <th className="px-5 py-3">Price</th>
-                <th className="px-5 py-3">Reports</th>
-                <th className="px-5 py-3">Actions</th>
+                <th className="px-5 py-3">{t("admin.moderation.colService")}</th>
+                <th className="px-5 py-3">{t("admin.moderation.colStore")}</th>
+                <th className="px-5 py-3">{t("admin.moderation.colPrice")}</th>
+                <th className="px-5 py-3">{t("admin.moderation.colReports")}</th>
+                <th className="px-5 py-3">{t("admin.users.colActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -124,10 +126,10 @@ export default function AdminModerationPage() {
                         onClick={() => toggleServiceHidden(svc.id)}
                         className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300"
                       >
-                        {svc.isHidden ? "Unhide" : "Hide"}
+                        {svc.isHidden ? t("admin.moderation.unhide") : t("admin.moderation.hide")}
                       </button>
                       <button type="button" className="rounded-lg bg-red-600/80 px-2 py-1 text-xs text-white">
-                        Delete
+                        {t("admin.moderation.delete")}
                       </button>
                     </div>
                   </td>
@@ -146,21 +148,25 @@ export default function AdminModerationPage() {
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-white">{co.name}</h3>
                   {!co.licenseVerified && (
-                    <span className="rounded bg-red-500/20 px-2 py-0.5 text-[10px] text-red-400">License Unverified</span>
+                    <span className="rounded bg-red-500/20 px-2 py-0.5 text-[10px] text-red-400">
+                      {t("admin.moderation.licenseUnverified")}
+                    </span>
                   )}
                   {co.reportCount > 0 && (
                     <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">{co.reportCount} reports</span>
                   )}
                 </div>
                 <p className="text-sm text-slate-400">
-                  {co.activeJobs} active jobs · Subscription: {co.subscriptionStatus}
+                  {t("admin.moderation.activeJobsSub")
+                    .replace("{count}", String(co.activeJobs))
+                    .replace("{status}", co.subscriptionStatus)}
                 </p>
               </div>
               <Link
                 href={`/network/company/${co.slug}`}
                 className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
               >
-                Audit Page
+                {t("admin.moderation.auditPage")}
               </Link>
             </div>
           ))}

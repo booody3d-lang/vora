@@ -1,10 +1,15 @@
+"use client";
+
 import type { EducationItem } from "@/types/network";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface EducationSectionProps {
   items: EducationItem[];
 }
 
 export function EducationSection({ items }: EducationSectionProps) {
+  const { t } = useLocale();
+
   return (
     <div className="space-y-4">
       {items.map((edu) => (
@@ -19,11 +24,13 @@ export function EducationSection({ items }: EducationSectionProps) {
               {edu.fieldOfStudy && `, ${edu.fieldOfStudy}`}
             </p>
             {edu.endDate && (
-              <p className="text-xs text-slate-400">Graduated {edu.endDate}</p>
+              <p className="text-xs text-slate-400">
+                {t("profile.sections.graduated")} {edu.endDate}
+              </p>
             )}
             {edu.isVerified && (
               <span className="mt-1 inline-block text-[10px] font-semibold text-emerald-600">
-                ✓ Verified
+                ✓ {t("profile.sections.verified")}
               </span>
             )}
           </div>

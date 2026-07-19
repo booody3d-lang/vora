@@ -180,3 +180,25 @@ export interface IndustryHiring {
   jobCount: number;
   applications: number;
 }
+
+export interface AdminJobPosting {
+  id: string;
+  title: string;
+  companyName: string;
+  companySlug: string;
+  location: string;
+  status: "active" | "paused" | "expired";
+  applicationCount: number;
+  postedAt: string;
+  requireVideoPitch: boolean;
+}
+
+export interface AdminTransaction {
+  id: string;
+  type: "subscription" | "commission" | "escrow_release" | "withdrawal" | "refund";
+  reference: string;
+  party: string;
+  amount: number;
+  status: "completed" | "pending" | "failed" | "processing";
+  createdAt: string;
+}

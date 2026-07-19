@@ -48,7 +48,11 @@ export function ServiceCard({ service, size = "default" }: ServiceCardProps) {
           <div className="mt-3 flex items-center justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-wider text-slate-400">{t("marketplace.startingAt")}</p>
-              <p className="text-lg font-bold text-[#EA580C]">SAR {service.price}</p>
+              <p className="text-lg font-bold text-[#EA580C]">
+                {service.price != null && service.price > 0
+                  ? `SAR ${service.price}`
+                  : t("marketplace.contactForPrice")}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-sm font-medium text-amber-500">★ {service.rating.toFixed(1)}</p>

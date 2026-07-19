@@ -1,4 +1,5 @@
 import { SITE_URL } from "@/i18n/config";
+import { VORA_LOGO } from "@/lib/brand/logo";
 
 export function jobPostingJsonLd(job: {
   title: string;
@@ -29,24 +30,30 @@ export function jobPostingJsonLd(job: {
 export function serviceJsonLd(service: {
   title: string;
   slug: string;
-  price: number;
+  price?: number | null;
   shortDescription: string;
   storeName: string;
   rating?: number;
 }) {
+  const hasPrice = service.price != null && service.price > 0;
+
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: service.title,
     description: service.shortDescription,
     brand: { "@type": "Brand", name: service.storeName },
-    offers: {
-      "@type": "Offer",
-      price: service.price,
-      priceCurrency: "SAR",
-      availability: "https://schema.org/InStock",
-      url: `${SITE_URL}/freelance/services/${service.slug}`,
-    },
+    ...(hasPrice
+      ? {
+          offers: {
+            "@type": "Offer",
+            price: service.price,
+            priceCurrency: "SAR",
+            availability: "https://schema.org/InStock",
+            url: `${SITE_URL}/freelance/services/${service.slug}`,
+          },
+        }
+      : {}),
     ...(service.rating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: service.rating, reviewCount: 10 } } : {}),
   };
 }
@@ -57,7 +64,7 @@ export function organizationJsonLd() {
     "@type": "Organization",
     name: "VORA",
     url: SITE_URL,
-    logo: `${SITE_URL}/brand/vora-logo.svg`,
+    logo: `${SITE_URL}${VORA_LOGO.src}`,
     sameAs: [],
     description: "Professional Network & Freelance Marketplace in Saudi Arabia",
   };

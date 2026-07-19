@@ -1,71 +1,81 @@
 "use client";
 
 import { useRef, useState } from "react";
-
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-const ALLOWED_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
+import type { MessageAttachment } from "@/types/network";
+import { MESSAGE_FILE_MIME_TYPES } from "@/lib/media/constants";
+import { inferMediaType, uploadMediaFile } from "@/lib/media/upload-client";
+import { useTranslations } from "@/i18n/use-translations";
 
 interface MessageInputProps {
-  onSend: (content: string, file?: { url: string; name: string; size: number }) => void;
+  onSend: (content: string, file?: MessageAttachment) => void | Promise<boolean | void>;
+  disabled?: boolean;
 }
 
-export function MessageInput({ onSend }: MessageInputProps) {
+export function MessageInput({ onSend, disabled = false }: MessageInputProps) {
+  const { t } = useTranslations();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function handleSend() {
-    if (!text.trim()) return;
-    onSend(text.trim());
+  async function handleSend() {
+    if (!text.trim() || disabled || uploading) return;
+    await onSend(text.trim());
     setText("");
     setError(null);
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || disabled) return;
 
-    if (file.size > MAX_FILE_SIZE) {
-      setError("File must be under 25MB");
-      return;
-    }
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      setError("Supported: Images, PDF, and Word documents");
+    if (!MESSAGE_FILE_MIME_TYPES.includes(file.type as (typeof MESSAGE_FILE_MIME_TYPES)[number])) {
+      setError(t("network.messagingUnsupportedFile"));
       return;
     }
 
-    const url = URL.createObjectURL(file);
-    onSend("", { url, name: file.name, size: file.size });
+    setUploading(true);
     setError(null);
-    if (fileRef.current) fileRef.current.value = "";
+
+    try {
+      const uploaded = await uploadMediaFile(file, "message-attachment");
+      const attachment: MessageAttachment = {
+        url: uploaded.url,
+        name: file.name,
+        size: file.size,
+        mimeType: uploaded.mimeType,
+        mediaType: inferMediaType(uploaded.mimeType, file.name),
+        durationSeconds: uploaded.durationSeconds,
+      };
+      await onSend(text.trim(), attachment);
+      setText("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("profileEdit.uploadFailed"));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   return (
-    <div className="border-t border-slate-100 p-3">
+    <div className="border-t border-slate-100 bg-white p-3">
       {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
       <div className="flex items-end gap-2">
         <input
           ref={fileRef}
           type="file"
-          accept={ALLOWED_TYPES.join(",")}
+          accept={MESSAGE_FILE_MIME_TYPES.join(",")}
           className="hidden"
-          onChange={handleFileChange}
+          onChange={(e) => void handleFileChange(e)}
         />
         <button
           type="button"
+          disabled={disabled || uploading}
           onClick={() => fileRef.current?.click()}
-          className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#3B5998]"
-          title="Attach file (max 25MB)"
+          className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#3B5998] disabled:opacity-40"
+          title={t("network.messagingAttachTitle")}
         >
-          📎
+          {uploading ? "⏳" : "📎"}
         </button>
         <textarea
           value={text}
@@ -73,20 +83,22 @@ export function MessageInput({ onSend }: MessageInputProps) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              handleSend();
+              void handleSend();
             }
           }}
-          placeholder="Write a message..."
+          placeholder={t("network.messagingInputPlaceholder")}
+          dir="auto"
           rows={1}
-          className="max-h-24 flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#3B5998]"
+          disabled={disabled || uploading}
+          className="max-h-24 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#3B5998] disabled:opacity-50"
         />
         <button
           type="button"
-          onClick={handleSend}
-          disabled={!text.trim()}
+          onClick={() => void handleSend()}
+          disabled={!text.trim() || disabled || uploading}
           className="shrink-0 rounded-xl bg-[#3B5998] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
-          Send
+          {uploading ? t("profileEdit.uploading") : t("network.messagingSend")}
         </button>
       </div>
     </div>

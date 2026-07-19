@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getStripe, getPlanStripePriceId, STRIPE_CONFIG } from "@/lib/billing/stripe";
+import { getServerStripe, getPlanStripePriceId, STRIPE_SERVER_CONFIG } from "@/lib/billing/stripe-server";
 import type { SubscriptionPlan } from "@/types/billing";
 
 export async function POST(request: Request) {
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       cancelUrl?: string;
     };
 
-    const stripe = getStripe();
+    const stripe = getServerStripe();
     if (!stripe) {
       return NextResponse.json(
         { error: "Stripe not configured. Set STRIPE_SECRET_KEY in environment." },
@@ -28,9 +28,9 @@ export async function POST(request: Request) {
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      payment_method_types: STRIPE_CONFIG.paymentMethodTypes,
+      payment_method_types: STRIPE_SERVER_CONFIG.paymentMethodTypes,
       line_items: [{ price: priceId, quantity: 1 }],
-      currency: STRIPE_CONFIG.currency,
+      currency: STRIPE_SERVER_CONFIG.currency,
       success_url: body.successUrl ?? `${origin}/billing/plans?success=true`,
       cancel_url: body.cancelUrl ?? `${origin}/billing/plans?cancelled=true`,
       metadata: {

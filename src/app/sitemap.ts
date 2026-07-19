@@ -12,7 +12,7 @@ function localizedUrl(path: string, locale: (typeof LOCALES)[number]) {
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
-  const staticPages = ["", "/freelance", "/network", "/network/jobs", "/freelance/search", "/auth/login", "/auth/signup"];
+  const staticPages = ["", "/freelance", "/network", "/network/jobs", "/freelance/search", "/auth/login", "/auth/signup", "/about", "/contact", "/terms", "/privacy"];
 
   const entries: MetadataRoute.Sitemap = [];
 

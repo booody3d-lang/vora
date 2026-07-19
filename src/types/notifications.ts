@@ -31,6 +31,7 @@ export type NotificationTrigger =
   // Owner / Security
   | "failed_login"
   | "rate_limit_violation"
+  | "password_reset"
   | "abuse_report"
   | "ban_appeal"
   | "support_ticket";
@@ -131,6 +132,7 @@ export const TRIGGER_CATEGORY: Record<NotificationTrigger, NotificationCategory>
   withdrawal_request: "financial",
   failed_login: "security",
   rate_limit_violation: "security",
+  password_reset: "security",
   abuse_report: "moderation",
   ban_appeal: "moderation",
   support_ticket: "moderation",

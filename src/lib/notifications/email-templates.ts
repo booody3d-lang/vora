@@ -1,3 +1,6 @@
+import { SITE_URL } from "@/i18n/config";
+import { VORA_LOGO } from "@/lib/brand/logo";
+
 export function buildEmailHtml(params: {
   title: string;
   body: string;
@@ -6,6 +9,7 @@ export function buildEmailHtml(params: {
   amountSar?: number;
 }): string {
   const { title, body, ctaLabel, ctaUrl, amountSar } = params;
+  const logoUrl = `${SITE_URL}${VORA_LOGO.src}`;
 
   return `<!DOCTYPE html>
 <html>
@@ -13,9 +17,9 @@ export function buildEmailHtml(params: {
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
     <tr>
-      <td style="background:linear-gradient(135deg,#3B5998,#1E293B);padding:24px 32px">
-        <h1 style="margin:0;color:#fff;font-size:22px">VORA</h1>
-        <p style="margin:4px 0 0;color:#93C5FD;font-size:12px">Professional Network & Freelance Marketplace</p>
+      <td style="background:#0F172A;padding:24px 32px;text-align:center">
+        <img src="${logoUrl}" alt="VORA" width="180" height="69" style="display:inline-block;height:56px;width:auto;max-width:100%" />
+        <p style="margin:12px 0 0;color:#93C5FD;font-size:12px">Professional Network & Freelance Marketplace</p>
       </td>
     </tr>
     <tr>

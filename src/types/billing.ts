@@ -45,6 +45,7 @@ export interface WalletTransaction {
   amount: number;
   currency: string;
   description: string;
+  descriptionAr?: string;
   createdAt: string;
 }
 
@@ -60,6 +61,7 @@ export interface WithdrawalRequest {
 
 export interface InvoiceLineItem {
   description: string;
+  descriptionAr?: string;
   quantity: number;
   unitPrice: number;
   total: number;

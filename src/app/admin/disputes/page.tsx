@@ -14,12 +14,12 @@ export default function AdminDisputesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">{t("admin.disputes.title")}</h1>
-        <p className="text-sm text-slate-400">Central queue for buyer/seller order disputes · Funds frozen in escrow</p>
+        <p className="text-sm text-slate-400">{t("admin.disputes.subtitle")}</p>
       </div>
 
       {urgent.length > 0 && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          ⚠ {urgent.length} urgent ticket{urgent.length > 1 ? "s" : ""} requiring immediate resolution
+          {t("admin.disputes.urgentBanner").replace("{count}", String(urgent.length))}
         </div>
       )}
 
@@ -45,7 +45,8 @@ export default function AdminDisputesPage() {
               <div className="text-right">
                 <p className="text-lg font-bold text-amber-400">{formatSar(ticket.amount)}</p>
                 <p className="text-xs text-slate-500">
-                  Opened {new Date(ticket.openedAt).toLocaleDateString("en-SA")}
+                  {t("admin.disputes.opened")}{" "}
+                  {new Date(ticket.openedAt).toLocaleDateString()}
                 </p>
               </div>
             </div>

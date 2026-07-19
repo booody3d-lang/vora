@@ -1,4 +1,6 @@
 import type {
+  AdminJobPosting,
+  AdminTransaction,
   AdminUserRecord,
   AnalyticsTimeSeries,
   AuditLogEntry,
@@ -193,3 +195,18 @@ export function getDisputeById(id: string): DisputeTicket | undefined {
 export function getUrgentDisputeCount(): number {
   return ADMIN_DISPUTES.filter((d) => d.status === "urgent").length;
 }
+
+export const ADMIN_JOB_POSTINGS: AdminJobPosting[] = [
+  { id: "job-1", title: "Senior Product Designer", companyName: "TechCorp Global", companySlug: "techcorp-global", location: "Riyadh · Hybrid", status: "active", applicationCount: 42, postedAt: "2026-07-10T08:00:00Z", requireVideoPitch: true },
+  { id: "job-2", title: "Full Stack Engineer", companyName: "TechCorp Global", companySlug: "techcorp-global", location: "Remote · KSA", status: "active", applicationCount: 67, postedAt: "2026-07-08T12:00:00Z", requireVideoPitch: false },
+  { id: "job-3", title: "Marketing Lead", companyName: "Gulf Ventures LLC", companySlug: "gulf-ventures", location: "Jeddah", status: "active", applicationCount: 18, postedAt: "2026-07-12T09:00:00Z", requireVideoPitch: false },
+  { id: "job-4", title: "Unverified Role Post", companyName: "Unknown Startup Co", companySlug: "unknown-startup", location: "Dubai", status: "paused", applicationCount: 5, postedAt: "2026-06-20T14:00:00Z", requireVideoPitch: true },
+];
+
+export const ADMIN_RECENT_TRANSACTIONS: AdminTransaction[] = [
+  { id: "tx-1", type: "subscription", reference: "SUB-2026-8841", party: "TechCorp Global", amount: 600, status: "completed", createdAt: "2026-07-17T10:30:00Z" },
+  { id: "tx-2", type: "commission", reference: "ORD-2026-9102", party: "Alex Morgan (Seller)", amount: 89.9, status: "completed", createdAt: "2026-07-17T09:15:00Z" },
+  { id: "tx-3", type: "escrow_release", reference: "ORD-2026-9088", party: "Sarah Chen (Buyer → Seller)", amount: 450, status: "processing", createdAt: "2026-07-17T08:00:00Z" },
+  { id: "tx-4", type: "withdrawal", reference: "WD-2026-441", party: "Mohammed Al-Rashid", amount: 1200, status: "pending", createdAt: "2026-07-16T16:45:00Z" },
+  { id: "tx-5", type: "refund", reference: "DISP-2026-102", party: "Fatima Al-Qahtani", amount: 899, status: "completed", createdAt: "2026-07-16T11:20:00Z" },
+];

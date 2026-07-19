@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/security/session";
 import { getSessionsForAccount, revokeAllSessions, revokeSession } from "@/lib/security/demo-store";
+import {
+  revokeAllPersistedSessions,
+  revokePersistedSession,
+} from "@/lib/security/auth-store";
 
 export async function GET() {
   const session = await getServerSession();
@@ -24,11 +28,13 @@ export async function DELETE(request: Request) {
 
   if (body.all) {
     const count = revokeAllSessions(session.sub, session.sessionId);
+    revokeAllPersistedSessions(session.sub, session.sessionId);
     return NextResponse.json({ revoked: count });
   }
 
   if (body.sessionId) {
     revokeSession(body.sessionId);
+    revokePersistedSession(body.sessionId);
     return NextResponse.json({ revoked: 1 });
   }
 

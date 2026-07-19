@@ -9,17 +9,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { PlatformContext } from "@/types/vora";
+import { PlatformProvider } from "@/providers/PlatformProvider";
 import { resolveUserPermissions } from "@/lib/permissions/access-control";
 import type { UserPermissions } from "@/types/vora";
 import type { AuthUser, VoraRole } from "@/types/security";
 import { roleToTier } from "@/lib/permissions/rbac-bridge";
-
-interface PlatformContextValue {
-  platform: PlatformContext;
-  setPlatform: (platform: PlatformContext) => void;
-  togglePlatform: () => void;
-}
 
 interface PermissionsContextValue {
   permissions: UserPermissions;
@@ -36,7 +30,6 @@ interface PermissionsContextValue {
   refreshSession: () => Promise<void>;
 }
 
-const PlatformCtx = createContext<PlatformContextValue | null>(null);
 const PermissionsCtx = createContext<PermissionsContextValue | null>(null);
 
 const visitorDefaults = resolveUserPermissions({
@@ -47,8 +40,7 @@ const visitorDefaults = resolveUserPermissions({
   hasProfessionalProfile: false,
 });
 
-export function VoraProviders({ children }: { children: ReactNode }) {
-  const [platform, setPlatform] = useState<PlatformContext>("network");
+function PermissionsProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<UserPermissions>(visitorDefaults);
   const [role, setRole] = useState<VoraRole>("visitor");
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -92,10 +84,6 @@ export function VoraProviders({ children }: { children: ReactNode }) {
     refreshSession();
   }, [refreshSession]);
 
-  const togglePlatform = useCallback(() => {
-    setPlatform((current) => (current === "network" ? "freelance" : "network"));
-  }, []);
-
   const setAuthenticatedUser = useCallback(
     (input: {
       tier: "basic" | "professional";
@@ -122,28 +110,23 @@ export function VoraProviders({ children }: { children: ReactNode }) {
     setPermissions(visitorDefaults);
   }, []);
 
-  const platformValue = useMemo(
-    () => ({ platform, setPlatform, togglePlatform }),
-    [platform, togglePlatform]
-  );
-
   const permissionsValue = useMemo(
     () => ({ permissions, role, user, isLoading, setAuthenticatedUser, setVisitor, refreshSession }),
     [permissions, role, user, isLoading, setAuthenticatedUser, setVisitor, refreshSession]
   );
 
+  return <PermissionsCtx.Provider value={permissionsValue}>{children}</PermissionsCtx.Provider>;
+}
+
+export function VoraProviders({ children }: { children: ReactNode }) {
   return (
-    <PlatformCtx.Provider value={platformValue}>
-      <PermissionsCtx.Provider value={permissionsValue}>{children}</PermissionsCtx.Provider>
-    </PlatformCtx.Provider>
+    <PlatformProvider>
+      <PermissionsProvider>{children}</PermissionsProvider>
+    </PlatformProvider>
   );
 }
 
-export function usePlatform() {
-  const context = useContext(PlatformCtx);
-  if (!context) throw new Error("usePlatform must be used within VoraProviders");
-  return context;
-}
+export { usePlatform } from "@/providers/PlatformProvider";
 
 export function usePermissions() {
   const context = useContext(PermissionsCtx);

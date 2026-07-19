@@ -71,6 +71,8 @@ export interface AbuseSignalRecord {
   createdAt: string;
 }
 
+import type { UserGender } from "@/types/profile";
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -83,6 +85,9 @@ export interface AuthUser {
   professionalUnlocked: boolean;
   hasFreelancerStore: boolean;
   hasProfessionalProfile: boolean;
+  gender?: UserGender;
+  profileSlug?: string;
+  storeSlug?: string;
 }
 
 export const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { DEMO_JOBS } from "@/lib/network/mock-data";
+import { getPublicJobBySlug } from "@/lib/jobs/listings";
 import { buildJobMetadata } from "@/lib/seo/metadata";
 import { jobPostingJsonLd } from "@/lib/seo/json-ld";
 import { JobApplyButton } from "@/components/professional/JobApplyButton";
@@ -12,19 +12,19 @@ interface JobPageProps {
 
 export async function generateMetadata({ params }: JobPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const job = DEMO_JOBS.find((j) => j.slug === slug);
+  const job = getPublicJobBySlug(slug);
   if (!job) return {};
   return buildJobMetadata(job);
 }
 
 export default async function JobDetailPage({ params }: JobPageProps) {
   const { slug } = await params;
-  const job = DEMO_JOBS.find((j) => j.slug === slug);
+  const job = getPublicJobBySlug(slug);
   if (!job) notFound();
 
   const jsonLd = jobPostingJsonLd({
     ...job,
-    description: `Join ${job.company} as ${job.title}. ${job.location} · ${job.employmentType}`,
+    description: job.description || `Join ${job.company} as ${job.title}. ${job.location} · ${job.employmentType}`,
   });
 
   return (
@@ -40,10 +40,7 @@ export default async function JobDetailPage({ params }: JobPageProps) {
           {job.location} · {job.employmentType}
         </p>
         <div className="mt-6 prose prose-sm max-w-none text-slate-600">
-          <p>
-            {job.company} is hiring a {job.title}. This role requires a complete VORA Professional Profile
-            with a score of 70%+ and an uploaded resume.
-          </p>
+          <p>{job.description}</p>
         </div>
         <div className="mt-6">
           <JobApplyButton jobId={job.id} jobTitle={job.title} profile={{ resumeUrl: "/resume.pdf", headline: "Designer", skillCount: 5 }} />

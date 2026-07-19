@@ -1,14 +1,22 @@
-import { SellerDashboard } from "@/components/freelance/dashboard/SellerDashboard";
-import { ServiceOptimizationWizard } from "@/components/ai/freelance/ServiceOptimizationWizard";
-import { DEMO_SELLER_ANALYTICS, DEMO_STORE } from "@/lib/freelance/mock-data";
+import { redirect } from "next/navigation";
+import {
+  ensureFreelancerStoreForAccount,
+  getStoreSlugForAccount,
+} from "@/lib/profile/profile-store";
+import { getAuthenticatedUser } from "@/lib/security/session";
 
-export default function FreelanceDashboardPage() {
-  return (
-    <div className="space-y-6">
-      <SellerDashboard analytics={DEMO_SELLER_ANALYTICS} storeName={DEMO_STORE.storeName} />
-      <div className="mx-auto max-w-6xl px-4 pb-8 md:px-6">
-        <ServiceOptimizationWizard />
-      </div>
-    </div>
-  );
+export default async function FreelanceDashboardPage() {
+  const auth = await getAuthenticatedUser();
+  if (auth) {
+    let storeSlug = getStoreSlugForAccount(auth.user.id);
+    if (!storeSlug) {
+      const link = ensureFreelancerStoreForAccount(auth.user.id);
+      storeSlug = link?.storeSlug ?? null;
+    }
+    if (storeSlug) {
+      redirect(`/freelance/store/${storeSlug}/manage`);
+    }
+  }
+
+  redirect("/freelance/manage-store");
 }

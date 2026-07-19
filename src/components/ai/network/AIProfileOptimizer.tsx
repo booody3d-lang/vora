@@ -4,14 +4,14 @@ import { useState } from "react";
 import type { FullProfessionalProfile } from "@/types/network";
 import type { ProfileOptimizeResult } from "@/types/ai";
 import { AILoadingSpinner, AIPanelShell, AISourceBadge, useAI } from "@/components/ai/AIPanelShell";
-import { useLocale } from "@/providers/LocaleProvider";
+import { useTranslations } from "@/i18n/use-translations";
 
 interface AIProfileOptimizerProps {
   profile: FullProfessionalProfile;
 }
 
 export function AIProfileOptimizer({ profile }: AIProfileOptimizerProps) {
-  const { locale } = useLocale();
+  const { t, locale } = useTranslations();
   const { invoke, loading, error, source } = useAI<ProfileOptimizeResult>();
   const [result, setResult] = useState<ProfileOptimizeResult | null>(null);
 
@@ -27,13 +27,10 @@ export function AIProfileOptimizer({ profile }: AIProfileOptimizerProps) {
 
   return (
     <AIPanelShell
-      title="AI Profile Optimization"
-      titleAr="تحسين الملف بالذكاء الاصطناعي"
-      description="Real-time suggestions to boost your Professional Score"
-      descriptionAr="اقتراحات فورية لرفع درجة Professional Score"
-      locale={locale}
+      titleKey="ai.profileOptimizer.title"
+      descriptionKey="ai.profileOptimizer.description"
+      badgeKey="ai.ats.badge"
       isPremium={profile.isPremium}
-      badge="Network AI"
     >
       {profile.isPremium && (
         <>
@@ -43,7 +40,7 @@ export function AIProfileOptimizer({ profile }: AIProfileOptimizerProps) {
             disabled={loading}
             className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? "Analyzing..." : locale === "ar" ? "تحليل الملف" : "Analyze Profile"}
+            {loading ? t("ai.profileOptimizer.analyzing") : t("ai.profileOptimizer.analyzeButton")}
           </button>
           {loading && <AILoadingSpinner />}
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
@@ -51,9 +48,9 @@ export function AIProfileOptimizer({ profile }: AIProfileOptimizerProps) {
             <div className="mt-4 space-y-4">
               <AISourceBadge source={source} />
               <div className="flex gap-4">
-                <ScoreRing label="Current" score={result.scoreBefore} />
+                <ScoreRing label={t("ai.profileOptimizer.scoreCurrent")} score={result.scoreBefore} />
                 <span className="self-center text-2xl text-violet-400">→</span>
-                <ScoreRing label="Estimated" score={result.scoreAfterEstimate} highlight />
+                <ScoreRing label={t("ai.profileOptimizer.scoreEstimated")} score={result.scoreAfterEstimate} highlight />
               </div>
               <ul className="space-y-3">
                 {result.suggestions.map((s, i) => (

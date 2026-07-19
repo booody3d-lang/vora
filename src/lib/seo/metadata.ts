@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { Locale } from "@/i18n/config";
 import { SITE_URL } from "@/i18n/config";
+import { VORA_LOGO } from "@/lib/brand/logo";
 import { localizePath } from "@/i18n/routing";
 
 export interface SeoPageInput {
@@ -19,7 +20,7 @@ export function buildPageMetadata(input: SeoPageInput): Metadata {
   const locale = input.locale ?? "en";
   const canonicalPath = localizePath(input.path ?? "/", locale);
   const url = `${SITE_URL}${canonicalPath}`;
-  const image = input.image ?? `${SITE_URL}/brand/vora-logo.svg`;
+  const image = input.image ?? `${SITE_URL}${VORA_LOGO.src}`;
   const altLocale: Locale = locale === "ar" ? "en" : "ar";
 
   return {
@@ -60,14 +61,19 @@ export function buildServiceMetadata(service: {
   title: string;
   shortDescription: string;
   slug: string;
-  price: number;
+  price?: number | null;
   thumbnailUrl?: string;
   storeName?: string;
 }, locale: Locale = "en"): Metadata {
-  const title =
-    locale === "ar"
-      ? `${service.title} — ${service.price} ر.س | VORA Freelance`
-      : `${service.title} — SAR ${service.price} | VORA Freelance`;
+  const priceLabel =
+    service.price != null && service.price > 0
+      ? locale === "ar"
+        ? `${service.price} ر.س`
+        : `SAR ${service.price}`
+      : locale === "ar"
+        ? "تواصل للسعر"
+        : "Contact for price";
+  const title = `${service.title} — ${priceLabel} | VORA Freelance`;
   const description =
     locale === "ar"
       ? `${service.shortDescription} · ${service.storeName ?? "متجر VORA"} · شراء فوري مع Escrow`

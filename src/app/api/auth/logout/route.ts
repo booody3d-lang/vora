@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { COOKIE_NAME } from "@/lib/security/jwt";
 import { getServerSession } from "@/lib/security/session";
 import { revokeAllSessions, revokeSession } from "@/lib/security/demo-store";
+import {
+  revokeAllPersistedSessions,
+  revokePersistedSession,
+} from "@/lib/security/auth-store";
 
 export async function POST(request: Request) {
   const session = await getServerSession();
@@ -10,8 +14,10 @@ export async function POST(request: Request) {
   if (session) {
     if (body.allDevices) {
       revokeAllSessions(session.sub, session.sessionId);
+      revokeAllPersistedSessions(session.sub, session.sessionId);
     } else {
       revokeSession(session.sessionId);
+      revokePersistedSession(session.sessionId);
     }
   }
 

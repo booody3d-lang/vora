@@ -22,6 +22,8 @@ import {
   toPublicUser,
 } from "@/lib/security/demo-store";
 import { hashPassword } from "@/lib/security/password";
+import { resolveEffectiveRole } from "@/lib/security/roles";
+import { persistSession } from "@/lib/security/auth-store";
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
@@ -67,15 +69,25 @@ export async function POST(request: Request) {
     }
 
     const ua = request.headers.get("user-agent") ?? "unknown";
-    const { sessionId } = createSession(account.id, { userAgent: ua, ip });
+    const effectiveRole = resolveEffectiveRole(account);
+    const { sessionId, session } = createSession(account.id, { userAgent: ua, ip });
+    persistSession({
+      sessionId,
+      accountId: account.id,
+      userAgent: ua,
+      ip,
+      deviceLabel: session.deviceLabel,
+      createdAt: session.createdAt,
+      lastActiveAt: session.lastActiveAt,
+    });
     const token = await signSessionToken({
       sub: account.id,
       email: account.email,
-      role: account.role,
+      role: effectiveRole,
       sessionId,
     });
 
-    const response = NextResponse.json({ user: toPublicUser(account) });
+    const response = NextResponse.json({ user: { ...toPublicUser(account), role: effectiveRole } });
     response.cookies.set(COOKIE_NAME, token, sessionCookieOptions());
     return response;
   } catch {

@@ -1,4 +1,4 @@
-import { NetworkNav } from "@/components/network/layout/NetworkNav";
+import { NetworkLayoutShell } from "@/components/network/layout/NetworkLayoutShell";
 
 export default function NetworkLayout({
   children,
@@ -7,8 +7,7 @@ export default function NetworkLayout({
 }) {
   return (
     <div className="min-h-screen bg-[#F8FAFC]" data-platform="network">
-      <NetworkNav />
-      {children}
+      <NetworkLayoutShell>{children}</NetworkLayoutShell>
     </div>
   );
 }

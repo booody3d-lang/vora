@@ -32,9 +32,9 @@ Copy `.env.local.example` to `.env.local` and fill in your Supabase credentials.
 
 Run the migration in `supabase/migrations/001_initial_schema.sql` via the Supabase SQL Editor or CLI.
 
-### 4. Replace official logo
+### 4. Official logo
 
-Place the official VORA logo at `public/brand/vora-logo.svg` (do not redesign).
+The official VORA wordmark lives at `public/brand/vora-logo.png` (329×126). All UI branding is rendered via `VoraLogo` — do not redesign or replace with unofficial assets.
 
 ### 5. Run development server
 

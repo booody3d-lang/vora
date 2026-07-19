@@ -3,10 +3,10 @@
 import { useState } from "react";
 import type { ATSScanResult } from "@/types/ai";
 import { AILoadingSpinner, AIPanelShell, AISourceBadge, useAI } from "@/components/ai/AIPanelShell";
-import { useLocale } from "@/providers/LocaleProvider";
+import { useTranslations } from "@/i18n/use-translations";
 
 export function ATSScanner({ isPremium }: { isPremium: boolean }) {
-  const { locale } = useLocale();
+  const { t, locale } = useTranslations();
   const { invoke, loading, error, source } = useAI<ATSScanResult>();
   const [result, setResult] = useState<ATSScanResult | null>(null);
   const [resumeText, setResumeText] = useState("");
@@ -26,23 +26,20 @@ export function ATSScanner({ isPremium }: { isPremium: boolean }) {
 
   return (
     <AIPanelShell
-      title="ATS Compatibility Scanner"
-      titleAr="فحص توافق ATS"
-      description="Upload resume + target job for precise 0–100% match score"
-      descriptionAr="ارفع السيرة + الوظيفة المستهدفة للحصول على نسبة تطابق دقيقة"
-      locale={locale}
+      titleKey="ai.ats.title"
+      descriptionKey="ai.ats.description"
+      badgeKey="ai.ats.badge"
       isPremium={isPremium}
-      badge="Network AI"
     >
       {isPremium && (
         <>
           <div className="space-y-3">
-            <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder={locale === "ar" ? "عنوان الوظيفة" : "Target Job Title"} className="ai-input" />
-            <textarea value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} placeholder={locale === "ar" ? "وصف الوظيفة والمهارات" : "Job description & skills"} rows={3} className="ai-input" />
-            <textarea value={resumeText} onChange={(e) => setResumeText(e.target.value)} placeholder={locale === "ar" ? "نص السيرة الذاتية" : "Paste resume text"} rows={4} className="ai-input" />
+            <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder={t("ai.ats.jobTitle")} className="ai-input" />
+            <textarea value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} placeholder={t("ai.ats.jobDescription")} rows={3} className="ai-input" />
+            <textarea value={resumeText} onChange={(e) => setResumeText(e.target.value)} placeholder={t("ai.ats.resumeText")} rows={4} className="ai-input" />
           </div>
           <button type="button" onClick={scan} disabled={loading || !resumeText || !jobTitle} className="ai-btn mt-3">
-            {locale === "ar" ? "فحص ATS" : "Run ATS Scan"}
+            {t("ai.ats.runScan")}
           </button>
           {loading && <AILoadingSpinner />}
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
@@ -51,10 +48,10 @@ export function ATSScanner({ isPremium }: { isPremium: boolean }) {
               <AISourceBadge source={source} />
               <div className="text-center">
                 <p className="text-4xl font-bold text-[#3B5998]">{result.matchScore}%</p>
-                <p className="text-sm text-slate-500">{locale === "ar" ? "نسبة التطابق" : "Match Score"}</p>
+                <p className="text-sm text-slate-500">{t("ai.ats.matchScore")}</p>
               </div>
-              <TagList title={locale === "ar" ? "كلمات متطابقة" : "Matched"} items={result.matchedKeywords} color="emerald" />
-              <TagList title={locale === "ar" ? "فجوات" : "Gaps"} items={result.keywordGaps} color="red" />
+              <TagList title={t("ai.ats.matched")} items={result.matchedKeywords} color="emerald" />
+              <TagList title={t("ai.ats.gaps")} items={result.keywordGaps} color="red" />
               <ul className="text-sm text-slate-600">
                 {result.recommendations.map((r, i) => (
                   <li key={i}>• {r}</li>

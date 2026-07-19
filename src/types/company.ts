@@ -33,6 +33,17 @@ export interface CompanyProfile {
   followerCount: number;
   branches: CompanyBranch[];
   announcement?: string;
+  /** Populated for authenticated viewers only */
+  currentEmployees?: CompanyEmployee[];
+}
+
+export interface CompanyEmployee {
+  accountId: string;
+  profileSlug: string;
+  fullName: string;
+  headline: string;
+  currentRole: string;
+  profilePhotoUrl: string;
 }
 
 export interface CompanySubscription {

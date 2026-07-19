@@ -1,11 +1,7 @@
 import { StoreProfileView } from "@/components/freelance/store/StoreProfileView";
-import {
-  DEMO_PORTFOLIO,
-  DEMO_SERVICES,
-  DEMO_STORE,
-  DEMO_STORE_REVIEWS,
-} from "@/lib/freelance/mock-data";
+import { getAccountIdByStoreSlug, getStoreBySlug, getStoreServices, isStoreOwner } from "@/lib/profile/profile-store";
 import { buildStoreMetadata } from "@/lib/seo/metadata";
+import { getAuthenticatedUser } from "@/lib/security/session";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
@@ -15,25 +11,32 @@ interface StorePageProps {
 
 export async function generateMetadata({ params }: StorePageProps): Promise<Metadata> {
   const { slug } = await params;
-  if (slug !== DEMO_STORE.slug) return {};
-  return buildStoreMetadata(DEMO_STORE);
+  const store = getStoreBySlug(slug);
+  if (!store) return {};
+  return buildStoreMetadata(store);
 }
 
 export default async function FreelanceStorePage({ params }: StorePageProps) {
   const { slug } = await params;
+  const store = getStoreBySlug(slug);
 
-  if (slug !== DEMO_STORE.slug) {
+  if (!store) {
     notFound();
   }
 
-  const storeServices = DEMO_SERVICES.filter((s) => s.storeSlug === slug);
+  const storeServices = getStoreServices(slug);
+  const auth = await getAuthenticatedUser();
+  const isOwnStore = auth ? isStoreOwner(auth.user.id, slug) : false;
+  const storeOwnerAccountId = getAccountIdByStoreSlug(slug);
 
   return (
     <StoreProfileView
-      store={DEMO_STORE}
+      store={store}
       services={storeServices}
-      portfolio={DEMO_PORTFOLIO}
-      reviews={DEMO_STORE_REVIEWS}
+      portfolio={[]}
+      reviews={[]}
+      isOwnStore={isOwnStore}
+      storeOwnerAccountId={storeOwnerAccountId ?? undefined}
     />
   );
 }

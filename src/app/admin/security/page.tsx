@@ -10,7 +10,7 @@ export default function AdminSecurityPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-white">{t("admin.security.title")}</h1>
-        <p className="text-sm text-slate-400">Live security log · Immutable audit trail · Abuse signals</p>
+        <p className="text-sm text-slate-400">{t("admin.security.subtitle")}</p>
       </div>
 
       {/* Security log */}
@@ -22,11 +22,11 @@ export default function AdminSecurityPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-700 text-left text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-5 py-3">Type</th>
-                <th className="px-5 py-3">User</th>
-                <th className="px-5 py-3">IP / Location</th>
-                <th className="px-5 py-3">Details</th>
-                <th className="px-5 py-3">Severity</th>
+                <th className="px-5 py-3">{t("admin.security.type")}</th>
+                <th className="px-5 py-3">{t("admin.security.user")}</th>
+                <th className="px-5 py-3">{t("admin.security.ipLocation")}</th>
+                <th className="px-5 py-3">{t("admin.security.details")}</th>
+                <th className="px-5 py-3">{t("admin.security.severity")}</th>
               </tr>
             </thead>
             <tbody>
@@ -54,7 +54,7 @@ export default function AdminSecurityPage() {
       {/* Audit trail */}
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
-          Full Audit Trail
+          {t("admin.security.auditTrail")}
         </h2>
         <div className="space-y-2">
           {ADMIN_AUDIT_LOG.map((entry) => (

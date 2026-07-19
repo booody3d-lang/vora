@@ -1,5 +1,4 @@
 import type { RbacAction, VoraRole } from "@/types/security";
-import { isDevAuthBypass } from "@/lib/security/dev-auth";
 
 const ROLE_PERMISSIONS: Record<VoraRole, Set<RbacAction>> = {
   visitor: new Set([
@@ -89,8 +88,12 @@ export const ROLE_ROUTE_ACCESS: Record<VoraRole, RegExp[]> = {
     /^\/$/,
     /^\/auth\//,
     /^\/freelance(\/|$)/,
+    /^\/network(\/|$)/,
+    /^\/profile(\/|$)/,
     /^\/billing(\/|$)/,
     /^\/network\/settings\//,
+    /^\/jobs(\/|$)/,
+    /^\/messaging(\/|$)/,
   ],
   professional: [
     /^\/$/,
@@ -129,6 +132,7 @@ export function isRouteAllowedForRole(pathname: string, role: VoraRole): boolean
 
 /** Protected routes requiring authentication */
 export const PROTECTED_ROUTE_PREFIXES = [
+  "/profile/me",
   "/network/messages",
   "/network/ai",
   "/network/settings",
@@ -141,12 +145,11 @@ export const PROTECTED_ROUTE_PREFIXES = [
 ];
 
 export function requiresAuth(pathname: string): boolean {
-  if (isDevAuthBypass()) return false;
   return PROTECTED_ROUTE_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
 export function shouldEnforceRouteRole(_pathname: string): boolean {
-  return !isDevAuthBypass();
+  return true;
 }
 
 export function getMinimumRoleForRoute(pathname: string): VoraRole | null {

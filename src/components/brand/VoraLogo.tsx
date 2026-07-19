@@ -1,50 +1,65 @@
 import Image from "next/image";
 import Link from "next/link";
+import {
+  VORA_LOGO,
+  VORA_LOGO_SIZES,
+  voraLogoDisplayWidth,
+  type VoraLogoSize,
+} from "@/lib/brand/logo";
 import { cn } from "@/lib/utils";
 
 interface VoraLogoProps {
   className?: string;
-  variant?: "default" | "light";
+  size?: VoraLogoSize;
+  /** Omit to link home (`/`). Pass `null` to render without a link wrapper. */
+  href?: string | null;
+  /** Classes applied to the outer Link when the logo is clickable. */
+  linkClassName?: string;
+  /** Set false when the logo must not render its own link wrapper. */
+  linked?: boolean;
+  priority?: boolean;
+  /** @deprecated The PNG wordmark includes the brand name */
   showWordmark?: boolean;
-  href?: string;
+  /** @deprecated No longer used — logo works on light and dark backgrounds */
+  variant?: "default" | "light";
 }
 
-export function VoraLogo({
-  className,
-  variant = "default",
-  showWordmark = true,
-  href = "/",
-}: VoraLogoProps) {
-  const content = (
-    <div className={cn("flex items-center gap-3", className)}>
-      <Image
-        src="/brand/vora-logo.svg"
-        alt="VORA"
-        width={40}
-        height={40}
-        priority
-        className="h-10 w-10 shrink-0 object-contain"
-      />
-      {showWordmark && (
-        <span
-          className={cn(
-            "text-xl font-bold tracking-tight",
-            variant === "light" ? "text-white" : "text-[var(--vora-primary)]"
-          )}
-        >
-          VORA
-        </span>
-      )}
-    </div>
+export function VoraLogo(props: VoraLogoProps) {
+  const { className, size = "md", priority = false, linked = true, linkClassName } = props;
+  const preset = VORA_LOGO_SIZES[size];
+  const displayWidth = voraLogoDisplayWidth(preset.height);
+
+  const linkHref = linked
+    ? !("href" in props)
+      ? "/"
+      : props.href == null || props.href === ""
+        ? null
+        : props.href
+    : null;
+
+  const image = (
+    <Image
+      src={VORA_LOGO.src}
+      alt="VORA"
+      width={displayWidth}
+      height={preset.height}
+      priority={priority}
+      className={cn("w-auto max-w-full shrink-0 object-contain object-start", preset.className, className)}
+    />
   );
 
-  if (href) {
+  if (linkHref) {
     return (
-      <Link href={href} className="inline-flex transition-opacity hover:opacity-90">
-        {content}
+      <Link
+        href={linkHref}
+        className={cn(
+          linkClassName ?? "inline-flex max-w-full transition-opacity hover:opacity-90"
+        )}
+      >
+        {image}
       </Link>
     );
   }
 
-  return content;
+  return image;
 }

@@ -6,6 +6,7 @@ import { PLANS } from "@/types/billing";
 import { formatSar } from "@/lib/billing/engine";
 import { isStripeConfigured } from "@/lib/billing/stripe";
 import { useLocale } from "@/providers/LocaleProvider";
+import { useTranslations } from "@/i18n/use-translations";
 import { cn } from "@/lib/utils";
 
 interface PlanSelectorProps {
@@ -15,6 +16,7 @@ interface PlanSelectorProps {
 
 export function PlanSelector({ currentPlan = "free", target = "individual" }: PlanSelectorProps) {
   const { locale } = useLocale();
+  const { t } = useTranslations();
   const [loading, setLoading] = useState<string | null>(null);
 
   const plans = PLANS.filter(
@@ -38,10 +40,15 @@ export function PlanSelector({ currentPlan = "free", target = "individual" }: Pl
       if (data.url) {
         window.location.href = data.url;
       } else if (!isStripeConfigured()) {
-        alert("Stripe is not configured. Demo mode: subscription would activate for " + plan.nameEn);
+        alert(
+          t("billing.plans.stripeDemo").replace(
+            "{plan}",
+            locale === "ar" ? plan.nameAr : plan.nameEn
+          )
+        );
       }
     } catch {
-      alert("Payment initiation failed");
+      alert(t("billing.plans.paymentFailed"));
     } finally {
       setLoading(null);
     }
@@ -65,7 +72,7 @@ export function PlanSelector({ currentPlan = "free", target = "individual" }: Pl
           >
             {plan.id === "premium_yearly" && (
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#EA580C] px-3 py-0.5 text-[10px] font-bold text-white">
-                BEST VALUE
+                {t("billing.plans.bestValue")}
               </span>
             )}
             <h3 className="text-lg font-bold text-[#0F172A]">
@@ -73,10 +80,15 @@ export function PlanSelector({ currentPlan = "free", target = "individual" }: Pl
             </h3>
             <p className="mt-2">
               <span className="text-3xl font-bold text-[#0F172A]">
-                {plan.priceSar === 0 ? "Free" : formatSar(plan.priceSar)}
+                {plan.priceSar === 0 ? t("billing.plans.free") : formatSar(plan.priceSar)}
               </span>
               {plan.interval !== "none" && (
-                <span className="text-sm text-slate-400">/{plan.interval}</span>
+                <span className="text-sm text-slate-400">
+                  /
+                  {plan.interval === "month"
+                    ? t("billing.plans.intervalMonth")
+                    : t("billing.plans.intervalYear")}
+                </span>
               )}
             </p>
             <ul className="mt-4 space-y-2">
@@ -100,12 +112,12 @@ export function PlanSelector({ currentPlan = "free", target = "individual" }: Pl
               )}
             >
               {loading === plan.id
-                ? "Processing..."
+                ? t("billing.plans.processing")
                 : isCurrent
-                  ? "Current Plan"
+                  ? t("billing.plans.currentPlan")
                   : plan.priceSar === 0
-                    ? "Active"
-                    : "Subscribe"}
+                    ? t("billing.plans.active")
+                    : t("billing.plans.subscribe")}
             </button>
           </div>
         );

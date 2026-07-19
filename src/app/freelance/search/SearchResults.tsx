@@ -1,15 +1,33 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ServiceSection } from "@/components/freelance/marketplace/ServiceCard";
 import { useTranslations } from "@/i18n/use-translations";
-import { DEMO_SERVICES } from "@/lib/freelance/mock-data";
+import type { MarketplaceService } from "@/types/freelance";
 
 export default function SearchResults() {
   const { t } = useTranslations();
   const params = useSearchParams();
   const q = params.get("q")?.toLowerCase() ?? "";
-  const results = DEMO_SERVICES.filter(
+  const [services, setServices] = useState<MarketplaceService[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/marketplace/services")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setServices(data.services ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setServices([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const results = services.filter(
     (s) =>
       s.title.toLowerCase().includes(q) ||
       s.storeName.toLowerCase().includes(q) ||
@@ -25,7 +43,11 @@ export default function SearchResults() {
         {t("marketplace.servicesFound", { count: results.length })}
       </p>
       <div className="mt-6">
-        <ServiceSection title="" services={results} />
+        {results.length === 0 ? (
+          <p className="text-sm text-slate-400">{t("marketplace.emptyBody")}</p>
+        ) : (
+          <ServiceSection title="" services={results} />
+        )}
       </div>
     </div>
   );

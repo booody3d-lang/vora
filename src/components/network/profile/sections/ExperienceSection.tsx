@@ -1,12 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import type { ExperienceItem } from "@/types/network";
-import { getCompanyUrl } from "@/lib/network/mock-data";
+import { getCompanyUrl } from "@/lib/network/urls";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface ExperienceSectionProps {
   items: ExperienceItem[];
 }
 
 export function ExperienceSection({ items }: ExperienceSectionProps) {
+  const { t } = useLocale();
+
   return (
     <div className="space-y-6">
       {items.map((exp) => (
@@ -35,12 +40,12 @@ export function ExperienceSection({ items }: ExperienceSectionProps) {
               <p className="text-sm text-slate-600">{exp.companyName}</p>
             )}
             <p className="text-xs text-slate-400">
-              {exp.startDate} — {exp.isCurrent ? "Present" : exp.endDate}
+              {exp.startDate} — {exp.isCurrent ? t("profile.sections.present") : exp.endDate}
               {exp.location && ` · ${exp.location}`}
             </p>
             {exp.isVerified && (
               <span className="mt-1 inline-block text-[10px] font-semibold text-emerald-600">
-                ✓ Verified
+                ✓ {t("profile.sections.verified")}
               </span>
             )}
             {exp.description && (

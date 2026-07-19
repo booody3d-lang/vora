@@ -1,9 +1,8 @@
 import { CompanyPageView } from "@/components/company/page/CompanyPageView";
-import {
-  DEMO_COMPANY,
-  DEMO_COMPANY_POSTS,
-  DEMO_JOBS,
-} from "@/lib/company/mock-data";
+import { getCompanyBySlug } from "@/lib/company/company-store";
+import { listCurrentEmployeesForCompany } from "@/lib/company/employees";
+import { getCompanySocialContext } from "@/lib/network/social-store";
+import { getAuthenticatedUser } from "@/lib/security/session";
 import { notFound } from "next/navigation";
 
 interface CompanyPublicPageProps {
@@ -12,17 +11,28 @@ interface CompanyPublicPageProps {
 
 export default async function CompanyPublicPage({ params }: CompanyPublicPageProps) {
   const { slug } = await params;
+  const baseCompany = getCompanyBySlug(slug);
 
-  if (slug !== DEMO_COMPANY.slug) {
+  if (!baseCompany) {
     notFound();
   }
+
+  const auth = await getAuthenticatedUser();
+  const social = getCompanySocialContext(auth?.user.id ?? null, baseCompany.id);
+
+  const company = {
+    ...baseCompany,
+    followerCount: social.followerCount,
+    currentEmployees: auth ? listCurrentEmployeesForCompany(baseCompany.id) : undefined,
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]" data-platform="network">
       <CompanyPageView
-        company={DEMO_COMPANY}
-        posts={DEMO_COMPANY_POSTS}
-        jobs={DEMO_JOBS}
+        company={company}
+        posts={[]}
+        jobs={[]}
+        initiallyFollowing={social.isFollowing}
       />
     </div>
   );

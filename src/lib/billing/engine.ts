@@ -121,10 +121,10 @@ export const DEMO_SUBSCRIPTION: UserSubscription = {
 };
 
 export const DEMO_TRANSACTIONS: WalletTransaction[] = [
-  { id: "wt1", type: "order_escrow", ledger: "pending", amount: 449, currency: "SAR", description: "Order VORA-2026-7842 — Logo Design", createdAt: "2026-07-15T10:01:00Z" },
-  { id: "wt2", type: "order_release", ledger: "available", amount: 269.1, currency: "SAR", description: "Order completed — net earnings (90%)", createdAt: "2026-07-14T16:00:00Z" },
-  { id: "wt3", type: "platform_commission", ledger: "available", amount: 29.9, currency: "SAR", description: "VORA 10% commission", createdAt: "2026-07-14T16:00:00Z" },
-  { id: "wt4", type: "withdrawal_completed", ledger: "withdrawn", amount: 5000, currency: "SAR", description: "Withdrawal to SA03 8000 0000 6080 1016 7519", createdAt: "2026-07-01T09:00:00Z" },
+  { id: "wt1", type: "order_escrow", ledger: "pending", amount: 449, currency: "SAR", description: "Order VORA-2026-7842 — Logo Design", descriptionAr: "طلب VORA-2026-7842 — تصميم شعار", createdAt: "2026-07-15T10:01:00Z" },
+  { id: "wt2", type: "order_release", ledger: "available", amount: 269.1, currency: "SAR", description: "Order completed — net earnings (90%)", descriptionAr: "اكتمل الطلب — صافي الأرباح (90%)", createdAt: "2026-07-14T16:00:00Z" },
+  { id: "wt3", type: "platform_commission", ledger: "available", amount: 29.9, currency: "SAR", description: "VORA 10% commission", descriptionAr: "عمولة VORA 10%", createdAt: "2026-07-14T16:00:00Z" },
+  { id: "wt4", type: "withdrawal_completed", ledger: "withdrawn", amount: 5000, currency: "SAR", description: "Withdrawal to SA03 8000 0000 6080 1016 7519", descriptionAr: "سحب إلى SA03 8000 0000 6080 1016 7519", createdAt: "2026-07-01T09:00:00Z" },
 ];
 
 export const DEMO_WITHDRAWALS: WithdrawalRequest[] = [
@@ -141,7 +141,7 @@ export const DEMO_INVOICES: Invoice[] = [
     total: 299,
     currency: "SAR",
     lineItems: [
-      { description: "Professional Logo Design", quantity: 1, unitPrice: 299, total: 299 },
+      { description: "Professional Logo Design", descriptionAr: "تصميم شعار احترافي", quantity: 1, unitPrice: 299, total: 299 },
     ],
     transactionId: "TXN-20260715-A3F2B1",
     issuedAt: "2026-07-15T10:01:00Z",
@@ -154,7 +154,7 @@ export const DEMO_INVOICES: Invoice[] = [
     taxAmount: 90,
     total: 690,
     currency: "SAR",
-    lineItems: [{ description: "VORA Company Annual Plan", quantity: 1, unitPrice: 600, total: 600 }],
+    lineItems: [{ description: "VORA Company Annual Plan", descriptionAr: "خطة VORA السنوية للشركات", quantity: 1, unitPrice: 600, total: 600 }],
     transactionId: "TXN-20260601-C7D4E9",
     companyName: "TechCorp Global",
     companyTaxId: "310123456700003",

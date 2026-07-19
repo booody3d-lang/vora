@@ -12,7 +12,7 @@ export function LandingHeader() {
   return (
     <header className="fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-black/20 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-8">
-        <VoraLogo variant="light" />
+        <VoraLogo variant="light" size="lg" priority />
         <DualDashboardToggle />
         <nav className="hidden items-center gap-4 md:flex">
           <LocaleSwitcher variant="light" />

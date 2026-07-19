@@ -1,29 +1,112 @@
 import { notFound } from "next/navigation";
+
 import { ProfileHeader } from "@/components/network/profile/ProfileHeader";
+
 import { ProfileTabs } from "@/components/network/profile/ProfileTabs";
+
 import {
-  CURRENT_USER_SLUG,
-  DEMO_PROFILES,
-} from "@/lib/network/mock-data";
+
+  getProfileBySlug,
+
+  isProfileOwner,
+
+} from "@/lib/profile/profile-store";
+
+import { stripPrivateProfileFields } from "@/lib/profile/private-fields";
+
+import {
+
+  getAccountIdForProfileSlug,
+
+  getRelationship,
+
+  getSocialProfileContext,
+
+} from "@/lib/network/social-store";
+
+import { getAuthenticatedUser } from "@/lib/security/session";
+
+
 
 interface ProfilePageProps {
+
   params: Promise<{ slug: string }>;
+
 }
+
+
 
 export default async function ProfilePage({ params }: ProfilePageProps) {
-  const { slug } = await params;
-  const profile = DEMO_PROFILES[slug];
 
-  if (!profile) {
+  const { slug } = await params;
+
+  const rawProfile = getProfileBySlug(slug);
+
+
+
+  if (!rawProfile) {
+
     notFound();
+
   }
 
-  const isOwnProfile = slug === CURRENT_USER_SLUG;
+
+
+  const auth = await getAuthenticatedUser();
+
+  const isOwnProfile = auth ? isProfileOwner(auth.user.id, slug) : false;
+
+  const targetAccountId = rawProfile.accountId ?? getAccountIdForProfileSlug(slug) ?? rawProfile.id;
+
+  const social = getSocialProfileContext(auth?.user.id ?? null, targetAccountId);
+
+  const inbound = auth
+
+    ? getRelationship(targetAccountId, auth.user.id, "user")
+
+    : null;
+
+
+
+  const profile = {
+
+    ...stripPrivateProfileFields(rawProfile),
+
+    followerCount: social.followerCount,
+
+    isFollowing: social.isFollowing,
+
+    isAccepted: social.isAccepted,
+
+    canMessage: social.canMessage,
+
+  };
+
+
 
   return (
+
     <div className="mx-auto max-w-[900px] px-4 py-4 md:px-6 md:py-6">
-      <ProfileHeader profile={profile} isOwnProfile={isOwnProfile} />
-      <ProfileTabs profile={profile} />
+
+      <ProfileHeader
+
+        profile={profile}
+
+        isOwnProfile={isOwnProfile}
+
+        initiallyFollowing={social.isFollowing}
+
+        initiallyAccepted={social.isAccepted}
+
+        hasIncomingPending={inbound?.status === "pending"}
+
+      />
+
+      <ProfileTabs profile={profile} isOwnProfile={isOwnProfile} />
+
     </div>
+
   );
+
 }
+

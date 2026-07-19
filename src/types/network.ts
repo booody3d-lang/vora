@@ -3,6 +3,8 @@ export type PostType = "text" | "image" | "video" | "article" | "poll";
 export type ReactionType = "like" | "insightful" | "support" | "celebrate";
 export type ProficiencyLevel = "elementary" | "limited" | "professional" | "full" | "native";
 export type MessageStatus = "sent" | "delivered" | "read";
+import type { UserGender } from "@/types/profile";
+
 export type ProfileTab =
   | "about"
   | "video"
@@ -27,11 +29,21 @@ export interface NetworkUser {
   professionalScore: number;
   hasFreelancerStore: boolean;
   freelancerStoreSlug?: string;
+  /** Synced from store settings — controls Visit Store on public profile */
+  showVisitStoreOnProfile?: boolean;
   currentRole?: string;
   currentCompany?: { id: string; name: string; slug: string; logoUrl?: string };
   websiteUrl?: string;
   contactEmail?: string;
   contactPhone?: string;
+  gender?: UserGender;
+  accountId?: string;
+  isOnline?: boolean;
+  /** Public follower count — lists remain private */
+  followerCount?: number;
+  isFollowing?: boolean;
+  isAccepted?: boolean;
+  canMessage?: boolean;
 }
 
 export interface ExperienceItem {
@@ -54,6 +66,7 @@ export interface EducationItem {
   institution: string;
   degree: string;
   fieldOfStudy?: string;
+  country?: string;
   startDate?: string;
   endDate?: string;
   isVerified: boolean;
@@ -93,6 +106,10 @@ export interface FullProfessionalProfile extends NetworkUser {
   about: string;
   videoIntroUrl?: string;
   resumeUrl?: string;
+  onboardingCompletedAt?: string;
+  /** Owner-only — never expose on public profile APIs */
+  privateMobileNumber?: string;
+  backupEmail?: string;
   experiences: ExperienceItem[];
   education: EducationItem[];
   certifications: CertificationItem[];
@@ -106,12 +123,26 @@ export interface PollOption {
   votes: number;
 }
 
+export interface PostMediaItem {
+  url: string;
+  width?: number;
+  height?: number;
+  mimeType?: string;
+  durationSeconds?: number;
+}
+
 export interface FeedPostAuthor {
   id: string;
   slug: string;
   fullName: string;
   headline: string;
   profilePhotoUrl: string;
+  subscriptionBadge?: {
+    iconUrl?: string;
+    iconSvg?: string;
+    tierNameEn?: string;
+    tierNameAr?: string;
+  } | null;
 }
 
 export interface FeedComment {
@@ -128,6 +159,7 @@ export interface FeedPost {
   author: FeedPostAuthor;
   content?: string;
   mediaUrls?: string[];
+  media?: PostMediaItem[];
   articleTitle?: string;
   articleCoverUrl?: string;
   pollQuestion?: string;
@@ -161,6 +193,18 @@ export interface TrendingInsight {
 
 export type ChatAccessType = "mutual_connection" | "hr_applicant" | "locked";
 
+export interface CreatePostInput {
+  type: PostType;
+  content?: string;
+  mediaUrls?: string[];
+  media?: PostMediaItem[];
+  articleTitle?: string;
+  articleCoverUrl?: string;
+  pollQuestion?: string;
+  pollOptions?: PollOption[];
+  pollExpiresAt?: string;
+}
+
 export interface ConversationPreview {
   id: string;
   participant: NetworkUser;
@@ -179,8 +223,20 @@ export interface ChatMessage {
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
+  mimeType?: string;
+  mediaType?: "image" | "video" | "file";
+  durationSeconds?: number;
   status: MessageStatus;
   createdAt: string;
+}
+
+export interface MessageAttachment {
+  url: string;
+  name: string;
+  size: number;
+  mimeType?: string;
+  mediaType?: "image" | "video" | "file";
+  durationSeconds?: number;
 }
 
 export interface ConnectionRequest {

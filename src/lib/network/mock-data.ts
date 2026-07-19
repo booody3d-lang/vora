@@ -22,6 +22,8 @@ export const DEMO_CURRENT_USER: FullProfessionalProfile = {
   professionalScore: 78,
   hasFreelancerStore: true,
   freelancerStoreSlug: "alex-design-studio",
+  gender: "male" as const,
+  onboardingCompletedAt: "2025-03-12T00:00:00Z",
   currentRole: "Lead Product Designer",
   currentCompany: { id: "co-1", name: "TechCorp Global", slug: "techcorp-global", logoUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=TechCorp" },
   websiteUrl: "https://alexmorgan.design",

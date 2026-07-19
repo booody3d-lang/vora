@@ -1,8 +1,9 @@
 import type { NotificationPayload } from "@/types/notifications";
 import { buildEmailHtml } from "@/lib/notifications/email-templates";
 import { emitNotification } from "@/lib/notifications/engine";
+import { PLATFORM_OWNER_EMAIL } from "@/lib/security/roles";
 
-const OWNER_EMAIL = process.env.VORA_OWNER_EMAIL ?? "owner@vora.sa";
+const OWNER_EMAIL = process.env.VORA_OWNER_EMAIL ?? PLATFORM_OWNER_EMAIL;
 
 export async function serverDispatchNotification(
   notification: NotificationPayload,
