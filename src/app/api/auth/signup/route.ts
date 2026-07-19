@@ -20,7 +20,13 @@ import {
 } from "@/lib/security/demo-store";
 import { checkMultiAccount } from "@/lib/security/anti-abuse";
 import { createProfileForAccount } from "@/lib/profile/profile-store";
-import { persistSession } from "@/lib/security/auth-store";
+import { persistSession, storePasswordHash } from "@/lib/security/auth-store";
+import type { UserGender } from "@/types/profile";
+
+function parseGender(value: unknown): UserGender | null {
+  if (value === "male" || value === "female") return value;
+  return null;
+}
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
@@ -35,11 +41,11 @@ export async function POST(request: Request) {
   try {
     await initDemoAccounts(hashPassword);
     const body = await request.json() as {
-      email: string;
-      password: string;
-      fullName: string;
+      email?: string;
+      password?: string;
+      fullName?: string;
       role?: "registered" | "professional" | "company";
-      gender?: "male" | "female";
+      gender?: unknown;
       fingerprint?: string;
       dataProcessingConsent?: boolean;
     };
@@ -49,6 +55,10 @@ export async function POST(request: Request) {
         { error: "Data processing consent required (GDPR/PDPL compliance)" },
         { status: 400 }
       );
+    }
+
+    if (!body.email?.trim() || !body.password || !body.fullName?.trim()) {
+      return NextResponse.json({ error: "Full name, email, and password are required" }, { status: 400 });
     }
 
     const pwCheck = validatePassword(body.password);
@@ -61,7 +71,8 @@ export async function POST(request: Request) {
     }
 
     const role = body.role ?? "registered";
-    if (role !== "company" && !body.gender) {
+    const gender = parseGender(body.gender);
+    if (role !== "company" && !gender) {
       return NextResponse.json({ error: "Gender selection is required" }, { status: 400 });
     }
 
@@ -69,23 +80,25 @@ export async function POST(request: Request) {
     const accountId = `user-${Date.now()}`;
     const link = createProfileForAccount({
       accountId,
-      fullName: body.fullName,
-      email: body.email,
+      fullName: body.fullName.trim(),
+      email: body.email.trim(),
       role,
-      gender: body.gender,
+      gender: gender ?? undefined,
       hasFreelancerStore: role === "professional",
     });
 
     const account = registerDemoUser({
       id: accountId,
-      email: body.email,
-      fullName: body.fullName,
+      email: body.email.trim(),
+      fullName: body.fullName.trim(),
       passwordHash,
       role,
-      gender: body.gender,
+      gender: gender ?? undefined,
       profileSlug: link.profileSlug,
       storeSlug: link.storeSlug,
     });
+
+    storePasswordHash(account.id, passwordHash);
 
     if (body.fingerprint) {
       const abuse = checkMultiAccount(body.fingerprint, account.id);
@@ -115,7 +128,8 @@ export async function POST(request: Request) {
     const response = NextResponse.json({ user: toPublicUser(account) });
     response.cookies.set(COOKIE_NAME, token, sessionCookieOptions());
     return response;
-  } catch {
+  } catch (error) {
+    console.error("[auth/signup]", error);
     return NextResponse.json({ error: "Signup failed" }, { status: 500 });
   }
 }

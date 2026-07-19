@@ -3,8 +3,9 @@ import "server-only";
 import fs from "fs";
 import path from "path";
 import { hashPassword } from "@/lib/security/password";
+import { ensureVoraDataDir, getVoraDataDir } from "@/lib/storage/data-dir";
 
-const DATA_DIR = path.join(process.cwd(), ".data", "vora");
+const DATA_DIR = getVoraDataDir();
 const DATA_FILE = path.join(DATA_DIR, "auth-data.json");
 
 export type RecoveryChannel = "email" | "sms";
@@ -47,7 +48,7 @@ export interface PersistedSession {
 }
 
 function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  ensureVoraDataDir();
 }
 
 function readData(): AuthDataFile {
@@ -74,7 +75,18 @@ function readData(): AuthDataFile {
 
 function writeData(data: AuthDataFile) {
   ensureDataDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error("[auth-store] Failed to persist auth data:", error);
+  }
+}
+
+/** Store a pre-computed password hash (signup/login sync). */
+export function storePasswordHash(accountId: string, passwordHash: string): void {
+  const data = readData();
+  data.passwordHashes[accountId] = passwordHash;
+  writeData(data);
 }
 
 export function getStoredPasswordHash(accountId: string): string | null {

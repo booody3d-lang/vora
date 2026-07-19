@@ -2,6 +2,7 @@ import "server-only";
 
 import fs from "fs";
 import path from "path";
+import { ensureVoraDataDir, getVoraDataDir } from "@/lib/storage/data-dir";
 import { calculateProfessionalScore } from "@/lib/professional-score/calculator";
 import { findAccountById } from "@/lib/security/demo-store";
 import { slugifyName, uniqueSlug } from "@/lib/profile/slugify";
@@ -10,7 +11,7 @@ import type { FullProfessionalProfile } from "@/types/network";
 import type { AccountLink, UserGender } from "@/types/profile";
 import type { VoraRole } from "@/types/security";
 
-const DATA_DIR = path.join(process.cwd(), ".data", "vora");
+const DATA_DIR = getVoraDataDir();
 const DATA_FILE = path.join(DATA_DIR, "profile-data.json");
 export const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
 
@@ -31,7 +32,7 @@ interface ProfileDataFile {
 }
 
 function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  ensureVoraDataDir();
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
@@ -51,7 +52,10 @@ function readData(): ProfileDataFile {
 }
 
 function normalizeServices(data: ProfileDataFile): ProfileDataFile {
+  if (!data.profiles) data.profiles = {};
+  if (!data.stores) data.stores = {};
   if (!data.storeServices) data.storeServices = {};
+  if (!data.accountLinks) data.accountLinks = {};
   return data;
 }
 
@@ -61,7 +65,11 @@ function readDataNormalized(): ProfileDataFile {
 
 function writeData(data: ProfileDataFile) {
   ensureDataDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error("[profile-store] Failed to persist profile data:", error);
+  }
 }
 
 function allSlugs(data: ProfileDataFile): Set<string> {

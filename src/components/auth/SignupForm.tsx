@@ -44,7 +44,7 @@ export function SignupForm() {
           password,
           fullName,
           role,
-          ...(role !== "company" && gender ? { gender } : {}),
+          gender: role !== "company" ? gender : undefined,
           fingerprint,
           dataProcessingConsent: consent,
         }),
