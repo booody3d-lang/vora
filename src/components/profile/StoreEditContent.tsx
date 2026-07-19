@@ -23,7 +23,7 @@ export function StoreEditContent() {
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch("/api/store");
+      const res = await fetch("/api/store", { credentials: "include", cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
         setStore(data.store);
@@ -44,6 +44,7 @@ export function StoreEditContent() {
         const res = await fetch("/api/store", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify(updates),
         });
         const data = await res.json();

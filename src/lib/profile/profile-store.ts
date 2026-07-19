@@ -443,6 +443,48 @@ export function updateStoreForAccount(
   return getStoreBySlug(slug);
 }
 
+/** Keeps ephemeral JSON cache aligned with Supabase rows (slug routing on serverless). */
+export function syncJsonCacheFromSupabase(input: {
+  accountId: string;
+  profileSlug: string;
+  profile: Partial<StoredProfile>;
+  store?: Partial<StoredStore> & { slug: string; professionalProfileSlug?: string };
+}): void {
+  const data = readData();
+  const link = data.accountLinks[input.accountId] ?? { profileSlug: input.profileSlug };
+
+  link.profileSlug = input.profileSlug;
+  data.profiles[input.profileSlug] = {
+    ...data.profiles[input.profileSlug],
+    ...input.profile,
+    accountId: input.accountId,
+    slug: input.profileSlug,
+    id: input.accountId,
+  };
+
+  if (input.store) {
+    link.storeSlug = input.store.slug;
+    data.stores[input.store.slug] = {
+      ...data.stores[input.store.slug],
+      ...input.store,
+      accountId: input.accountId,
+      slug: input.store.slug,
+      professionalProfileSlug:
+        input.store.professionalProfileSlug ?? input.profileSlug,
+    };
+    data.profiles[input.profileSlug] = {
+      ...data.profiles[input.profileSlug],
+      hasFreelancerStore: true,
+      freelancerStoreSlug: input.store.slug,
+      showVisitStoreOnProfile:
+        data.profiles[input.profileSlug]?.showVisitStoreOnProfile ?? true,
+    };
+  }
+
+  data.accountLinks[input.accountId] = link;
+  writeData(data);
+}
+
 export function getStoreServices(storeSlug: string): MarketplaceService[] {
   const data = readDataNormalized();
   return data.storeServices[storeSlug] ?? [];

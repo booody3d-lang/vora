@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import {
-  getStoreByAccountId,
-  ensureFreelancerStoreForAccount,
-  updateStoreForAccount,
-} from "@/lib/profile/profile-store";
+import { ensureFreelancerStoreForAccount } from "@/lib/profile/profile-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
+import {
+  ensureSupabaseProfileAndStore,
+  loadStoreForAccount,
+  saveStoreForAccount,
+} from "@/lib/supabase/profile-persistence";
 import type { FreelancerStore } from "@/types/freelance";
 
 export async function GET() {
@@ -13,11 +14,10 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let store = getStoreByAccountId(auth.user.id);
-  if (!store) {
-    ensureFreelancerStoreForAccount(auth.user.id);
-    store = getStoreByAccountId(auth.user.id);
-  }
+  await ensureSupabaseProfileAndStore(auth.user);
+  ensureFreelancerStoreForAccount(auth.user.id);
+
+  const store = await loadStoreForAccount(auth.user.id);
   if (!store) {
     return NextResponse.json({ error: "Store not found" }, { status: 404 });
   }
@@ -32,14 +32,18 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const body = (await request.json()) as Partial<FreelancerStore>;
+    await ensureSupabaseProfileAndStore(auth.user);
     ensureFreelancerStoreForAccount(auth.user.id);
-    const store = updateStoreForAccount(auth.user.id, body);
+
+    const body = (await request.json()) as Partial<FreelancerStore>;
+    const store = await saveStoreForAccount(auth.user.id, body);
     if (!store) {
       return NextResponse.json({ error: "Store not found" }, { status: 404 });
     }
     return NextResponse.json({ store });
-  } catch {
-    return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Update failed";
+    console.error("[api/store PATCH]", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -8,6 +8,7 @@ import {
   getProfileSlugForAccount,
   getStoreSlugForAccount,
 } from "@/lib/profile/profile-store";
+import { ensureSupabaseProfileAndStore } from "@/lib/supabase/profile-persistence";
 import { resolveEffectiveRole } from "@/lib/security/roles";
 import type { UserGender } from "@/types/profile";
 import type { AuthUser, VoraRole } from "@/types/security";
@@ -134,6 +135,7 @@ export async function resolveAuthUser(user: User): Promise<AuthUser | null> {
   }
 
   ensureLocalProfile(authUser);
+  await ensureSupabaseProfileAndStore(authUser);
   return authUser;
 }
 

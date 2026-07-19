@@ -1,32 +1,21 @@
 import { NextResponse } from "next/server";
-import { ensureLocalProfile } from "@/lib/auth/supabase-account";
 import {
-  getProfileByAccountId,
-  getProfileBySlug,
-  updateProfileForAccount,
-} from "@/lib/profile/profile-store";
-import {
-  pickPrivateUpdates,
-  stripPrivateProfileFields,
-} from "@/lib/profile/private-fields";
-import {
-  getAccountIdForProfileSlug,
-  getSocialProfileContext,
-} from "@/lib/network/social-store";
+  ensureSupabaseProfileAndStore,
+  loadProfileForAccount,
+  saveProfileForAccount,
+} from "@/lib/supabase/profile-persistence";import type { FullProfessionalProfile } from "@/types/network";
+import { pickPrivateUpdates } from "@/lib/profile/private-fields";
+import { getSocialProfileContext } from "@/lib/network/social-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
-import type { FullProfessionalProfile } from "@/types/network";
-
 export async function GET() {
   const auth = await getAuthenticatedUser();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let profile = getProfileByAccountId(auth.user.id);
-  if (!profile) {
-    ensureLocalProfile(auth.user);
-    profile = getProfileByAccountId(auth.user.id);
-  }
+  await ensureSupabaseProfileAndStore(auth.user);
+
+  const profile = await loadProfileForAccount(auth.user.id);
   if (!profile) {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
@@ -53,9 +42,11 @@ export async function PATCH(request: Request) {
   }
 
   try {
+    await ensureSupabaseProfileAndStore(auth.user);
+
     const body = (await request.json()) as Partial<FullProfessionalProfile> & Record<string, unknown>;
     const privateUpdates = pickPrivateUpdates(body);
-    const profile = updateProfileForAccount(auth.user.id, {
+    const profile = await saveProfileForAccount(auth.user.id, {
       ...body,
       ...privateUpdates,
     });
@@ -63,7 +54,9 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
     return NextResponse.json({ profile });
-  } catch {
-    return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Update failed";
+    console.error("[api/profile PATCH]", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

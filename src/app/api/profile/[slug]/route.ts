@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { getProfileBySlug } from "@/lib/profile/profile-store";
 import { stripPrivateProfileFields } from "@/lib/profile/private-fields";
 import {
-  getAccountIdForProfileSlug,
   getSocialProfileContext,
 } from "@/lib/network/social-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
+import {
+  loadProfileBySlug,
+  resolveAccountIdForProfileSlug,
+} from "@/lib/supabase/profile-persistence";
 
 interface RouteParams {
   params: Promise<{ slug: string }>;
@@ -13,14 +15,15 @@ interface RouteParams {
 
 export async function GET(_request: Request, { params }: RouteParams) {
   const { slug } = await params;
-  const profile = getProfileBySlug(slug);
+  const profile = await loadProfileBySlug(slug);
 
   if (!profile) {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 
   const auth = await getAuthenticatedUser();
-  const targetAccountId = profile.accountId ?? getAccountIdForProfileSlug(slug);
+  const targetAccountId =
+    profile.accountId ?? (await resolveAccountIdForProfileSlug(slug));
   const social = targetAccountId
     ? getSocialProfileContext(auth?.user.id ?? null, targetAccountId)
     : null;

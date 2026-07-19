@@ -14,9 +14,7 @@ import { buildTriggerNotification } from "@/lib/notifications/triggers";
 import { serverDispatchNotification } from "@/lib/notifications/server-dispatch";
 import {
   getGenderForAccount,
-  getProfileByAccountId,
   getProfileSlugForAccount,
-  getStoreByAccountId,
   getStoreSlugForAccount,
 } from "@/lib/profile/profile-store";
 import { resolveAvatarUrl } from "@/lib/profile/avatar";
@@ -26,6 +24,11 @@ import { getAuthenticatedUser } from "@/lib/security/session";
 import { resolveAdminCapabilities } from "@/lib/security/roles";
 import { stripPrivateProfileFields } from "@/lib/profile/private-fields";
 import { getSocialProfileContext } from "@/lib/network/social-store";
+import {
+  ensureSupabaseProfileAndStore,
+  loadProfileForAccount,
+  loadStoreForAccount,
+} from "@/lib/supabase/profile-persistence";
 
 const PASSWORD_SECURITY = {
   changePassword: {
@@ -58,10 +61,12 @@ export async function GET() {
     return NextResponse.json({ authenticated: false });
   }
 
-  const profile = getProfileByAccountId(auth.user.id);
-  const store = getStoreByAccountId(auth.user.id);
-  const profileSlug = getProfileSlugForAccount(auth.user.id);
-  const storeSlug = getStoreSlugForAccount(auth.user.id);
+  await ensureSupabaseProfileAndStore(auth.user);
+
+  const profile = await loadProfileForAccount(auth.user.id);
+  const store = await loadStoreForAccount(auth.user.id);
+  const profileSlug = profile?.slug ?? getProfileSlugForAccount(auth.user.id);
+  const storeSlug = store?.slug ?? getStoreSlugForAccount(auth.user.id);
   const gender = profile?.gender ?? getGenderForAccount(auth.user.id);
   const onboardingComplete = profile ? isOnboardingComplete(profile) : false;
   const onboardingProgress = profile ? getOnboardingProgress(profile) : null;

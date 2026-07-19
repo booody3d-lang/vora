@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import {
-  saveUploadedFile,
   createProfileForAccount,
   getProfileByAccountId,
-  updateProfileForAccount,
-  updateStoreForAccount,
 } from "@/lib/profile/profile-store";
 import { updateCompanyForAccount } from "@/lib/company/company-store";
 import { MAX_SHORT_VIDEO_SECONDS, MAX_UPLOAD_BYTES, IMAGE_MIME_TYPES } from "@/lib/media/constants";
 import { processAvatarImage, processFeedImage } from "@/lib/media/process-image";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { findAccountById } from "@/lib/security/demo-store";
+import {
+  saveProfileForAccount,
+  saveStoreForAccount,
+} from "@/lib/supabase/profile-persistence";
+import { uploadProfileMedia } from "@/lib/supabase/media-storage";
 import type { ProfileUploadKind } from "@/types/profile";
 
 const AVATAR_KINDS: ProfileUploadKind[] = ["photo", "store-logo", "company-logo"];
@@ -126,24 +128,24 @@ async function processUploadInput(input: {
     input.filename?.replace(/[^\w.-]/g, "_") ?? `${kind}-${Date.now()}.${ext}`;
 
   ensureOwnerProfile(input.accountId);
-  const url = saveUploadedFile(input.accountId, filename, buffer);
+  const url = await uploadProfileMedia(input.accountId, filename, buffer, outMime);
 
   if (kind === "photo") {
-    updateProfileForAccount(input.accountId, { profilePhotoUrl: url });
+    await saveProfileForAccount(input.accountId, { profilePhotoUrl: url });
   } else if (kind === "cover") {
-    updateProfileForAccount(input.accountId, { coverImageUrl: url });
+    await saveProfileForAccount(input.accountId, { coverImageUrl: url });
   } else if (kind === "resume") {
-    updateProfileForAccount(input.accountId, { resumeUrl: url });
+    await saveProfileForAccount(input.accountId, { resumeUrl: url });
   } else if (kind === "store-logo") {
-    updateStoreForAccount(input.accountId, { logoUrl: url });
+    await saveStoreForAccount(input.accountId, { logoUrl: url });
   } else if (kind === "store-cover") {
-    updateStoreForAccount(input.accountId, { coverImageUrl: url });
+    await saveStoreForAccount(input.accountId, { coverImageUrl: url });
   } else if (kind === "company-logo") {
     updateCompanyForAccount(input.accountId, { logoUrl: url });
   } else if (kind === "company-cover") {
     updateCompanyForAccount(input.accountId, { coverImageUrl: url });
   } else if (kind === "video-intro") {
-    updateProfileForAccount(input.accountId, { videoIntroUrl: url });
+    await saveProfileForAccount(input.accountId, { videoIntroUrl: url });
   }
 
   return { url, width, height, mimeType: outMime, durationSeconds };
