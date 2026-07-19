@@ -1,12 +1,10 @@
 import "server-only";
 
-import fs from "fs";
-import path from "path";
 import { hashPassword } from "@/lib/security/password";
-import { ensureVoraDataDir, getVoraDataDir } from "@/lib/storage/data-dir";
+import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
+import { ensureVoraDataDir } from "@/lib/storage/data-dir";
 
-const DATA_DIR = getVoraDataDir();
-const DATA_FILE = path.join(DATA_DIR, "auth-data.json");
+const AUTH_FILE = "auth-data.json";
 
 export type RecoveryChannel = "email" | "sms";
 
@@ -53,18 +51,13 @@ function ensureDataDir() {
 
 function readData(): AuthDataFile {
   ensureDataDir();
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial: AuthDataFile = {
-      passwordHashes: {},
-      recoveryChannel: {},
-      passwordResets: {},
-      stripeConfig: {},
-      activeSessions: {},
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as AuthDataFile;
+  const data = readJsonStore(AUTH_FILE, () => ({
+    passwordHashes: {},
+    recoveryChannel: {},
+    passwordResets: {},
+    stripeConfig: {},
+    activeSessions: {},
+  }));
   if (!data.passwordHashes) data.passwordHashes = {};
   if (!data.recoveryChannel) data.recoveryChannel = {};
   if (!data.passwordResets) data.passwordResets = {};
@@ -75,11 +68,7 @@ function readData(): AuthDataFile {
 
 function writeData(data: AuthDataFile) {
   ensureDataDir();
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  } catch (error) {
-    console.error("[auth-store] Failed to persist auth data:", error);
-  }
+  writeJsonStore(AUTH_FILE, data);
 }
 
 /** Store a pre-computed password hash (signup/login sync). */

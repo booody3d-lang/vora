@@ -1,7 +1,6 @@
 import "server-only";
 
-import fs from "fs";
-import path from "path";
+import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { DEMO_COMPANY, DEMO_JOBS as COMPANY_JOBS } from "@/lib/company/mock-data";
 import { getCompanyBySlug } from "@/lib/company/company-store";
 import { DEMO_JOBS, DEMO_PROFILES } from "@/lib/network/mock-data";
@@ -11,8 +10,7 @@ import {
   listLinkedAccounts,
 } from "@/lib/profile/profile-store";
 
-const DATA_DIR = path.join(process.cwd(), ".data", "vora");
-const INDEX_FILE = path.join(DATA_DIR, "search-index.json");
+const INDEX_FILE = "search-index.json";
 
 export type SearchResultType = "profile" | "job" | "company";
 
@@ -31,10 +29,6 @@ interface SearchIndexFile {
   entries: SearchIndexEntry[];
   tokenIndex: Record<string, string[]>;
   builtAt: string;
-}
-
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 function tokenize(text: string): string[] {
@@ -147,15 +141,16 @@ export function rebuildSearchIndex(): SearchIndexFile {
     tokenIndex: buildTokenIndex(entries),
     builtAt: new Date().toISOString(),
   };
-  ensureDataDir();
-  fs.writeFileSync(INDEX_FILE, JSON.stringify(index, null, 2));
+  writeJsonStore(INDEX_FILE, index);
   return index;
 }
 
 function readIndex(): SearchIndexFile {
-  ensureDataDir();
-  if (!fs.existsSync(INDEX_FILE)) return rebuildSearchIndex();
-  const index = JSON.parse(fs.readFileSync(INDEX_FILE, "utf-8")) as SearchIndexFile;
+  const index = readJsonStore<SearchIndexFile>(INDEX_FILE, () => ({
+    entries: [],
+    tokenIndex: {},
+    builtAt: new Date(0).toISOString(),
+  }));
   if (!index.entries?.length) return rebuildSearchIndex();
   if (!index.tokenIndex) index.tokenIndex = buildTokenIndex(index.entries);
   return index;

@@ -1,35 +1,22 @@
 import "server-only";
 
-import fs from "fs";
-import path from "path";
+import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 
-const DATA_DIR = path.join(process.cwd(), ".data", "vora");
-const DATA_FILE = path.join(DATA_DIR, "presence-data.json");
+const DATA_FILE = "presence-data.json";
 const ONLINE_THRESHOLD_MS = 60_000;
 
 interface PresenceDataFile {
   lastSeen: Record<string, string>;
 }
 
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
 function readData(): PresenceDataFile {
-  ensureDataDir();
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial: PresenceDataFile = { lastSeen: {} };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as PresenceDataFile;
+  const data = readJsonStore(DATA_FILE, () => ({ lastSeen: {} }));
   if (!data.lastSeen) data.lastSeen = {};
   return data;
 }
 
 function writeData(data: PresenceDataFile) {
-  ensureDataDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  writeJsonStore(DATA_FILE, data);
 }
 
 export function touchPresence(accountId: string): void {

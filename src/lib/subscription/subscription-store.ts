@@ -1,15 +1,13 @@
 import "server-only";
 
-import fs from "fs";
-import path from "path";
+import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import type {
   AccountSubscriptionAssignment,
   ManualSubscriptionOverride,
   SubscriptionTier,
 } from "@/types/subscription";
 
-const DATA_DIR = path.join(process.cwd(), ".data", "vora");
-const DATA_FILE = path.join(DATA_DIR, "subscription-data.json");
+const DATA_FILE = "subscription-data.json";
 
 // ─── Stripe payment-ready scaffolding ───────────────────────────────────────
 
@@ -116,25 +114,15 @@ function defaultTiers(): SubscriptionTier[] {
   ];
 }
 
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
 function readData(): SubscriptionDataFile {
-  ensureDataDir();
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial: SubscriptionDataFile = {
-      tiers: defaultTiers(),
-      assignments: {},
-      overrides: {},
-      stripeCustomers: {},
-      paymentEvents: [],
-      refunds: [],
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as SubscriptionDataFile;
+  const data = readJsonStore(DATA_FILE, () => ({
+    tiers: defaultTiers(),
+    assignments: {} as Record<string, AccountSubscriptionAssignment>,
+    overrides: {} as Record<string, ManualSubscriptionOverride>,
+    stripeCustomers: {} as Record<string, StripeCustomerMapping>,
+    paymentEvents: [] as StripePaymentEvent[],
+    refunds: [] as StripeRefundRecord[],
+  }));
   if (!data.tiers?.length) data.tiers = defaultTiers();
   if (!data.assignments) data.assignments = {};
   if (!data.overrides) data.overrides = {};
@@ -145,8 +133,7 @@ function readData(): SubscriptionDataFile {
 }
 
 function writeData(data: SubscriptionDataFile) {
-  ensureDataDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  writeJsonStore(DATA_FILE, data);
 }
 
 export function listSubscriptionTiers(audience?: SubscriptionTier["audience"]): SubscriptionTier[] {

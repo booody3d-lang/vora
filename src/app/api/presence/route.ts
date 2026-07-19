@@ -6,13 +6,18 @@ import {
 import { getAuthenticatedUser } from "@/lib/security/session";
 
 export async function POST() {
-  const auth = await getAuthenticatedUser();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    const auth = await getAuthenticatedUser();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  touchPresence(auth.user.id);
-  return NextResponse.json({ ok: true });
+    touchPresence(auth.user.id);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("[api/presence]", error);
+    return NextResponse.json({ ok: true });
+  }
 }
 
 export async function GET(request: Request) {

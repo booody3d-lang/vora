@@ -1,41 +1,28 @@
 import "server-only";
 
-import fs from "fs";
-import path from "path";
+import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { saveUploadedFile } from "@/lib/profile/profile-store";
 import type { CompanyProfile } from "@/types/company";
 
-const DATA_DIR = path.join(process.cwd(), ".data", "vora");
-const DATA_FILE = path.join(DATA_DIR, "company-data.json");
+const DATA_FILE = "company-data.json";
 
 interface CompanyDataFile {
   companies: Record<string, Partial<CompanyProfile> & { accountId?: string }>;
   accountLinks: Record<string, string>;
 }
 
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
 function readData(): CompanyDataFile {
-  ensureDataDir();
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial: CompanyDataFile = {
-      companies: {},
-      accountLinks: {},
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as CompanyDataFile;
+  const data = readJsonStore(DATA_FILE, () => ({
+    companies: {} as CompanyDataFile["companies"],
+    accountLinks: {} as Record<string, string>,
+  }));
   if (!data.accountLinks) data.accountLinks = {};
   if (!data.companies) data.companies = {};
   return data;
 }
 
 function writeData(data: CompanyDataFile) {
-  ensureDataDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  writeJsonStore(DATA_FILE, data);
 }
 
 function mergeCompany(slug: string, data: CompanyDataFile): CompanyProfile | null {

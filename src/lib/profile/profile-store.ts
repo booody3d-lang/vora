@@ -2,6 +2,7 @@ import "server-only";
 
 import fs from "fs";
 import path from "path";
+import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { ensureVoraDataDir, getVoraDataDir } from "@/lib/storage/data-dir";
 import { calculateProfessionalScore } from "@/lib/professional-score/calculator";
 import { findAccountById } from "@/lib/security/demo-store";
@@ -11,8 +12,9 @@ import type { FullProfessionalProfile } from "@/types/network";
 import type { AccountLink, UserGender } from "@/types/profile";
 import type { VoraRole } from "@/types/security";
 
+const PROFILE_FILE = "profile-data.json";
 const DATA_DIR = getVoraDataDir();
-const DATA_FILE = path.join(DATA_DIR, "profile-data.json");
+const DATA_FILE = path.join(DATA_DIR, PROFILE_FILE);
 export const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
 
 interface StoredProfile extends Partial<FullProfessionalProfile> {
@@ -33,22 +35,23 @@ interface ProfileDataFile {
 
 function ensureDataDir() {
   ensureVoraDataDir();
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  try {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  } catch (error) {
+    console.error("[profile-store] uploads dir unavailable:", error);
+  }
 }
 
 function readData(): ProfileDataFile {
   ensureDataDir();
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial: ProfileDataFile = {
+  return normalizeServices(
+    readJsonStore(PROFILE_FILE, () => ({
       profiles: {},
       stores: {},
       storeServices: {},
       accountLinks: {},
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  return normalizeServices(JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as ProfileDataFile);
+    }))
+  );
 }
 
 function normalizeServices(data: ProfileDataFile): ProfileDataFile {
@@ -65,11 +68,7 @@ function readDataNormalized(): ProfileDataFile {
 
 function writeData(data: ProfileDataFile) {
   ensureDataDir();
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  } catch (error) {
-    console.error("[profile-store] Failed to persist profile data:", error);
-  }
+  writeJsonStore(PROFILE_FILE, data);
 }
 
 function allSlugs(data: ProfileDataFile): Set<string> {

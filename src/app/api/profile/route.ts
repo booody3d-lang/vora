@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureLocalProfile } from "@/lib/auth/supabase-account";
 import {
   getProfileByAccountId,
   getProfileBySlug,
@@ -21,7 +22,11 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const profile = getProfileByAccountId(auth.user.id);
+  let profile = getProfileByAccountId(auth.user.id);
+  if (!profile) {
+    ensureLocalProfile(auth.user);
+    profile = getProfileByAccountId(auth.user.id);
+  }
   if (!profile) {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }

@@ -1,7 +1,6 @@
 import "server-only";
 
-import fs from "fs";
-import path from "path";
+import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { getCompanyById } from "@/lib/company/company-store";
 import { findAccountById } from "@/lib/security/demo-store";
 import {
@@ -9,8 +8,7 @@ import {
   getProfileByAccountId,
 } from "@/lib/profile/profile-store";
 
-const DATA_DIR = path.join(process.cwd(), ".data", "vora");
-const DATA_FILE = path.join(DATA_DIR, "social-data.json");
+const DATA_FILE = "social-data.json";
 
 export type FollowTargetType = "user" | "company";
 export type FollowStatus = "pending" | "accepted" | "declined";
@@ -48,25 +46,14 @@ interface SocialDataFile {
   follows: FollowRelationship[];
 }
 
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
 function readData(): SocialDataFile {
-  ensureDataDir();
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial: SocialDataFile = { follows: [] };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as SocialDataFile;
+  const data = readJsonStore(DATA_FILE, () => ({ follows: [] as FollowRelationship[] }));
   if (!data.follows) data.follows = [];
   return data;
 }
 
 function writeData(data: SocialDataFile) {
-  ensureDataDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  writeJsonStore(DATA_FILE, data);
 }
 
 function edgeId(followerId: string, targetId: string, targetType: FollowTargetType): string {

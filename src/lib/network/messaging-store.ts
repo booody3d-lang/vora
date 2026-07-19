@@ -1,7 +1,6 @@
 import "server-only";
 
-import fs from "fs";
-import path from "path";
+import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { getProfileByAccountId, listLinkedAccounts } from "@/lib/profile/profile-store";
 import { resolveAvatarUrl } from "@/lib/profile/avatar";
 import { isAccountOnline } from "@/lib/network/presence-store";
@@ -14,8 +13,7 @@ import type {
   NetworkUser,
 } from "@/types/network";
 
-const DATA_DIR = path.join(process.cwd(), ".data", "vora");
-const DATA_FILE = path.join(DATA_DIR, "messaging-data.json");
+const DATA_FILE = "messaging-data.json";
 
 interface StoredConversation {
   id: string;
@@ -30,26 +28,18 @@ interface MessagingDataFile {
   messages: Record<string, ChatMessage[]>;
 }
 
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
 function readData(): MessagingDataFile {
-  ensureDataDir();
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial: MessagingDataFile = { conversations: [], messages: {} };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as MessagingDataFile;
+  const data = readJsonStore(DATA_FILE, () => ({
+    conversations: [] as StoredConversation[],
+    messages: {} as Record<string, ChatMessage[]>,
+  }));
   if (!data.conversations) data.conversations = [];
   if (!data.messages) data.messages = {};
   return data;
 }
 
 function writeData(data: MessagingDataFile) {
-  ensureDataDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  writeJsonStore(DATA_FILE, data);
 }
 
 function participantFromAccount(accountId: string): NetworkUser | null {

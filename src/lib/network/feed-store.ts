@@ -1,7 +1,6 @@
 import "server-only";
 
-import fs from "fs";
-import path from "path";
+import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import {
   getProfileByAccountId,
   getProfileBySlug,
@@ -21,8 +20,7 @@ import type {
 
 export type { CreatePostInput };
 
-const DATA_DIR = path.join(process.cwd(), ".data", "vora");
-const DATA_FILE = path.join(DATA_DIR, "feed-data.json");
+const DATA_FILE = "feed-data.json";
 
 interface UserEngagement {
   reactions: Record<string, ReactionType>;
@@ -40,25 +38,13 @@ function emptyReactions(): Record<ReactionType, number> {
   return { like: 0, insightful: 0, support: 0, celebrate: 0 };
 }
 
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
 function readData(): FeedDataFile {
-  ensureDataDir();
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial: FeedDataFile = {
-      posts: [],
-      comments: {},
-      reactions: {},
-      engagement: {},
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  const raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as FeedDataFile & {
-    userPosts?: FeedPost[];
-  };
+  const raw = readJsonStore(DATA_FILE, () => ({
+    posts: [] as FeedPost[],
+    comments: {} as Record<string, FeedComment[]>,
+    reactions: {} as Record<string, Record<ReactionType, number>>,
+    engagement: {} as Record<string, UserEngagement>,
+  })) as FeedDataFile & { userPosts?: FeedPost[] };
   if (!raw.posts && raw.userPosts) raw.posts = raw.userPosts;
   if (!raw.posts) raw.posts = [];
   if (!raw.comments) raw.comments = {};
@@ -68,8 +54,7 @@ function readData(): FeedDataFile {
 }
 
 function writeData(data: FeedDataFile) {
-  ensureDataDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  writeJsonStore(DATA_FILE, data);
 }
 
 function getEngagement(data: FeedDataFile, accountId: string): UserEngagement {
