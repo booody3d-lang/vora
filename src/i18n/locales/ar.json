@@ -640,6 +640,7 @@
     "alreadyHaveAccount": "لديك حساب بالفعل؟",
     "signInLink": "سجّل الدخول",
     "signupFailed": "فشل إنشاء الحساب",
+    "confirmEmailHint": "تحقق من بريدك الإلكتروني لتأكيد حسابك ثم سجّل الدخول.",
     "demoAccounts": {
       "registered": "مستخدم مسجّل",
       "professional": "محترف",

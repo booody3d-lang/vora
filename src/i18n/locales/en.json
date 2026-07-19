@@ -640,6 +640,7 @@
     "alreadyHaveAccount": "Already have an account?",
     "signInLink": "Sign in",
     "signupFailed": "Signup failed",
+    "confirmEmailHint": "Check your email to confirm your account, then sign in.",
     "demoAccounts": {
       "registered": "Registered User",
       "professional": "Professional",

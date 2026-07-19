@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { clearLegacySessionCookie } from "@/lib/auth/legacy-cookie";
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { COOKIE_NAME } from "@/lib/security/jwt";
 import { getServerSession } from "@/lib/security/session";
 import { revokeAllSessions, revokeSession } from "@/lib/security/demo-store";
@@ -9,9 +12,12 @@ import {
 
 export async function POST(request: Request) {
   const session = await getServerSession();
-  const body = await request.json().catch(() => ({})) as { allDevices?: boolean };
+  const body = (await request.json().catch(() => ({}))) as { allDevices?: boolean };
 
-  if (session) {
+  if (isSupabaseConfigured()) {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+  } else if (session) {
     if (body.allDevices) {
       revokeAllSessions(session.sub, session.sessionId);
       revokeAllPersistedSessions(session.sub, session.sessionId);
@@ -22,6 +28,7 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ success: true });
+  clearLegacySessionCookie(response);
   response.cookies.set(COOKIE_NAME, "", { httpOnly: true, path: "/", maxAge: 0 });
   return response;
 }

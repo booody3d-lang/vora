@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
+import { clearLegacySessionCookie } from "@/lib/auth/legacy-cookie";
 import {
-  COOKIE_NAME,
-  sessionCookieOptions,
-  signSessionToken,
-} from "@/lib/security/jwt";
-import { hashPassword, validatePassword } from "@/lib/security/password";
+  enrichAuthUser,
+  ensureLocalProfile,
+  resolveAuthUser,
+  upsertAccountRow,
+  buildAuthUserFromMetadata,
+} from "@/lib/auth/supabase-account";
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   checkRateLimit,
   getClientIp,
   RATE_LIMITS,
   rateLimitHeaders,
 } from "@/lib/security/rate-limit";
+import { hashPassword, validatePassword } from "@/lib/security/password";
 import {
   createSession,
   findAccountByEmail,
@@ -21,6 +26,8 @@ import {
 import { checkMultiAccount } from "@/lib/security/anti-abuse";
 import { createProfileForAccount } from "@/lib/profile/profile-store";
 import { persistSession, storePasswordHash } from "@/lib/security/auth-store";
+import { COOKIE_NAME, sessionCookieOptions, signSessionToken } from "@/lib/security/jwt";
+import { resolveEffectiveRole } from "@/lib/security/roles";
 import type { UserGender } from "@/types/profile";
 
 function parseGender(value: unknown): UserGender | null {
@@ -39,8 +46,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await initDemoAccounts(hashPassword);
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       email?: string;
       password?: string;
       fullName?: string;
@@ -66,14 +72,78 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: pwCheck.errors.join(". ") }, { status: 400 });
     }
 
-    if (findAccountByEmail(body.email)) {
-      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
-    }
-
     const role = body.role ?? "registered";
     const gender = parseGender(body.gender);
     if (role !== "company" && !gender) {
       return NextResponse.json({ error: "Gender selection is required" }, { status: 400 });
+    }
+
+    if (isSupabaseConfigured()) {
+      const supabase = await createClient();
+      const { data, error } = await supabase.auth.signUp({
+        email: body.email.trim(),
+        password: body.password,
+        options: {
+          data: {
+            full_name: body.fullName.trim(),
+            role,
+            gender: gender ?? null,
+          },
+        },
+      });
+
+      if (error) {
+        if (error.message.toLowerCase().includes("already registered")) {
+          return NextResponse.json({ error: "Email already registered" }, { status: 409 });
+        }
+        console.error("[auth/signup] supabase:", error.message);
+        return NextResponse.json({ error: error.message || "Signup failed" }, { status: 400 });
+      }
+
+      if (!data.user) {
+        return NextResponse.json({ error: "Signup failed" }, { status: 500 });
+      }
+
+      const authUser = buildAuthUserFromMetadata(data.user);
+      authUser.fullName = body.fullName.trim();
+      authUser.role = role;
+      authUser.gender = gender ?? undefined;
+      authUser.professionalUnlocked = role === "professional";
+      authUser.hasFreelancerStore = role === "professional";
+      authUser.hasProfessionalProfile = role !== "company";
+
+      await upsertAccountRow(authUser);
+      ensureLocalProfile(authUser);
+
+      if (body.fingerprint) {
+        const abuse = checkMultiAccount(body.fingerprint, authUser.id);
+        if (abuse.flagged) {
+          await supabase.auth.signOut();
+          return NextResponse.json({ error: abuse.message }, { status: 403 });
+        }
+      }
+
+      if (!data.session) {
+        const response = NextResponse.json({
+          requiresEmailConfirmation: true,
+          message: "Check your email to confirm your account before signing in.",
+        });
+        clearLegacySessionCookie(response);
+        return response;
+      }
+
+      const resolved = await resolveAuthUser(data.user);
+      const response = NextResponse.json({
+        user: enrichAuthUser(resolved ?? authUser),
+      });
+      clearLegacySessionCookie(response);
+      return response;
+    }
+
+    await initDemoAccounts(hashPassword);
+
+    if (findAccountByEmail(body.email)) {
+      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
     }
 
     const passwordHash = await hashPassword(body.password);
@@ -118,14 +188,16 @@ export async function POST(request: Request) {
       createdAt: session.createdAt,
       lastActiveAt: session.lastActiveAt,
     });
+
+    const effectiveRole = resolveEffectiveRole(account);
     const token = await signSessionToken({
       sub: account.id,
       email: account.email,
-      role: account.role,
+      role: effectiveRole,
       sessionId,
     });
 
-    const response = NextResponse.json({ user: toPublicUser(account) });
+    const response = NextResponse.json({ user: { ...toPublicUser(account), role: effectiveRole } });
     response.cookies.set(COOKIE_NAME, token, sessionCookieOptions());
     return response;
   } catch (error) {

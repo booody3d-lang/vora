@@ -57,6 +57,10 @@ export function SignupForm() {
         setError(data.error ?? t("auth.signupFailed"));
         return;
       }
+      if (data.requiresEmailConfirmation) {
+        setError(data.message ?? t("auth.confirmEmailHint"));
+        return;
+      }
       const dest = role === "company" ? "/company/onboarding" : role === "professional" ? "/network" : "/freelance";
       router.push(dest);
       router.refresh();

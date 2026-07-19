@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/security/jwt";
 import { PROTECTED_ROUTE_PREFIXES } from "@/lib/security/rbac";
+import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 const LOCALE_PREFIX = /^\/(en|ar)(?=\/|$)/;
 
@@ -13,38 +15,68 @@ function requiresAuth(pathname: string): boolean {
   return PROTECTED_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
-async function hasValidSessionCookie(request: NextRequest): Promise<boolean> {
+async function hasLegacySessionCookie(request: NextRequest): Promise<boolean> {
   const token = request.cookies.get(COOKIE_NAME)?.value;
   if (!token) return false;
   const payload = await verifySessionToken(token);
   return payload !== null;
 }
 
+function copyCookies(from: NextResponse, to: NextResponse) {
+  from.cookies.getAll().forEach((cookie) => {
+    to.cookies.set(cookie.name, cookie.value);
+  });
+}
+
 /**
- * Locale rewrite plus lightweight auth gate for protected routes.
- * JWT validation here prevents redirect loops when the session cookie is valid
- * but the in-process session map was cleared (dev reload / multi-worker).
+ * Supabase session refresh on every matched request + locale rewrite + auth gate.
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isLocalePath = LOCALE_PREFIX.test(pathname);
+  const barePath = isLocalePath ? pathname.replace(LOCALE_PREFIX, "") || "/" : stripLocale(pathname);
+  const needsAuth = requiresAuth(barePath);
 
-  if (LOCALE_PREFIX.test(pathname)) {
-    const internalPath = pathname.replace(LOCALE_PREFIX, "") || "/";
+  if (isSupabaseConfigured()) {
+    const { supabase, getResponse } = createSupabaseMiddlewareClient(request);
+
+    if (supabase) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (needsAuth && !user) {
+        const loginUrl = request.nextUrl.clone();
+        loginUrl.pathname = "/auth/login";
+        loginUrl.searchParams.set("redirect", barePath);
+        return NextResponse.redirect(loginUrl);
+      }
+
+      const sessionResponse = getResponse();
+
+      if (isLocalePath) {
+        const url = request.nextUrl.clone();
+        url.pathname = barePath;
+        const rewrite = NextResponse.rewrite(url);
+        copyCookies(sessionResponse, rewrite);
+        return rewrite;
+      }
+
+      return sessionResponse;
+    }
+  }
+
+  if (isLocalePath) {
     const url = request.nextUrl.clone();
-    url.pathname = internalPath;
+    url.pathname = barePath;
     return NextResponse.rewrite(url);
   }
 
-  const barePath = stripLocale(pathname);
-
-  if (requiresAuth(barePath)) {
-    const authenticated = await hasValidSessionCookie(request);
-    if (!authenticated) {
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/auth/login";
-      loginUrl.searchParams.set("redirect", barePath);
-      return NextResponse.redirect(loginUrl);
-    }
+  if (needsAuth && !(await hasLegacySessionCookie(request))) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/auth/login";
+    loginUrl.searchParams.set("redirect", barePath);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
