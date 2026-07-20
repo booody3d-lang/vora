@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearLegacySessionCookie } from "@/lib/auth/legacy-cookie";
-import { enrichAuthUser, resolveAuthUser } from "@/lib/auth/supabase-account";
+import { enrichAuthUser, resolveAuthUser, buildAuthUserFromMetadata } from "@/lib/auth/supabase-account";
 import {
   logAuthFailure,
   logAuthRequest,
@@ -85,7 +85,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    const authUser = await resolveAuthUser(data.user);
+    let authUser = buildAuthUserFromMetadata(data.user);
+    try {
+      authUser = (await resolveAuthUser(data.user)) ?? authUser;
+    } catch (resolveError) {
+      logAuthFailure("login", "profile-sync-failed", {
+        email,
+        userId: data.user.id,
+        message: resolveError instanceof Error ? resolveError.message : String(resolveError),
+      });
+    }
+
     if (!authUser || authUser.isBanned) {
       await supabase.auth.signOut();
       logAuthFailure("login", "account-suspended", { email, userId: data.user.id });

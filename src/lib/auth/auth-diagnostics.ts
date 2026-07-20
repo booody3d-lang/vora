@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
 import { getSupabaseUrl, isSupabaseConfigured } from "@/lib/supabase/config";
+import { isMissingRelationError, markSupabaseDbSyncUnavailable } from "@/lib/supabase/safe-db";
 import type { AuthError, User } from "@supabase/supabase-js";
 
 export function getSupabaseAuthUrl(): string | null {
@@ -102,7 +103,11 @@ export async function inspectSignupEmailConflict(email: string): Promise<SignupC
     .maybeSingle();
 
   if (accountError) {
-    console.error("[auth/signup] accounts lookup failed:", accountError.message);
+    if (isMissingRelationError(accountError)) {
+      markSupabaseDbSyncUnavailable("signup accounts lookup", accountError);
+    } else {
+      console.error("[auth/signup] accounts lookup failed:", accountError.message);
+    }
   } else if (accountRow) {
     diagnostics.accountRow = {
       id: accountRow.id,
@@ -193,7 +198,13 @@ export async function cleanupStaleAccountRowForEmail(email: string): Promise<boo
     .ilike("email", normalizedEmail)
     .maybeSingle();
 
-  if (accountError || !accountRow) return false;
+  if (accountError) {
+    if (isMissingRelationError(accountError)) {
+      markSupabaseDbSyncUnavailable("stale account cleanup lookup", accountError);
+    }
+    return false;
+  }
+  if (!accountRow) return false;
 
   const { data: authUser, error: authError } = await admin.auth.admin.getUserById(accountRow.id);
   if (!authError && authUser.user) return false;

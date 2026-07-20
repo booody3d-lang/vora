@@ -2,6 +2,11 @@ import type { User } from "@supabase/supabase-js";
 import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
+  isMissingRelationError,
+  markSupabaseDbSyncUnavailable,
+  runOptionalDbSyncVoid,
+} from "@/lib/supabase/safe-db";
+import {
   createProfileForAccount,
   getGenderForAccount,
   getProfileByAccountId,
@@ -82,26 +87,32 @@ export function buildAuthUserFromMetadata(user: User): AuthUser {
 export async function upsertAccountRow(authUser: AuthUser): Promise<void> {
   if (!isAdminClientAvailable()) return;
 
-  const admin = createAdminClient();
-  const { error } = await admin.from("accounts").upsert(
-    {
-      id: authUser.id,
-      email: authUser.email,
-      full_name: authUser.fullName,
-      primary_role: authUser.role,
-      gender: authUser.gender ?? null,
-      professional_unlocked: authUser.professionalUnlocked,
-      has_freelancer_store: authUser.hasFreelancerStore,
-      is_banned: authUser.isBanned,
-      phone_verified: authUser.phoneVerified,
-      totp_enabled: authUser.totpEnabled,
-    },
-    { onConflict: "id" }
-  );
+  await runOptionalDbSyncVoid("upsert account row", async () => {
+    const admin = createAdminClient();
+    const { error } = await admin.from("accounts").upsert(
+      {
+        id: authUser.id,
+        email: authUser.email,
+        full_name: authUser.fullName,
+        primary_role: authUser.role,
+        gender: authUser.gender ?? null,
+        professional_unlocked: authUser.professionalUnlocked,
+        has_freelancer_store: authUser.hasFreelancerStore,
+        is_banned: authUser.isBanned,
+        phone_verified: authUser.phoneVerified,
+        totp_enabled: authUser.totpEnabled,
+      },
+      { onConflict: "id" }
+    );
 
-  if (error) {
-    console.error("[supabase-account] upsert failed:", error.message);
-  }
+    if (error) {
+      if (isMissingRelationError(error)) {
+        markSupabaseDbSyncUnavailable("upsert account row", error);
+      } else {
+        console.error("[supabase-account] upsert failed:", error.message);
+      }
+    }
+  });
 }
 
 export function ensureLocalProfile(authUser: AuthUser): void {
@@ -126,7 +137,11 @@ export async function resolveAuthUser(user: User): Promise<AuthUser | null> {
     .maybeSingle();
 
   if (error) {
-    console.error("[supabase-account] fetch failed:", error.message);
+    if (isMissingRelationError(error)) {
+      markSupabaseDbSyncUnavailable("fetch account row", error);
+    } else {
+      console.error("[supabase-account] fetch failed:", error.message);
+    }
   }
 
   const authUser = row ? mapDbAccount(row as DbAccountRow) : buildAuthUserFromMetadata(user);

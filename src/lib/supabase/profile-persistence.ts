@@ -3,6 +3,13 @@ import "server-only";
 import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
+  isMissingRelationError,
+  isSupabaseDbSyncEnabled,
+  markSupabaseDbSyncUnavailable,
+  probeCoreSchema,
+  runOptionalDbSyncVoid,
+} from "@/lib/supabase/safe-db";
+import {
   ensureFreelancerStoreForAccount,
   getAccountIdByProfileSlug,
   getAccountIdByStoreSlug,
@@ -23,7 +30,13 @@ import type { FullProfessionalProfile } from "@/types/network";
 import type { AuthUser } from "@/types/security";
 
 export function isSupabasePersistenceEnabled(): boolean {
-  return isSupabaseConfigured() && isAdminClientAvailable();
+  return isSupabaseConfigured() && isAdminClientAvailable() && isSupabaseDbSyncEnabled();
+}
+
+async function ensureDbReadyForSync(): Promise<boolean> {
+  if (!isSupabaseConfigured() || !isAdminClientAvailable()) return false;
+  if (!isSupabaseDbSyncEnabled()) return false;
+  return probeCoreSchema();
 }
 
 interface DbProfileRow {
@@ -149,7 +162,11 @@ async function fetchProfileRowByAccountId(accountId: string): Promise<DbProfileR
     .eq("account_id", accountId)
     .maybeSingle();
   if (error) {
-    console.error("[profile-persistence] fetch profile:", error.message);
+    if (isMissingRelationError(error)) {
+      markSupabaseDbSyncUnavailable("fetch profile", error);
+    } else {
+      console.error("[profile-persistence] fetch profile:", error.message);
+    }
     return null;
   }
   return data as DbProfileRow | null;
@@ -166,7 +183,11 @@ async function fetchProfileRowBySlug(slug: string): Promise<DbProfileRow | null>
     .eq("slug", slug)
     .maybeSingle();
   if (error) {
-    console.error("[profile-persistence] fetch profile by slug:", error.message);
+    if (isMissingRelationError(error)) {
+      markSupabaseDbSyncUnavailable("fetch profile by slug", error);
+    } else {
+      console.error("[profile-persistence] fetch profile by slug:", error.message);
+    }
     return null;
   }
   return data as DbProfileRow | null;
@@ -183,7 +204,11 @@ async function fetchStoreRowByAccountId(accountId: string): Promise<DbStoreRow |
     .eq("account_id", accountId)
     .maybeSingle();
   if (error) {
-    console.error("[profile-persistence] fetch store:", error.message);
+    if (isMissingRelationError(error)) {
+      markSupabaseDbSyncUnavailable("fetch store", error);
+    } else {
+      console.error("[profile-persistence] fetch store:", error.message);
+    }
     return null;
   }
   return data as DbStoreRow | null;
@@ -243,7 +268,11 @@ async function fetchStoreRowBySlug(slug: string): Promise<DbStoreRow | null> {
     .eq("slug", slug)
     .maybeSingle();
   if (error) {
-    console.error("[profile-persistence] fetch store by slug:", error.message);
+    if (isMissingRelationError(error)) {
+      markSupabaseDbSyncUnavailable("fetch store by slug", error);
+    } else {
+      console.error("[profile-persistence] fetch store by slug:", error.message);
+    }
     return null;
   }
   return data as DbStoreRow | null;
@@ -252,8 +281,8 @@ async function fetchStoreRowBySlug(slug: string): Promise<DbStoreRow | null> {
 export async function upsertSupabaseProfile(
   accountId: string,
   profile: FullProfessionalProfile
-): Promise<void> {
-  if (!isSupabasePersistenceEnabled()) return;
+): Promise<boolean> {
+  if (!(await ensureDbReadyForSync())) return false;
 
   const admin = createAdminClient();
   const score = calculateProfessionalScore({
@@ -294,17 +323,23 @@ export async function upsertSupabaseProfile(
   );
 
   if (error) {
-    console.error("[profile-persistence] upsert profile:", error.message);
-    throw new Error(error.message);
+    if (isMissingRelationError(error)) {
+      markSupabaseDbSyncUnavailable("upsert profile", error);
+    } else {
+      console.error("[profile-persistence] upsert profile:", error.message);
+    }
+    return false;
   }
+
+  return true;
 }
 
 export async function upsertSupabaseStore(
   accountId: string,
   store: FreelancerStore,
   profileSlug: string
-): Promise<void> {
-  if (!isSupabasePersistenceEnabled()) return;
+): Promise<boolean> {
+  if (!(await ensureDbReadyForSync())) return false;
 
   const admin = createAdminClient();
   const { data: profileRow } = await admin
@@ -339,8 +374,12 @@ export async function upsertSupabaseStore(
     .single();
 
   if (error) {
-    console.error("[profile-persistence] upsert store:", error.message);
-    throw new Error(error.message);
+    if (isMissingRelationError(error)) {
+      markSupabaseDbSyncUnavailable("upsert store", error);
+    } else {
+      console.error("[profile-persistence] upsert store:", error.message);
+    }
+    return false;
   }
 
   await admin.from("accounts").update({ has_freelancer_store: true }).eq("id", accountId);
@@ -355,6 +394,8 @@ export async function upsertSupabaseStore(
       { onConflict: "account_id" }
     );
   }
+
+  return true;
 }
 
 export async function ensureSupabaseProfileAndStore(authUser: AuthUser): Promise<void> {
@@ -369,25 +410,27 @@ export async function ensureSupabaseProfileAndStore(authUser: AuthUser): Promise
     });
   }
 
-  if (!isSupabasePersistenceEnabled()) return;
+  await runOptionalDbSyncVoid("ensure profile and store", async () => {
+    if (!(await ensureDbReadyForSync())) return;
 
-  let profile = getProfileByAccountId(authUser.id);
-  if (!profile) return;
+    let profile = getProfileByAccountId(authUser.id);
+    if (!profile) return;
 
-  const existing = await fetchProfileRowByAccountId(authUser.id);
-  if (existing && existing.slug !== profile.slug) {
-    profile = updateProfileForAccount(authUser.id, { slug: existing.slug }) ?? profile;
-  }
-
-  await upsertSupabaseProfile(authUser.id, profile);
-
-  if (authUser.hasFreelancerStore || getAccountLink(authUser.id)?.storeSlug) {
-    ensureFreelancerStoreForAccount(authUser.id);
-    const store = getStoreByAccountId(authUser.id);
-    if (store) {
-      await upsertSupabaseStore(authUser.id, store, profile.slug);
+    const existing = await fetchProfileRowByAccountId(authUser.id);
+    if (existing && existing.slug !== profile.slug) {
+      profile = updateProfileForAccount(authUser.id, { slug: existing.slug }) ?? profile;
     }
-  }
+
+    await upsertSupabaseProfile(authUser.id, profile);
+
+    if (authUser.hasFreelancerStore || getAccountLink(authUser.id)?.storeSlug) {
+      ensureFreelancerStoreForAccount(authUser.id);
+      const store = getStoreByAccountId(authUser.id);
+      if (store) {
+        await upsertSupabaseStore(authUser.id, store, profile.slug);
+      }
+    }
+  });
 }
 
 export async function loadProfileForAccount(accountId: string): Promise<FullProfessionalProfile | null> {
@@ -415,7 +458,7 @@ export async function loadProfileForAccount(accountId: string): Promise<FullProf
   }
 
   if (jsonProfile && isSupabasePersistenceEnabled()) {
-    await upsertSupabaseProfile(accountId, jsonProfile).catch(console.error);
+    await upsertSupabaseProfile(accountId, jsonProfile);
   }
 
   return jsonProfile;
@@ -479,7 +522,7 @@ export async function loadStoreForAccount(accountId: string): Promise<Freelancer
   }
 
   if (jsonStore && isSupabasePersistenceEnabled() && profileSlug) {
-    await upsertSupabaseStore(accountId, jsonStore, profileSlug).catch(console.error);
+    await upsertSupabaseStore(accountId, jsonStore, profileSlug);
   }
 
   return jsonStore;
@@ -527,10 +570,16 @@ export async function saveStoreForAccount(
 
 export async function resolveUniqueProfileSlug(fullName: string, accountId: string): Promise<string> {
   const base = slugifyName(fullName) || "user";
-  if (!isSupabasePersistenceEnabled()) return base;
+  if (!(await ensureDbReadyForSync())) return base;
 
   const admin = createAdminClient();
-  const { data } = await admin.from("professional_profiles").select("slug").ilike("slug", `${base}%`);
+  const { data, error } = await admin.from("professional_profiles").select("slug").ilike("slug", `${base}%`);
+  if (error) {
+    if (isMissingRelationError(error)) {
+      markSupabaseDbSyncUnavailable("resolve profile slug", error);
+    }
+    return base;
+  }
   const taken = new Set((data ?? []).map((row) => row.slug));
   return uniqueSlug(base, taken);
 }

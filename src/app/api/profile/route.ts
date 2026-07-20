@@ -3,7 +3,8 @@ import {
   ensureSupabaseProfileAndStore,
   loadProfileForAccount,
   saveProfileForAccount,
-} from "@/lib/supabase/profile-persistence";import type { FullProfessionalProfile } from "@/types/network";
+} from "@/lib/supabase/profile-persistence";
+import type { FullProfessionalProfile } from "@/types/network";
 import { pickPrivateUpdates } from "@/lib/profile/private-fields";
 import { getSocialProfileContext } from "@/lib/network/social-store";
 import { getAuthenticatedUser } from "@/lib/security/session";

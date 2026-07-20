@@ -1,4 +1,4 @@
-import { enrichAuthUser, resolveAuthUser } from "@/lib/auth/supabase-account";
+import { buildAuthUserFromMetadata, enrichAuthUser, resolveAuthUser } from "@/lib/auth/supabase-account";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { AuthUser, SessionPayload } from "@/types/security";
@@ -25,7 +25,13 @@ export async function getServerSession(): Promise<SessionPayload | null> {
 
   if (error || !user) return null;
 
-  const authUser = await resolveAuthUser(user);
+  let authUser: Awaited<ReturnType<typeof resolveAuthUser>> = null;
+  try {
+    authUser = await resolveAuthUser(user);
+  } catch (resolveError) {
+    console.error("[session] resolveAuthUser failed, using auth metadata fallback:", resolveError);
+    authUser = buildAuthUserFromMetadata(user);
+  }
   if (!authUser || authUser.isBanned) return null;
 
   const {
@@ -60,7 +66,13 @@ export async function getAuthenticatedUser(): Promise<{
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const authUser = await resolveAuthUser(user);
+  let authUser: Awaited<ReturnType<typeof resolveAuthUser>> = null;
+  try {
+    authUser = await resolveAuthUser(user);
+  } catch (resolveError) {
+    console.error("[session] resolveAuthUser failed, using auth metadata fallback:", resolveError);
+    authUser = buildAuthUserFromMetadata(user);
+  }
   if (!authUser) return null;
 
   return {
