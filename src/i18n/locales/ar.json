@@ -641,6 +641,9 @@
     "signInLink": "سجّل الدخول",
     "signupFailed": "فشل إنشاء الحساب",
     "confirmEmailHint": "تحقق من بريدك الإلكتروني لتأكيد حسابك ثم سجّل الدخول.",
+    "emailAlreadyRegisteredLogin": "هذا البريد مسجل مسبقاً. يرجى تسجيل الدخول.",
+    "accountTypeList": "أنواع الحسابات",
+    "accountTypeHint": "اختر نوع حسابك لملء البريد، ثم أدخل كلمة المرور الخاصة بك.",
     "demoAccounts": {
       "registered": "مستخدم مسجّل",
       "professional": "محترف",

@@ -17,6 +17,7 @@ import {
   logAuthRequest,
   logSignupConflict,
   logSupabaseSignupError,
+  prepareEmailForSignup,
 } from "@/lib/auth/auth-diagnostics";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -33,16 +34,6 @@ import type { UserGender } from "@/types/profile";
 function parseGender(value: unknown): UserGender | null {
   if (value === "male" || value === "female") return value;
   return null;
-}
-
-async function respondEmailAlreadyRegistered(
-  email: string,
-  reason: string,
-  extra?: Record<string, unknown>
-) {
-  const diagnostics = await inspectSignupEmailConflict(email);
-  logSignupConflict(reason, diagnostics, extra);
-  return NextResponse.json({ error: "Email already registered" }, { status: 409 });
 }
 
 export async function POST(request: Request) {
@@ -100,6 +91,19 @@ export async function POST(request: Request) {
     }
 
     await cleanupStaleAccountRowForEmail(email);
+    const prep = await prepareEmailForSignup(email);
+    if (prep === "exists-confirmed") {
+      const diagnostics = await inspectSignupEmailConflict(email);
+      logSignupConflict("confirmed-account-exists", diagnostics);
+      return NextResponse.json(
+        {
+          error: "Email already registered",
+          messageAr: "هذا البريد مسجل مسبقاً. يرجى تسجيل الدخول.",
+          action: "login",
+        },
+        { status: 409 }
+      );
+    }
 
     const supabase = await createClient();
     const { data, error } = await supabase.auth.signUp({
@@ -119,11 +123,17 @@ export async function POST(request: Request) {
       logSupabaseSignupError(error, diagnostics);
 
       if (isDuplicateSignupError(error)) {
-        return await respondEmailAlreadyRegistered(email, "supabase-auth-duplicate", {
+        logSignupConflict("supabase-auth-duplicate", diagnostics, {
           supabaseError: error.message,
-          supabaseStatus: error.status,
-          supabaseCode: error.code,
         });
+        return NextResponse.json(
+          {
+            error: "Email already registered",
+            messageAr: "هذا البريد مسجل مسبقاً. يرجى تسجيل الدخول أو استخدام استعادة كلمة المرور.",
+            action: "login",
+          },
+          { status: 409 }
+        );
       }
 
       return NextResponse.json({ error: error.message || "Signup failed" }, { status: 400 });
@@ -135,9 +145,19 @@ export async function POST(request: Request) {
     }
 
     if (isDuplicateSignupUser(data.user)) {
-      return await respondEmailAlreadyRegistered(email, "supabase-empty-identities", {
+      logSignupConflict("supabase-empty-identities", await inspectSignupEmailConflict(email), {
         userId: data.user.id,
       });
+      return NextResponse.json(
+        {
+          existingAccount: true,
+          action: "login",
+          requiresEmailConfirmation: true,
+          message: "This email is already registered. Sign in or check your inbox to confirm your account.",
+          messageAr: "هذا البريد مسجل مسبقاً. سجّل الدخول أو تحقق من بريدك لتأكيد الحساب.",
+        },
+        { status: 409 }
+      );
     }
 
     const authUser = buildAuthUserFromMetadata(data.user);
@@ -168,6 +188,7 @@ export async function POST(request: Request) {
       const response = NextResponse.json({
         requiresEmailConfirmation: true,
         message: "Check your email to confirm your account before signing in.",
+        messageAr: "تحقق من بريدك الإلكتروني لتأكيد حسابك قبل تسجيل الدخول.",
       });
       clearLegacySessionCookie(response);
       return response;

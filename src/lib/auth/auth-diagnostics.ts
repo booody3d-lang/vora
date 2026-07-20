@@ -116,9 +116,9 @@ export async function inspectSignupEmailConflict(email: string): Promise<SignupC
   return diagnostics;
 }
 
-async function findAuthUserByEmail(
+export async function findAuthUserByEmail(
   email: string
-): Promise<{ id: string; email?: string; createdAt?: string } | null> {
+): Promise<{ id: string; email?: string; createdAt?: string; emailConfirmed: boolean } | null> {
   if (!isAdminClientAvailable()) return null;
 
   const admin = createAdminClient();
@@ -137,6 +137,7 @@ async function findAuthUserByEmail(
         id: match.id,
         email: match.email,
         createdAt: match.created_at,
+        emailConfirmed: Boolean(match.email_confirmed_at),
       };
     }
 
@@ -144,6 +145,40 @@ async function findAuthUserByEmail(
   }
 
   return null;
+}
+
+export type SignupEmailPrepResult = "ready" | "exists-confirmed" | "no-admin";
+
+/** Removes unconfirmed Supabase auth users so signup can proceed cleanly. */
+export async function prepareEmailForSignup(email: string): Promise<SignupEmailPrepResult> {
+  if (!isAdminClientAvailable()) return "no-admin";
+
+  const existing = await findAuthUserByEmail(email);
+  if (!existing) return "ready";
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.getUserById(existing.id);
+  if (error || !data.user) return "ready";
+
+  if (data.user.email_confirmed_at) {
+    return "exists-confirmed";
+  }
+
+  const { error: deleteAuthError } = await admin.auth.admin.deleteUser(existing.id);
+  if (deleteAuthError) {
+    console.error("[auth/signup] delete unconfirmed auth user failed:", deleteAuthError.message);
+    return "exists-confirmed";
+  }
+
+  await admin.from("accounts").delete().eq("id", existing.id);
+
+  console.warn("[auth/signup] removed unconfirmed auth user before signup retry", {
+    email: email.trim(),
+    userId: existing.id,
+    ...getSupabaseAuthDiagnostics(),
+  });
+
+  return "ready";
 }
 
 export async function cleanupStaleAccountRowForEmail(email: string): Promise<boolean> {

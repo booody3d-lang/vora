@@ -51,14 +51,20 @@ export function SignupForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.error?.includes("8 characters")) {
+        if (data.messageAr) {
+          setError(data.messageAr);
+        } else if (data.action === "login") {
+          setError(t("auth.emailAlreadyRegisteredLogin"));
+        } else if (data.error?.includes("8 characters")) {
           setPwErrors(data.error.split(". "));
+          setError(data.error);
+        } else {
+          setError(data.error ?? t("auth.signupFailed"));
         }
-        setError(data.error ?? t("auth.signupFailed"));
         return;
       }
-      if (data.requiresEmailConfirmation) {
-        setError(data.message ?? t("auth.confirmEmailHint"));
+      if (data.requiresEmailConfirmation || data.existingAccount) {
+        setError(data.messageAr ?? data.message ?? t("auth.confirmEmailHint"));
         return;
       }
       const dest = role === "company" ? "/company/onboarding" : role === "professional" ? "/network" : "/freelance";
@@ -154,6 +160,13 @@ export function SignupForm() {
         {t("auth.alreadyHaveAccount")}{" "}
         <Link href="/auth/login" className="text-[#3B5998] hover:underline">{t("auth.signInLink")}</Link>
       </p>
+      {error && error.includes("مسجل") && (
+        <p className="mt-3 text-center text-sm">
+          <Link href="/auth/login" className="font-semibold text-[#3B5998] hover:underline">
+            {t("auth.signInLink")}
+          </Link>
+        </p>
+      )}
     </div>
   );
 }

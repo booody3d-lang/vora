@@ -641,6 +641,9 @@
     "signInLink": "Sign in",
     "signupFailed": "Signup failed",
     "confirmEmailHint": "Check your email to confirm your account, then sign in.",
+    "emailAlreadyRegisteredLogin": "This email is already registered. Please sign in instead.",
+    "accountTypeList": "Account types",
+    "accountTypeHint": "Select your account type to fill the email, then enter your Supabase password.",
     "demoAccounts": {
       "registered": "Registered User",
       "professional": "Professional",
