@@ -9,36 +9,25 @@ import {
 } from "@/lib/auth/supabase-account";
 import {
   cleanupStaleAccountRowForEmail,
+  getSupabaseAuthDiagnostics,
   inspectSignupEmailConflict,
   isDuplicateSignupError,
   isDuplicateSignupUser,
-  isProductionWithoutSupabase,
-  isReservedSeedDemoEmail,
-  logSignupAttempt,
+  logAuthFailure,
+  logAuthRequest,
   logSignupConflict,
   logSupabaseSignupError,
-  getSupabaseProjectLabel,
-  resolveSignupAuthBackend,
-} from "@/lib/auth/signup-support";
+} from "@/lib/auth/auth-diagnostics";
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   checkRateLimit,
   getClientIp,
   RATE_LIMITS,
   rateLimitHeaders,
 } from "@/lib/security/rate-limit";
-import { hashPassword, validatePassword } from "@/lib/security/password";
-import {
-  createSession,
-  initDemoAccounts,
-  registerDemoUser,
-  toPublicUser,
-} from "@/lib/security/demo-store";
+import { validatePassword } from "@/lib/security/password";
 import { checkMultiAccount } from "@/lib/security/anti-abuse";
-import { createProfileForAccount } from "@/lib/profile/profile-store";
-import { persistSession, storePasswordHash } from "@/lib/security/auth-store";
-import { COOKIE_NAME, sessionCookieOptions, signSessionToken } from "@/lib/security/jwt";
-import { resolveEffectiveRole } from "@/lib/security/roles";
 import type { UserGender } from "@/types/profile";
 
 function parseGender(value: unknown): UserGender | null {
@@ -100,173 +89,100 @@ export async function POST(request: Request) {
     }
 
     const email = body.email.trim();
-    const backend = resolveSignupAuthBackend();
-    logSignupAttempt({ email, role, backend });
+    logAuthRequest("signup", { email, role, ip });
 
-    if (isProductionWithoutSupabase()) {
-      console.error("[auth/signup] Supabase env vars missing on Vercel deployment");
+    if (!isSupabaseConfigured()) {
+      logAuthFailure("signup", "supabase-not-configured");
       return NextResponse.json(
-        { error: "Signup is temporarily unavailable. Supabase is not configured for this deployment." },
+        { error: "Signup is unavailable. Supabase authentication is not configured for this deployment." },
         { status: 503 }
       );
     }
 
-    if (backend === "supabase") {
-      await cleanupStaleAccountRowForEmail(email);
+    await cleanupStaleAccountRowForEmail(email);
 
-      const supabase = await createClient();
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: body.password,
-        options: {
-          data: {
-            full_name: body.fullName.trim(),
-            role,
-            gender: gender ?? null,
-          },
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password: body.password,
+      options: {
+        data: {
+          full_name: body.fullName.trim(),
+          role,
+          gender: gender ?? null,
         },
+      },
+    });
+
+    if (error) {
+      const diagnostics = await inspectSignupEmailConflict(email);
+      logSupabaseSignupError(error, diagnostics);
+
+      if (isDuplicateSignupError(error)) {
+        return await respondEmailAlreadyRegistered(email, "supabase-auth-duplicate", {
+          supabaseError: error.message,
+          supabaseStatus: error.status,
+          supabaseCode: error.code,
+        });
+      }
+
+      return NextResponse.json({ error: error.message || "Signup failed" }, { status: 400 });
+    }
+
+    if (!data.user) {
+      logAuthFailure("signup", "supabase-no-user-returned", { email });
+      return NextResponse.json({ error: "Signup failed" }, { status: 500 });
+    }
+
+    if (isDuplicateSignupUser(data.user)) {
+      return await respondEmailAlreadyRegistered(email, "supabase-empty-identities", {
+        userId: data.user.id,
       });
+    }
 
-      if (error) {
-        const diagnostics = await inspectSignupEmailConflict(email);
-        logSupabaseSignupError(error, diagnostics);
+    const authUser = buildAuthUserFromMetadata(data.user);
+    authUser.fullName = body.fullName.trim();
+    authUser.role = role;
+    authUser.gender = gender ?? undefined;
+    authUser.professionalUnlocked = role === "professional";
+    authUser.hasFreelancerStore = role === "professional";
+    authUser.hasProfessionalProfile = role !== "company";
 
-        if (isDuplicateSignupError(error)) {
-          return await respondEmailAlreadyRegistered(email, "supabase-auth-duplicate", {
-            supabaseError: error.message,
-            supabaseStatus: error.status,
-            supabaseCode: error.code,
-          });
-        }
+    await upsertAccountRow(authUser);
+    ensureLocalProfile(authUser);
 
-        return NextResponse.json({ error: error.message || "Signup failed" }, { status: 400 });
+    if (body.fingerprint) {
+      const abuse = checkMultiAccount(body.fingerprint, authUser.id);
+      if (abuse.flagged) {
+        await supabase.auth.signOut();
+        return NextResponse.json({ error: abuse.message }, { status: 403 });
       }
+    }
 
-      if (!data.user) {
-        console.error("[auth/signup] supabase signUp returned no user", {
-          email,
-          supabaseProject: getSupabaseProjectLabel(),
-        });
-        return NextResponse.json({ error: "Signup failed" }, { status: 500 });
-      }
-
-      if (isDuplicateSignupUser(data.user)) {
-        return await respondEmailAlreadyRegistered(email, "supabase-empty-identities", {
-          userId: data.user.id,
-        });
-      }
-
-      const authUser = buildAuthUserFromMetadata(data.user);
-      authUser.fullName = body.fullName.trim();
-      authUser.role = role;
-      authUser.gender = gender ?? undefined;
-      authUser.professionalUnlocked = role === "professional";
-      authUser.hasFreelancerStore = role === "professional";
-      authUser.hasProfessionalProfile = role !== "company";
-
-      await upsertAccountRow(authUser);
-      ensureLocalProfile(authUser);
-
-      if (body.fingerprint) {
-        const abuse = checkMultiAccount(body.fingerprint, authUser.id);
-        if (abuse.flagged) {
-          await supabase.auth.signOut();
-          return NextResponse.json({ error: abuse.message }, { status: 403 });
-        }
-      }
-
-      if (!data.session) {
-        console.info("[auth/signup] email confirmation required", {
-          email,
-          userId: data.user.id,
-          supabaseProject: getSupabaseProjectLabel(),
-        });
-        const response = NextResponse.json({
-          requiresEmailConfirmation: true,
-          message: "Check your email to confirm your account before signing in.",
-        });
-        clearLegacySessionCookie(response);
-        return response;
-      }
-
-      const resolved = await resolveAuthUser(data.user);
+    if (!data.session) {
+      console.info("[auth/signup] email confirmation required", {
+        email,
+        userId: data.user.id,
+        ...getSupabaseAuthDiagnostics(),
+      });
       const response = NextResponse.json({
-        user: enrichAuthUser(resolved ?? authUser),
+        requiresEmailConfirmation: true,
+        message: "Check your email to confirm your account before signing in.",
       });
       clearLegacySessionCookie(response);
       return response;
     }
 
-    await initDemoAccounts(hashPassword);
-
-    if (isReservedSeedDemoEmail(email)) {
-      const diagnostics = await inspectSignupEmailConflict(email);
-      logSignupConflict("demo-seed-email-reserved", diagnostics);
-      return NextResponse.json(
-        {
-          error:
-            "This email is reserved for demo accounts. Configure Supabase env vars to create a real account, or use a different email.",
-        },
-        { status: 409 }
-      );
-    }
-
-    const passwordHash = await hashPassword(body.password);
-    const accountId = `user-${Date.now()}`;
-    const link = createProfileForAccount({
-      accountId,
-      fullName: body.fullName.trim(),
-      email,
-      role,
-      gender: gender ?? undefined,
-      hasFreelancerStore: role === "professional",
+    const resolved = await resolveAuthUser(data.user);
+    const response = NextResponse.json({
+      user: enrichAuthUser(resolved ?? authUser),
     });
-
-    const account = registerDemoUser({
-      id: accountId,
-      email,
-      fullName: body.fullName.trim(),
-      passwordHash,
-      role,
-      gender: gender ?? undefined,
-      profileSlug: link.profileSlug,
-      storeSlug: link.storeSlug,
-    });
-
-    storePasswordHash(account.id, passwordHash);
-
-    if (body.fingerprint) {
-      const abuse = checkMultiAccount(body.fingerprint, account.id);
-      if (abuse.flagged) {
-        return NextResponse.json({ error: abuse.message }, { status: 403 });
-      }
-    }
-
-    const ua = request.headers.get("user-agent") ?? "unknown";
-    const { sessionId, session } = createSession(account.id, { userAgent: ua, ip });
-    persistSession({
-      sessionId,
-      accountId: account.id,
-      userAgent: ua,
-      ip,
-      deviceLabel: session.deviceLabel,
-      createdAt: session.createdAt,
-      lastActiveAt: session.lastActiveAt,
-    });
-
-    const effectiveRole = resolveEffectiveRole(account);
-    const token = await signSessionToken({
-      sub: account.id,
-      email: account.email,
-      role: effectiveRole,
-      sessionId,
-    });
-
-    const response = NextResponse.json({ user: { ...toPublicUser(account), role: effectiveRole } });
-    response.cookies.set(COOKIE_NAME, token, sessionCookieOptions());
+    clearLegacySessionCookie(response);
     return response;
   } catch (error) {
-    console.error("[auth/signup] unexpected failure", error);
+    logAuthFailure("signup", "unexpected-error", {
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "Signup failed" }, { status: 500 });
   }
 }

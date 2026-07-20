@@ -2,27 +2,54 @@ import "server-only";
 
 import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
 import { getSupabaseUrl, isSupabaseConfigured } from "@/lib/supabase/config";
-import { findAccountByEmail } from "@/lib/security/demo-store";
 import type { AuthError, User } from "@supabase/supabase-js";
 
-export type SignupAuthBackend = "supabase" | "demo";
-
-export function resolveSignupAuthBackend(): SignupAuthBackend {
-  if (isSupabaseConfigured()) return "supabase";
-  return "demo";
+export function getSupabaseAuthUrl(): string | null {
+  if (!isSupabaseConfigured()) return null;
+  return getSupabaseUrl();
 }
 
 export function getSupabaseProjectLabel(): string {
-  if (!isSupabaseConfigured()) return "not-configured";
+  const url = getSupabaseAuthUrl();
+  if (!url) return "not-configured";
   try {
-    return new URL(getSupabaseUrl()).hostname;
+    return new URL(url).hostname;
   } catch {
-    return getSupabaseUrl();
+    return url;
   }
 }
 
-export function isProductionWithoutSupabase(): boolean {
-  return Boolean(process.env.VERCEL) && !isSupabaseConfigured();
+export function getSupabaseAuthDiagnostics() {
+  return {
+    supabaseUrl: getSupabaseAuthUrl(),
+    supabaseProject: getSupabaseProjectLabel(),
+    supabaseConfigured: isSupabaseConfigured(),
+    supabaseAdminAvailable: isAdminClientAvailable(),
+    vercel: Boolean(process.env.VERCEL),
+    nodeEnv: process.env.NODE_ENV ?? "unknown",
+  };
+}
+
+export function logAuthRequest(
+  route: "login" | "signup",
+  payload: Record<string, unknown>
+): void {
+  console.info(`[auth/${route}] attempt`, {
+    ...getSupabaseAuthDiagnostics(),
+    ...payload,
+  });
+}
+
+export function logAuthFailure(
+  route: "login" | "signup",
+  reason: string,
+  extra?: Record<string, unknown>
+): void {
+  console.error(`[auth/${route}] failed`, {
+    reason,
+    ...getSupabaseAuthDiagnostics(),
+    ...extra,
+  });
 }
 
 export function isDuplicateSignupError(error: AuthError): boolean {
@@ -40,18 +67,13 @@ export function isDuplicateSignupUser(user: User | null | undefined): boolean {
   return Boolean(user && (!user.identities || user.identities.length === 0));
 }
 
-export function isReservedSeedDemoEmail(email: string): boolean {
-  return Boolean(findAccountByEmail(email));
-}
-
 interface SignupConflictDiagnostics {
   email: string;
-  authBackend: SignupAuthBackend;
+  supabaseUrl: string | null;
   supabaseProject: string;
   supabaseAdminAvailable: boolean;
   authUser: { id: string; email?: string; createdAt?: string } | null;
   accountRow: { id: string; email: string; createdAt?: string } | null;
-  reservedDemoSeedEmail: boolean;
   vercel: boolean;
 }
 
@@ -59,12 +81,11 @@ export async function inspectSignupEmailConflict(email: string): Promise<SignupC
   const normalizedEmail = email.trim();
   const diagnostics: SignupConflictDiagnostics = {
     email: normalizedEmail,
-    authBackend: resolveSignupAuthBackend(),
+    supabaseUrl: getSupabaseAuthUrl(),
     supabaseProject: getSupabaseProjectLabel(),
     supabaseAdminAvailable: isAdminClientAvailable(),
     authUser: null,
     accountRow: null,
-    reservedDemoSeedEmail: isReservedSeedDemoEmail(normalizedEmail),
     vercel: Boolean(process.env.VERCEL),
   };
 
@@ -151,25 +172,9 @@ export async function cleanupStaleAccountRowForEmail(email: string): Promise<boo
   console.warn("[auth/signup] removed stale accounts row without auth user", {
     email: normalizedEmail,
     accountId: accountRow.id,
-    supabaseProject: getSupabaseProjectLabel(),
+    ...getSupabaseAuthDiagnostics(),
   });
   return true;
-}
-
-export function logSignupAttempt(input: {
-  email: string;
-  role: string;
-  backend: SignupAuthBackend;
-}): void {
-  console.info("[auth/signup] attempt", {
-    email: input.email.trim(),
-    role: input.role,
-    backend: input.backend,
-    supabaseProject: getSupabaseProjectLabel(),
-    supabaseConfigured: isSupabaseConfigured(),
-    supabaseAdminAvailable: isAdminClientAvailable(),
-    vercel: Boolean(process.env.VERCEL),
-  });
 }
 
 export function logSignupConflict(
@@ -193,10 +198,20 @@ export function logSupabaseSignupError(
     status: error.status,
     code: error.code,
     name: error.name,
-    supabaseProject: diagnostics.supabaseProject,
-    authBackend: diagnostics.authBackend,
-    authUser: diagnostics.authUser,
-    accountRow: diagnostics.accountRow,
-    reservedDemoSeedEmail: diagnostics.reservedDemoSeedEmail,
+    ...diagnostics,
+  });
+}
+
+export function logSupabaseLoginError(
+  error: AuthError,
+  email: string
+): void {
+  console.error("[auth/login] supabase signIn rejected", {
+    email: email.trim(),
+    message: error.message,
+    status: error.status,
+    code: error.code,
+    name: error.name,
+    ...getSupabaseAuthDiagnostics(),
   });
 }

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { clearLegacySessionCookie } from "@/lib/auth/legacy-cookie";
-import { enrichAuthUser, resolveAuthUser, upsertAccountRow } from "@/lib/auth/supabase-account";
+import { enrichAuthUser, resolveAuthUser } from "@/lib/auth/supabase-account";
+import {
+  logAuthFailure,
+  logAuthRequest,
+  logSupabaseLoginError,
+} from "@/lib/auth/auth-diagnostics";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
@@ -11,49 +16,6 @@ import {
 } from "@/lib/security/rate-limit";
 import { buildTriggerNotification } from "@/lib/notifications/triggers";
 import { serverDispatchNotification } from "@/lib/notifications/server-dispatch";
-import { hashPassword } from "@/lib/security/password";
-import { verifyAccountPassword, bootstrapOwnerCredentials, bootstrapManualTestUser } from "@/lib/security/account-password";
-import {
-  createSession,
-  findAccountByEmail,
-  initDemoAccounts,
-  toPublicUser,
-  type DemoAccount,
-} from "@/lib/security/demo-store";
-import { resolveEffectiveRole } from "@/lib/security/roles";
-import { persistSession } from "@/lib/security/auth-store";
-import { COOKIE_NAME, sessionCookieOptions, signSessionToken } from "@/lib/security/jwt";
-
-async function issueLegacySessionForAccount(account: DemoAccount, request: Request) {
-  const ip = getClientIp(request);
-  const ua = request.headers.get("user-agent") ?? "unknown";
-  const { sessionId, session } = createSession(account.id, { userAgent: ua, ip });
-
-  persistSession({
-    sessionId,
-    accountId: account.id,
-    userAgent: ua,
-    ip,
-    deviceLabel: session.deviceLabel,
-    createdAt: session.createdAt,
-    lastActiveAt: session.lastActiveAt,
-  });
-
-  const effectiveRole = resolveEffectiveRole(account);
-  const token = await signSessionToken({
-    sub: account.id,
-    email: account.email,
-    role: effectiveRole,
-    sessionId,
-  });
-
-  const response = NextResponse.json({
-    user: { ...toPublicUser(account), role: effectiveRole },
-    devBypass: false,
-  });
-  response.cookies.set(COOKIE_NAME, token, sessionCookieOptions());
-  return response;
-}
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
@@ -77,7 +39,7 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as {
-      email: string;
+      email?: string;
       password?: string;
       totpCode?: string;
     };
@@ -86,49 +48,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
-    if (isSupabaseConfigured()) {
-      const supabase = await createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: body.email.trim(),
-        password: body.password,
-      });
+    const email = body.email.trim();
+    logAuthRequest("login", { email, ip });
 
-      if (error || !data.user) {
-        await serverDispatchNotification(
-          buildTriggerNotification({
-            trigger: "failed_login",
-            title: "Failed Login Attempt",
-            body: `Failed login for ${body.email} from ${ip}`,
-            isCritical: true,
-            href: "/admin/security",
-          }),
-          { ownerEmail: true }
-        );
-        return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
-      }
-
-      const authUser = await resolveAuthUser(data.user);
-      if (!authUser || authUser.isBanned) {
-        await supabase.auth.signOut();
-        return NextResponse.json({ error: "Account suspended" }, { status: 403 });
-      }
-
-      const response = NextResponse.json({ user: enrichAuthUser(authUser) });
-      clearLegacySessionCookie(response);
-      return response;
+    if (!isSupabaseConfigured()) {
+      logAuthFailure("login", "supabase-not-configured", { email });
+      return NextResponse.json(
+        { error: "Login is unavailable. Supabase authentication is not configured for this deployment." },
+        { status: 503 }
+      );
     }
 
-    await initDemoAccounts(hashPassword);
-    await bootstrapOwnerCredentials();
-    await bootstrapManualTestUser();
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password: body.password,
+    });
 
-    const account = findAccountByEmail(body.email);
-    if (!account || !(await verifyAccountPassword(account.id, body.password))) {
+    if (error || !data.user) {
+      if (error) {
+        logSupabaseLoginError(error, email);
+      } else {
+        logAuthFailure("login", "supabase-no-user-returned", { email });
+      }
+
       await serverDispatchNotification(
         buildTriggerNotification({
           trigger: "failed_login",
           title: "Failed Login Attempt",
-          body: `Failed login for ${body.email} from ${ip}`,
+          body: `Failed login for ${email} from ${ip}`,
           isCritical: true,
           href: "/admin/security",
         }),
@@ -137,13 +85,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    if (account.isBanned) {
+    const authUser = await resolveAuthUser(data.user);
+    if (!authUser || authUser.isBanned) {
+      await supabase.auth.signOut();
+      logAuthFailure("login", "account-suspended", { email, userId: data.user.id });
       return NextResponse.json({ error: "Account suspended" }, { status: 403 });
     }
 
-    return issueLegacySessionForAccount(account, request);
+    console.info("[auth/login] success", {
+      email,
+      userId: data.user.id,
+      role: authUser.role,
+    });
+
+    const response = NextResponse.json({ user: enrichAuthUser(authUser) });
+    clearLegacySessionCookie(response);
+    return response;
   } catch (err) {
-    console.error("[auth/login]", err);
+    logAuthFailure("login", "unexpected-error", {
+      message: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json({ error: "Login failed" }, { status: 500 });
   }
 }

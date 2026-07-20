@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
-import { DEMO_AUTH_ENABLED } from "@/lib/security/client-auth";
+import { getSupabaseAuthDiagnostics } from "@/lib/auth/auth-diagnostics";
 
 export async function GET() {
+  const diagnostics = getSupabaseAuthDiagnostics();
+
   return NextResponse.json({
-    demoAuthEnabled: DEMO_AUTH_ENABLED,
+    authProvider: "supabase",
+    supabaseConfigured: diagnostics.supabaseConfigured,
+    supabaseProject: diagnostics.supabaseProject,
     requirePassword: true,
-    platformOwnerEmail: "booody3d@gmail.com",
   });
 }
