@@ -7,8 +7,20 @@ import {
   upsertAccountRow,
   buildAuthUserFromMetadata,
 } from "@/lib/auth/supabase-account";
+import {
+  cleanupStaleAccountRowForEmail,
+  inspectSignupEmailConflict,
+  isDuplicateSignupError,
+  isDuplicateSignupUser,
+  isProductionWithoutSupabase,
+  isReservedSeedDemoEmail,
+  logSignupAttempt,
+  logSignupConflict,
+  logSupabaseSignupError,
+  getSupabaseProjectLabel,
+  resolveSignupAuthBackend,
+} from "@/lib/auth/signup-support";
 import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   checkRateLimit,
   getClientIp,
@@ -18,7 +30,6 @@ import {
 import { hashPassword, validatePassword } from "@/lib/security/password";
 import {
   createSession,
-  findAccountByEmail,
   initDemoAccounts,
   registerDemoUser,
   toPublicUser,
@@ -33,6 +44,16 @@ import type { UserGender } from "@/types/profile";
 function parseGender(value: unknown): UserGender | null {
   if (value === "male" || value === "female") return value;
   return null;
+}
+
+async function respondEmailAlreadyRegistered(
+  email: string,
+  reason: string,
+  extra?: Record<string, unknown>
+) {
+  const diagnostics = await inspectSignupEmailConflict(email);
+  logSignupConflict(reason, diagnostics, extra);
+  return NextResponse.json({ error: "Email already registered" }, { status: 409 });
 }
 
 export async function POST(request: Request) {
@@ -78,10 +99,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Gender selection is required" }, { status: 400 });
     }
 
-    if (isSupabaseConfigured()) {
+    const email = body.email.trim();
+    const backend = resolveSignupAuthBackend();
+    logSignupAttempt({ email, role, backend });
+
+    if (isProductionWithoutSupabase()) {
+      console.error("[auth/signup] Supabase env vars missing on Vercel deployment");
+      return NextResponse.json(
+        { error: "Signup is temporarily unavailable. Supabase is not configured for this deployment." },
+        { status: 503 }
+      );
+    }
+
+    if (backend === "supabase") {
+      await cleanupStaleAccountRowForEmail(email);
+
       const supabase = await createClient();
       const { data, error } = await supabase.auth.signUp({
-        email: body.email.trim(),
+        email,
         password: body.password,
         options: {
           data: {
@@ -93,15 +128,32 @@ export async function POST(request: Request) {
       });
 
       if (error) {
-        if (error.message.toLowerCase().includes("already registered")) {
-          return NextResponse.json({ error: "Email already registered" }, { status: 409 });
+        const diagnostics = await inspectSignupEmailConflict(email);
+        logSupabaseSignupError(error, diagnostics);
+
+        if (isDuplicateSignupError(error)) {
+          return await respondEmailAlreadyRegistered(email, "supabase-auth-duplicate", {
+            supabaseError: error.message,
+            supabaseStatus: error.status,
+            supabaseCode: error.code,
+          });
         }
-        console.error("[auth/signup] supabase:", error.message);
+
         return NextResponse.json({ error: error.message || "Signup failed" }, { status: 400 });
       }
 
       if (!data.user) {
+        console.error("[auth/signup] supabase signUp returned no user", {
+          email,
+          supabaseProject: getSupabaseProjectLabel(),
+        });
         return NextResponse.json({ error: "Signup failed" }, { status: 500 });
+      }
+
+      if (isDuplicateSignupUser(data.user)) {
+        return await respondEmailAlreadyRegistered(email, "supabase-empty-identities", {
+          userId: data.user.id,
+        });
       }
 
       const authUser = buildAuthUserFromMetadata(data.user);
@@ -124,6 +176,11 @@ export async function POST(request: Request) {
       }
 
       if (!data.session) {
+        console.info("[auth/signup] email confirmation required", {
+          email,
+          userId: data.user.id,
+          supabaseProject: getSupabaseProjectLabel(),
+        });
         const response = NextResponse.json({
           requiresEmailConfirmation: true,
           message: "Check your email to confirm your account before signing in.",
@@ -142,8 +199,16 @@ export async function POST(request: Request) {
 
     await initDemoAccounts(hashPassword);
 
-    if (findAccountByEmail(body.email)) {
-      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
+    if (isReservedSeedDemoEmail(email)) {
+      const diagnostics = await inspectSignupEmailConflict(email);
+      logSignupConflict("demo-seed-email-reserved", diagnostics);
+      return NextResponse.json(
+        {
+          error:
+            "This email is reserved for demo accounts. Configure Supabase env vars to create a real account, or use a different email.",
+        },
+        { status: 409 }
+      );
     }
 
     const passwordHash = await hashPassword(body.password);
@@ -151,7 +216,7 @@ export async function POST(request: Request) {
     const link = createProfileForAccount({
       accountId,
       fullName: body.fullName.trim(),
-      email: body.email.trim(),
+      email,
       role,
       gender: gender ?? undefined,
       hasFreelancerStore: role === "professional",
@@ -159,7 +224,7 @@ export async function POST(request: Request) {
 
     const account = registerDemoUser({
       id: accountId,
-      email: body.email.trim(),
+      email,
       fullName: body.fullName.trim(),
       passwordHash,
       role,
@@ -201,7 +266,7 @@ export async function POST(request: Request) {
     response.cookies.set(COOKIE_NAME, token, sessionCookieOptions());
     return response;
   } catch (error) {
-    console.error("[auth/signup]", error);
+    console.error("[auth/signup] unexpected failure", error);
     return NextResponse.json({ error: "Signup failed" }, { status: 500 });
   }
 }
