@@ -167,7 +167,7 @@ export async function prepareEmailForSignup(email: string): Promise<SignupEmailP
   const { error: deleteAuthError } = await admin.auth.admin.deleteUser(existing.id);
   if (deleteAuthError) {
     console.error("[auth/signup] delete unconfirmed auth user failed:", deleteAuthError.message);
-    return "exists-confirmed";
+    return "ready";
   }
 
   await admin.from("accounts").delete().eq("id", existing.id);
@@ -249,4 +249,58 @@ export function logSupabaseLoginError(
     name: error.name,
     ...getSupabaseAuthDiagnostics(),
   });
+}
+
+export interface AuthApiErrorBody {
+  error: string;
+  code?: string;
+  status?: number;
+  stage?: string;
+  messageAr?: string;
+  action?: string;
+}
+
+export function serializeUnknownError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      ...(typeof error === "object" && error !== null
+        ? Object.fromEntries(
+            Object.getOwnPropertyNames(error)
+              .filter((key) => !["name", "message", "stack"].includes(key))
+              .map((key) => [key, (error as unknown as Record<string, unknown>)[key]])
+          )
+        : {}),
+    };
+  }
+
+  if (error && typeof error === "object") {
+    return Object.fromEntries(Object.getOwnPropertyNames(error).map((key) => [key, (error as Record<string, unknown>)[key]]));
+  }
+
+  return { value: String(error) };
+}
+
+export function logSignupUnhandledError(error: unknown, stage: string, extra?: Record<string, unknown>): void {
+  const serialized = serializeUnknownError(error);
+  console.error("[auth/signup] unhandled error", {
+    stage,
+    ...serialized,
+    ...getSupabaseAuthDiagnostics(),
+    ...extra,
+  });
+}
+
+export function supabaseAuthErrorResponse(
+  error: AuthError,
+  stage = "supabase-signup"
+): AuthApiErrorBody {
+  return {
+    error: error.message || "Supabase signup failed",
+    code: error.code,
+    status: error.status,
+    stage,
+  };
 }

@@ -59,7 +59,10 @@ export function SignupForm() {
           setPwErrors(data.error.split(". "));
           setError(data.error);
         } else {
-          setError(data.error ?? t("auth.signupFailed"));
+          const detail = [data.error, data.code ? `(${data.code})` : null, data.stage ? `[${data.stage}]` : null]
+            .filter(Boolean)
+            .join(" ");
+          setError(detail || t("auth.signupFailed"));
         }
         return;
       }

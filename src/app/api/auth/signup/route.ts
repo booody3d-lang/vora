@@ -16,8 +16,11 @@ import {
   logAuthFailure,
   logAuthRequest,
   logSignupConflict,
+  logSignupUnhandledError,
   logSupabaseSignupError,
   prepareEmailForSignup,
+  supabaseAuthErrorResponse,
+  type AuthApiErrorBody,
 } from "@/lib/auth/auth-diagnostics";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -36,6 +39,22 @@ function parseGender(value: unknown): UserGender | null {
   return null;
 }
 
+function jsonError(body: AuthApiErrorBody, httpStatus: number) {
+  return NextResponse.json(body, { status: httpStatus });
+}
+
+async function bootstrapProfileAfterSignup(input: {
+  authUser: ReturnType<typeof buildAuthUserFromMetadata>;
+  email: string;
+}) {
+  try {
+    await upsertAccountRow(input.authUser);
+    ensureLocalProfile(input.authUser);
+  } catch (profileError) {
+    logSignupUnhandledError(profileError, "profile-bootstrap", { email: input.email });
+  }
+}
+
 export async function POST(request: Request) {
   const ip = getClientIp(request);
   const rl = checkRateLimit(`auth:signup:${ip}`, RATE_LIMITS.auth);
@@ -46,7 +65,10 @@ export async function POST(request: Request) {
     );
   }
 
+  let stage = "init";
+
   try {
+    stage = "parse-body";
     const body = (await request.json()) as {
       email?: string;
       password?: string;
@@ -58,54 +80,67 @@ export async function POST(request: Request) {
     };
 
     if (!body.dataProcessingConsent) {
-      return NextResponse.json(
-        { error: "Data processing consent required (GDPR/PDPL compliance)" },
-        { status: 400 }
+      return jsonError(
+        { error: "Data processing consent required (GDPR/PDPL compliance)", stage },
+        400
       );
     }
 
     if (!body.email?.trim() || !body.password || !body.fullName?.trim()) {
-      return NextResponse.json({ error: "Full name, email, and password are required" }, { status: 400 });
+      return jsonError(
+        { error: "Full name, email, and password are required", stage },
+        400
+      );
     }
 
     const pwCheck = validatePassword(body.password);
     if (!pwCheck.valid) {
-      return NextResponse.json({ error: pwCheck.errors.join(". ") }, { status: 400 });
+      return jsonError({ error: pwCheck.errors.join(". "), stage: "validate-password" }, 400);
     }
 
     const role = body.role ?? "registered";
     const gender = parseGender(body.gender);
     if (role !== "company" && !gender) {
-      return NextResponse.json({ error: "Gender selection is required" }, { status: 400 });
+      return jsonError({ error: "Gender selection is required", stage: "validate-gender" }, 400);
     }
 
     const email = body.email.trim();
     logAuthRequest("signup", { email, role, ip });
 
+    stage = "check-config";
     if (!isSupabaseConfigured()) {
       logAuthFailure("signup", "supabase-not-configured");
-      return NextResponse.json(
-        { error: "Signup is unavailable. Supabase authentication is not configured for this deployment." },
-        { status: 503 }
+      return jsonError(
+        {
+          error: "Signup is unavailable. Supabase authentication is not configured for this deployment.",
+          stage,
+        },
+        503
       );
     }
 
+    stage = "prepare-email";
     await cleanupStaleAccountRowForEmail(email);
     const prep = await prepareEmailForSignup(email);
     if (prep === "exists-confirmed") {
       const diagnostics = await inspectSignupEmailConflict(email);
       logSignupConflict("confirmed-account-exists", diagnostics);
-      return NextResponse.json(
+      return jsonError(
         {
           error: "Email already registered",
+          code: "email_already_registered",
           messageAr: "هذا البريد مسجل مسبقاً. يرجى تسجيل الدخول.",
           action: "login",
+          stage,
         },
-        { status: 409 }
+        409
       );
     }
 
+    stage = "create-client";
     const supabase = await createClient();
+
+    stage = "supabase-signup";
     const { data, error } = await supabase.auth.signUp({
       email,
       password: body.password,
@@ -126,40 +161,54 @@ export async function POST(request: Request) {
         logSignupConflict("supabase-auth-duplicate", diagnostics, {
           supabaseError: error.message,
         });
-        return NextResponse.json(
+        return jsonError(
           {
-            error: "Email already registered",
-            messageAr: "هذا البريد مسجل مسبقاً. يرجى تسجيل الدخول أو استخدام استعادة كلمة المرور.",
+            ...supabaseAuthErrorResponse(error, stage),
+            error: error.message || "Email already registered",
+            messageAr:
+              "هذا البريد مسجل مسبقاً. يرجى تسجيل الدخول أو استخدام استعادة كلمة المرور.",
             action: "login",
           },
-          { status: 409 }
+          409
         );
       }
 
-      return NextResponse.json({ error: error.message || "Signup failed" }, { status: 400 });
+      return jsonError(supabaseAuthErrorResponse(error, stage), error.status ?? 400);
     }
 
     if (!data.user) {
-      logAuthFailure("signup", "supabase-no-user-returned", { email });
-      return NextResponse.json({ error: "Signup failed" }, { status: 500 });
+      logAuthFailure("signup", "supabase-no-user-returned", {
+        email,
+        supabaseSession: Boolean(data.session),
+        ...getSupabaseAuthDiagnostics(),
+      });
+      return jsonError(
+        {
+          error: "Supabase signUp succeeded but returned no user object",
+          code: "supabase_no_user",
+          stage,
+        },
+        500
+      );
     }
 
     if (isDuplicateSignupUser(data.user)) {
       logSignupConflict("supabase-empty-identities", await inspectSignupEmailConflict(email), {
         userId: data.user.id,
       });
-      return NextResponse.json(
+      return jsonError(
         {
-          existingAccount: true,
+          error: "This email is already registered (empty identities response from Supabase)",
+          code: "supabase_duplicate_user",
+          stage,
           action: "login",
-          requiresEmailConfirmation: true,
-          message: "This email is already registered. Sign in or check your inbox to confirm your account.",
           messageAr: "هذا البريد مسجل مسبقاً. سجّل الدخول أو تحقق من بريدك لتأكيد الحساب.",
         },
-        { status: 409 }
+        409
       );
     }
 
+    stage = "profile-bootstrap";
     const authUser = buildAuthUserFromMetadata(data.user);
     authUser.fullName = body.fullName.trim();
     authUser.role = role;
@@ -168,14 +217,14 @@ export async function POST(request: Request) {
     authUser.hasFreelancerStore = role === "professional";
     authUser.hasProfessionalProfile = role !== "company";
 
-    await upsertAccountRow(authUser);
-    ensureLocalProfile(authUser);
+    await bootstrapProfileAfterSignup({ authUser, email });
 
+    stage = "anti-abuse";
     if (body.fingerprint) {
       const abuse = checkMultiAccount(body.fingerprint, authUser.id);
       if (abuse.flagged) {
         await supabase.auth.signOut();
-        return NextResponse.json({ error: abuse.message }, { status: 403 });
+        return jsonError({ error: abuse.message, stage }, 403);
       }
     }
 
@@ -194,16 +243,31 @@ export async function POST(request: Request) {
       return response;
     }
 
-    const resolved = await resolveAuthUser(data.user);
+    stage = "resolve-session";
+    let resolved = authUser;
+    try {
+      resolved = (await resolveAuthUser(data.user)) ?? authUser;
+    } catch (resolveError) {
+      logSignupUnhandledError(resolveError, stage, { email, userId: data.user.id });
+    }
+
     const response = NextResponse.json({
-      user: enrichAuthUser(resolved ?? authUser),
+      user: enrichAuthUser(resolved),
     });
     clearLegacySessionCookie(response);
     return response;
   } catch (error) {
-    logAuthFailure("signup", "unexpected-error", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json({ error: "Signup failed" }, { status: 500 });
+    logSignupUnhandledError(error, stage);
+    console.error("[auth/signup] catch block error object:", error);
+
+    const message = error instanceof Error ? error.message : String(error);
+    return jsonError(
+      {
+        error: message || "Unexpected signup failure",
+        code: error instanceof Error ? error.name : "unexpected_signup_error",
+        stage,
+      },
+      500
+    );
   }
 }
