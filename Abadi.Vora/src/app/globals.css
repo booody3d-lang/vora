@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  --vora-network-blue: #3b5998;
+  --vora-network-slate: #475569;
+  --vora-network-navy: #1e293b;
+  --vora-freelance-orange: #ea580c;
+  --vora-freelance-amber: #f59e0b;
+  --vora-freelance-deep: #c2410c;
+  --vora-primary: var(--vora-network-blue);
+  --vora-primary-dark: var(--vora-network-navy);
+  --vora-accent: var(--vora-network-slate);
+  --vora-surface: #f1f5f9;
+  --vora-muted: #64748b;
+}
+
+[data-platform="network"] {
+  --vora-primary: var(--vora-network-blue);
+  --vora-primary-dark: var(--vora-network-navy);
+  --vora-accent: var(--vora-network-slate);
+  --vora-surface: #f1f5f9;
+  --vora-muted: #64748b;
+}
+
+[data-platform="freelance"] {
+  --vora-primary: var(--vora-freelance-orange);
+  --vora-primary-dark: var(--vora-freelance-deep);
+  --vora-accent: var(--vora-freelance-amber);
+  --vora-surface: #fffbeb;
+  --vora-muted: #a8a29e;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-geist-sans), var(--font-noto-arabic), system-ui, -apple-system, sans-serif;
+  background: #020617;
+  color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* RTL layout mirroring */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+}
+
+[dir="rtl"] .flex-row-auto {
+  flex-direction: row-reverse;
+}
+
+/* Logical spacing helpers */
+.ms-auto {
+  margin-inline-start: auto;
+}
+.me-auto {
+  margin-inline-end: auto;
+}
+.ps-4 {
+  padding-inline-start: 1rem;
+}
+.pe-4 {
+  padding-inline-end: 1rem;
+}
+
+::selection {
+  background: rgba(245, 158, 11, 0.35);
+  color: #fff;
+}
+
+.ai-btn {
+  @apply rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50;
+}
+
+.ai-input {
+  @apply w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-[#0F172A] focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500;
+}

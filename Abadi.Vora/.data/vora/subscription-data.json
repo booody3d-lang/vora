@@ -1,0 +1,100 @@
+{
+  "tiers": [
+    {
+      "id": "free-user",
+      "nameEn": "Free",
+      "nameAr": "مجاني",
+      "audience": "user",
+      "priceSar": 0,
+      "billingCycle": "none",
+      "features": [
+        {
+          "key": "network_access",
+          "labelEn": "Full network access",
+          "labelAr": "وصول كامل للشبكة"
+        },
+        {
+          "key": "marketplace",
+          "labelEn": "Marketplace access",
+          "labelAr": "وصول للسوق"
+        }
+      ],
+      "sortOrder": 0,
+      "isActive": true,
+      "createdAt": "2026-07-18T19:46:28.167Z",
+      "updatedAt": "2026-07-18T19:46:28.167Z"
+    },
+    {
+      "id": "premium-user",
+      "nameEn": "Premium",
+      "nameAr": "بريميوم",
+      "audience": "user",
+      "priceSar": 20,
+      "billingCycle": "monthly",
+      "iconSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"#F59E0B\"><path d=\"M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z\"/></svg>",
+      "features": [
+        {
+          "key": "premium_badge",
+          "labelEn": "Premium badge",
+          "labelAr": "شارة بريميوم"
+        },
+        {
+          "key": "ai_access",
+          "labelEn": "VORA AI access",
+          "labelAr": "وصول VORA AI"
+        },
+        {
+          "key": "analytics_full",
+          "labelEn": "Full profile analytics",
+          "labelAr": "تحليلات كاملة"
+        },
+        {
+          "key": "unlimited_uploads",
+          "labelEn": "Unlimited uploads",
+          "labelAr": "رفع غير محدود"
+        },
+        {
+          "key": "search_boost",
+          "labelEn": "Search visibility boost",
+          "labelAr": "تعزيز الظهور في البحث"
+        }
+      ],
+      "sortOrder": 1,
+      "isActive": true,
+      "createdAt": "2026-07-18T19:46:28.167Z",
+      "updatedAt": "2026-07-18T19:46:28.167Z"
+    },
+    {
+      "id": "company-standard",
+      "nameEn": "Company Standard",
+      "nameAr": "شركات قياسي",
+      "audience": "company",
+      "priceSar": 600,
+      "billingCycle": "yearly",
+      "iconSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"#3B5998\"><path d=\"M12 7V3H2v18h20V7H12zm-2 12H4v-2h6v2zm0-4H4v-2h6v2zm0-4H4V9h6v2zm8 8h-6v-2h6v2zm0-4h-6v-2h6v2z\"/></svg>",
+      "features": [
+        {
+          "key": "unlimited_jobs",
+          "labelEn": "Unlimited job posts",
+          "labelAr": "وظائف غير محدودة"
+        },
+        {
+          "key": "ats_full",
+          "labelEn": "Full ATS pipeline",
+          "labelAr": "نظام ATS كامل"
+        },
+        {
+          "key": "company_analytics",
+          "labelEn": "Company analytics",
+          "labelAr": "تحليلات الشركة"
+        }
+      ],
+      "sortOrder": 2,
+      "isActive": true,
+      "createdAt": "2026-07-18T19:46:28.167Z",
+      "updatedAt": "2026-07-18T19:46:28.167Z"
+    }
+  ],
+  "assignments": {},
+  "overrides": {}
+}

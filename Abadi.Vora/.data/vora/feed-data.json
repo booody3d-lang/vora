@@ -1,0 +1,88 @@
+{
+  "userPosts": [
+    {
+      "id": "post-1784395435224-9rie",
+      "type": "image",
+      "author": {
+        "id": "user-pro-1",
+        "slug": "alex-morgan",
+        "fullName": "جليله",
+        "headline": "Senior Product Designer · UX Strategy · Design Systems",
+        "profilePhotoUrl": "/api/profile/media/user-pro-1/photo-1784384251592.webp"
+      },
+      "content": "جليلة",
+      "mediaUrls": [
+        "/api/profile/media/user-pro-1/post-1784395422142.jpg"
+      ],
+      "reactions": {
+        "like": 0,
+        "insightful": 0,
+        "support": 0,
+        "celebrate": 0
+      },
+      "commentCount": 0,
+      "shareCount": 1,
+      "isSaved": false,
+      "comments": [],
+      "createdAt": "2026-07-18T17:23:55.224Z"
+    }
+  ],
+  "comments": {
+    "post-1784395435224-9rie": [
+      {
+        "id": "comment-1784395453430",
+        "author": {
+          "id": "user-pro-1",
+          "slug": "alex-morgan",
+          "fullName": "جليله",
+          "headline": "Senior Product Designer · UX Strategy · Design Systems",
+          "profilePhotoUrl": "/api/profile/media/user-pro-1/photo-1784384251592.webp"
+        },
+        "content": "تست",
+        "createdAt": "2026-07-18T17:24:13.430Z"
+      }
+    ]
+  },
+  "reactions": {
+    "post-1784395435224-9rie": {
+      "like": 0,
+      "insightful": 0,
+      "support": 0,
+      "celebrate": 0
+    }
+  },
+  "engagement": {
+    "user-pro-1": {
+      "reactions": {},
+      "saved": []
+    }
+  },
+  "posts": [
+    {
+      "id": "post-1784395435224-9rie",
+      "type": "image",
+      "author": {
+        "id": "user-pro-1",
+        "slug": "alex-morgan",
+        "fullName": "جليله",
+        "headline": "Senior Product Designer · UX Strategy · Design Systems",
+        "profilePhotoUrl": "/api/profile/media/user-pro-1/photo-1784384251592.webp"
+      },
+      "content": "جليلة",
+      "mediaUrls": [
+        "/api/profile/media/user-pro-1/post-1784395422142.jpg"
+      ],
+      "reactions": {
+        "like": 0,
+        "insightful": 0,
+        "support": 0,
+        "celebrate": 0
+      },
+      "commentCount": 0,
+      "shareCount": 1,
+      "isSaved": false,
+      "comments": [],
+      "createdAt": "2026-07-18T17:23:55.224Z"
+    }
+  ]
+}

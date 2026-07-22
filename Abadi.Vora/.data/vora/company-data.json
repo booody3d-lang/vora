@@ -1,0 +1,39 @@
+{
+  "companies": {
+    "techcorp-global": {
+      "logoUrl": "/api/profile/media/user-company-1/company-logo-1784392581747.webp",
+      "accountId": "user-company-1",
+      "id": "co-1",
+      "slug": "techcorp-global",
+      "branches": [
+        {
+          "city": "Dubai",
+          "country": "UAE"
+        },
+        {
+          "city": "London",
+          "country": "UK"
+        },
+        {
+          "city": "Singapore",
+          "country": "Singapore"
+        },
+        {
+          "city": "New York",
+          "country": "USA"
+        }
+      ],
+      "name": "Jalilah ceo",
+      "tagline": "Innovating the future of enterprise technology",
+      "about": "TechCorp Global is a leading enterprise technology company serving Fortune 500 clients across 40+ countries. Founded in 2008, we specialize in cloud infrastructure, AI-driven analytics, and digital transformation consulting. Our mission is to empower organizations to build resilient, scalable technology ecosystems.",
+      "industry": "Enterprise Software",
+      "sizeRange": "1,001-5,000 employees",
+      "headquarters": "Dubai, UAE",
+      "websiteUrl": "https://techcorp.example.com",
+      "announcement": "We're expanding our Product Design team — 5 new roles open globally!"
+    }
+  },
+  "accountLinks": {
+    "user-company-1": "techcorp-global"
+  }
+}

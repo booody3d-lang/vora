@@ -1,0 +1,40 @@
+{
+  "name": "Abadi.Vora",
+  "createdAt": "2026-07-22T04:11:16+03:00",
+  "projectRoot": "C:\\Users\\Microsoft\\Projects\\vora",
+  "gitCommit": "fb016810652f1b066ae37a72ac0b5d488f3e6b5f",
+  "gitCommitMessage": "Fix logo background transparency globally",
+  "purpose": "Static restore point including Supabase-safe auth, updated logo with transparency, and latest main branch changes",
+  "included": [
+    "src/",
+    "public/",
+    "scripts/",
+    "supabase/",
+    ".data/",
+    "package.json",
+    "package-lock.json",
+    "next.config.ts",
+    "tsconfig.json",
+    "eslint.config.mjs",
+    "postcss.config.mjs",
+    "vercel.json",
+    "README.md",
+    ".env.local",
+    ".env.local.example"
+  ],
+  "excludedFromBackup": [
+    "node_modules/",
+    ".next/",
+    ".git/",
+    "Abadi.Vora/",
+    "Abadi.Vora.zip",
+    "tsconfig.tsbuildinfo"
+  ],
+  "fileCount": 452,
+  "archive": "Abadi.Vora.zip",
+  "archiveSizeMb": 1.84,
+  "restoreNotes": "After restore, run npm install and npm run build from the project root.",
+  "buildExclusions": [
+    "Abadi.Vora is excluded from TypeScript, ESLint, and active build in the live project root"
+  ]
+}

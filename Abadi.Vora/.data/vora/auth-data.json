@@ -1,0 +1,47 @@
+{
+  "passwordHashes": {
+    "platform-owner-1": "1cd143a44ba206e4ae82a78e909ceb31b1a250f8ca995a5b7c130083dc18b56b",
+    "manual-test-user-b3d": "cece17d565f89bf7981f348e6d6873b8f2d29d806f0acb04fa2adb387837bbf1",
+    "user-1784497470075": "23f79830b0a6b079bbb2675a135810dab7e1f5bba195ffc4d2ebe42cf556a183"
+  },
+  "recoveryChannel": {},
+  "passwordResets": {},
+  "stripeConfig": {},
+  "activeSessions": {
+    "sess-1784491573504-6sw2zu": {
+      "sessionId": "sess-1784491573504-6sw2zu",
+      "accountId": "manual-test-user-b3d",
+      "userAgent": "recovered",
+      "ip": "unknown",
+      "createdAt": "2026-07-19T20:06:13.000Z",
+      "lastActiveAt": "2026-07-19T21:07:20.891Z"
+    },
+    "sess-1784497378427-o3uzcn": {
+      "sessionId": "sess-1784497378427-o3uzcn",
+      "accountId": "user-1784497378425",
+      "userAgent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.8894",
+      "ip": "::1",
+      "deviceLabel": "Windows PC",
+      "createdAt": "2026-07-19T21:42:58.427Z",
+      "lastActiveAt": "2026-07-19T21:42:58.427Z"
+    },
+    "sess-1784497414737-355lm5": {
+      "sessionId": "sess-1784497414737-355lm5",
+      "accountId": "user-1784497414735",
+      "userAgent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.8894",
+      "ip": "::1",
+      "deviceLabel": "Windows PC",
+      "createdAt": "2026-07-19T21:43:34.737Z",
+      "lastActiveAt": "2026-07-19T21:43:34.737Z"
+    },
+    "sess-1784497470081-icqhf6": {
+      "sessionId": "sess-1784497470081-icqhf6",
+      "accountId": "user-1784497470075",
+      "userAgent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.8894",
+      "ip": "::1",
+      "deviceLabel": "Windows PC",
+      "createdAt": "2026-07-19T21:44:30.081Z",
+      "lastActiveAt": "2026-07-19T21:44:30.081Z"
+    }
+  }
+}

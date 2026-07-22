@@ -1,0 +1,552 @@
+{
+  "profiles": {
+    "abadibakkar": {
+      "accountId": "user-1784368662475",
+      "slug": "abadibakkar",
+      "id": "user-1784368662475",
+      "fullName": "Abadibakkar",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "booobdy3d@gmail.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": true,
+      "freelancerStoreSlug": "abadibakkar-store"
+    },
+    "abadibala": {
+      "accountId": "user-1784370384645",
+      "slug": "abadibala",
+      "id": "user-1784370384645",
+      "fullName": "Abadibala",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "booody3d@gmail.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": true,
+      "freelancerStoreSlug": "abadibala-store"
+    },
+    "alex-morgan": {
+      "profilePhotoUrl": "/api/profile/media/user-pro-1/photo-1784397849204.webp",
+      "accountId": "user-pro-1",
+      "slug": "alex-morgan",
+      "id": "user-pro-1",
+      "experiences": [
+        {
+          "id": "exp-1",
+          "title": "Lead Product Designer",
+          "companyName": "TechCorp Global",
+          "companyId": "co-1",
+          "companySlug": "techcorp-global",
+          "companyLogoUrl": "https://api.dicebear.com/7.x/identicon/svg?seed=TechCorp",
+          "location": "Dubai, UAE",
+          "startDate": "2022-03",
+          "isCurrent": true,
+          "description": "Led redesign of enterprise dashboard used by 50K+ professionals. Reduced task completion time by 34%.",
+          "isVerified": true
+        },
+        {
+          "id": "exp-2",
+          "title": "Senior UX Designer",
+          "companyName": "Innovate Labs",
+          "companySlug": "innovate-labs",
+          "companyLogoUrl": "https://api.dicebear.com/7.x/identicon/svg?seed=Innovate",
+          "location": "Remote",
+          "startDate": "2019-01",
+          "endDate": "2022-02",
+          "isCurrent": false,
+          "description": "Built design system adopted across 12 product teams.",
+          "isVerified": true
+        }
+      ],
+      "education": [
+        {
+          "id": "edu-1",
+          "institution": "Royal College of Art",
+          "degree": "MA Design",
+          "fieldOfStudy": "Interaction Design",
+          "endDate": "2018",
+          "isVerified": true
+        }
+      ],
+      "certifications": [
+        {
+          "id": "cert-1",
+          "name": "Google UX Design Professional",
+          "issuingOrganization": "Google",
+          "issueDate": "2021-06",
+          "credentialUrl": "https://coursera.org"
+        }
+      ],
+      "skills": [
+        {
+          "id": "sk-1",
+          "name": "Product Design",
+          "endorsementCount": 47,
+          "videoVerified": true,
+          "verificationVideoUrl": "https://www.w3schools.com/html/mov_bbb.mp4"
+        },
+        {
+          "id": "sk-2",
+          "name": "Design Systems",
+          "endorsementCount": 32,
+          "videoVerified": false
+        },
+        {
+          "id": "sk-3",
+          "name": "Figma",
+          "endorsementCount": 56,
+          "videoVerified": true
+        },
+        {
+          "id": "sk-4",
+          "name": "User Research",
+          "endorsementCount": 28,
+          "videoVerified": false
+        }
+      ],
+      "languages": [
+        {
+          "id": "lang-1",
+          "language": "English",
+          "proficiency": "native"
+        },
+        {
+          "id": "lang-2",
+          "language": "Arabic",
+          "proficiency": "professional"
+        }
+      ],
+      "projects": [
+        {
+          "id": "proj-1",
+          "title": "Enterprise Analytics Platform",
+          "description": "End-to-end redesign for Fortune 500 client.",
+          "imageUrl": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=240&fit=crop",
+          "projectUrl": "https://example.com"
+        }
+      ],
+      "coverImageUrl": "/api/profile/media/user-pro-1/cover-1784370633113.webp",
+      "fullName": "جليله",
+      "headline": "Senior Product Designer · UX Strategy · Design Systems",
+      "about": "Product designer with 10+ years crafting enterprise SaaS experiences. I lead cross-functional teams to ship measurable outcomes — from discovery through delivery. Passionate about design systems, accessibility, and mentoring the next generation of designers.",
+      "location": "Dubai, UAE",
+      "websiteUrl": "https://alexmorgan.design",
+      "contactEmail": "alex@vora.com",
+      "contactPhone": "+971 50 123 4567",
+      "currentRole": "Lead Product Designer"
+    },
+    "abadiooo": {
+      "accountId": "user-1784378108427",
+      "slug": "abadiooo",
+      "id": "user-1784378108427",
+      "fullName": "Abadiooo",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "booody3d@gmail.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": true,
+      "freelancerStoreSlug": "abadiooo-store"
+    },
+    "abadulaahs": {
+      "accountId": "user-1784382697741",
+      "slug": "abadulaahs",
+      "id": "user-1784382697741",
+      "fullName": "abadulaah.s.",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "booody3d@gmail.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": true,
+      "freelancerStoreSlug": "abadulaahs-store"
+    },
+    "abdullah-bk": {
+      "accountId": "user-1784409035664",
+      "slug": "abdullah-bk",
+      "id": "user-1784409035664",
+      "fullName": "Abdullah BK",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "b.3d@live.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": true,
+      "freelancerStoreSlug": "abdullah-bk-store"
+    },
+    "saud-abdullah": {
+      "accountId": "user-1784413044059",
+      "slug": "saud-abdullah",
+      "id": "user-1784413044059",
+      "fullName": "saud Abdullah",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "b.3d@live.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": true,
+      "freelancerStoreSlug": "saud-abdullah-store"
+    },
+    "saoud-abdullah": {
+      "accountId": "user-1784416190753",
+      "slug": "saoud-abdullah",
+      "id": "user-1784416190753",
+      "fullName": "saoud abdullah",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "b.3d@live.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": true,
+      "freelancerStoreSlug": "saoud-abdullah-store"
+    },
+    "b3d-test-user": {
+      "accountId": "manual-test-user-b3d",
+      "slug": "b3d-test-user",
+      "id": "manual-test-user-b3d",
+      "fullName": "Abadi Bakkar",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "/api/profile/media/manual-test-user-b3d/photo-1784439221166.webp",
+      "coverImageUrl": "/api/profile/media/manual-test-user-b3d/cover-1784437513626.webp",
+      "location": "",
+      "contactEmail": "b.3d@live.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": true,
+      "freelancerStoreSlug": "b3d-test-user-store",
+      "showVisitStoreOnProfile": true,
+      "websiteUrl": "",
+      "contactPhone": "",
+      "currentRole": ""
+    },
+    "test-user": {
+      "accountId": "user-1784497378425",
+      "slug": "test-user",
+      "id": "user-1784497378425",
+      "fullName": "Test User",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "test-gender-852113542@example.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": false
+    },
+    "pro-user": {
+      "accountId": "user-1784497414735",
+      "slug": "pro-user",
+      "id": "user-1784497414735",
+      "fullName": "Pro User",
+      "gender": "female",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "pro-gender-684587017@example.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": true,
+      "freelancerStoreSlug": "pro-user-store"
+    },
+    "fix-test": {
+      "accountId": "user-1784497470075",
+      "slug": "fix-test",
+      "id": "user-1784497470075",
+      "fullName": "Fix Test",
+      "gender": "male",
+      "headline": "",
+      "about": "",
+      "profilePhotoUrl": "",
+      "coverImageUrl": "",
+      "location": "",
+      "contactEmail": "fix-test-1112744699@example.com",
+      "experiences": [],
+      "education": [],
+      "certifications": [],
+      "skills": [],
+      "languages": [],
+      "projects": [],
+      "hasFreelancerStore": false
+    }
+  },
+  "stores": {
+    "abadibakkar-store": {
+      "accountId": "user-1784368662475",
+      "slug": "abadibakkar-store",
+      "seoSlug": "abadibakkar-store",
+      "storeName": "Abadibakkar Studio",
+      "tagline": "",
+      "description": "",
+      "logoUrl": "",
+      "coverImageUrl": "",
+      "professionalProfileSlug": "abadibakkar",
+      "isVerified": false,
+      "ratingAvg": 0,
+      "totalReviews": 0,
+      "viewCount": 0,
+      "conversionRate": 0
+    },
+    "abadibala-store": {
+      "accountId": "user-1784370384645",
+      "slug": "abadibala-store",
+      "seoSlug": "abadibala-store",
+      "storeName": "Abadibala Studio",
+      "tagline": "",
+      "description": "",
+      "logoUrl": "",
+      "coverImageUrl": "",
+      "professionalProfileSlug": "abadibala",
+      "isVerified": false,
+      "ratingAvg": 0,
+      "totalReviews": 0,
+      "viewCount": 0,
+      "conversionRate": 0
+    },
+    "abadiooo-store": {
+      "accountId": "user-1784378108427",
+      "slug": "abadiooo-store",
+      "seoSlug": "abadiooo-store",
+      "storeName": "Abadiooo Studio",
+      "tagline": "",
+      "description": "",
+      "logoUrl": "",
+      "coverImageUrl": "",
+      "professionalProfileSlug": "abadiooo",
+      "isVerified": false,
+      "ratingAvg": 0,
+      "totalReviews": 0,
+      "viewCount": 0,
+      "conversionRate": 0
+    },
+    "abadulaahs-store": {
+      "accountId": "user-1784382697741",
+      "slug": "abadulaahs-store",
+      "seoSlug": "abadulaahs-store",
+      "storeName": "abadulaah.s. Studio",
+      "tagline": "",
+      "description": "",
+      "logoUrl": "",
+      "coverImageUrl": "",
+      "professionalProfileSlug": "abadulaahs",
+      "isVerified": false,
+      "ratingAvg": 0,
+      "totalReviews": 0,
+      "viewCount": 0,
+      "conversionRate": 0
+    },
+    "alex-design-studio": {
+      "logoUrl": "/api/profile/media/user-pro-1/store-logo-1784389358754.webp",
+      "accountId": "user-pro-1",
+      "slug": "alex-design-studio",
+      "coverImageUrl": "/api/profile/media/user-pro-1/store-cover-1784385682231.webp"
+    },
+    "abdullah-bk-store": {
+      "accountId": "user-1784409035664",
+      "slug": "abdullah-bk-store",
+      "seoSlug": "abdullah-bk-store",
+      "storeName": "Abdullah Studio",
+      "tagline": "",
+      "description": "",
+      "logoUrl": "",
+      "coverImageUrl": "",
+      "professionalProfileSlug": "abdullah-bk",
+      "isVerified": false,
+      "ratingAvg": 0,
+      "totalReviews": 0,
+      "viewCount": 0,
+      "conversionRate": 0
+    },
+    "saud-abdullah-store": {
+      "accountId": "user-1784413044059",
+      "slug": "saud-abdullah-store",
+      "seoSlug": "saud-abdullah-store",
+      "storeName": "saud Studio",
+      "tagline": "",
+      "description": "",
+      "logoUrl": "",
+      "coverImageUrl": "",
+      "professionalProfileSlug": "saud-abdullah",
+      "isVerified": false,
+      "ratingAvg": 0,
+      "totalReviews": 0,
+      "viewCount": 0,
+      "conversionRate": 0
+    },
+    "saoud-abdullah-store": {
+      "accountId": "user-1784416190753",
+      "slug": "saoud-abdullah-store",
+      "seoSlug": "saoud-abdullah-store",
+      "storeName": "saoud Studio",
+      "tagline": "",
+      "description": "",
+      "logoUrl": "",
+      "coverImageUrl": "",
+      "professionalProfileSlug": "saoud-abdullah",
+      "isVerified": false,
+      "ratingAvg": 0,
+      "totalReviews": 0,
+      "viewCount": 0,
+      "conversionRate": 0
+    },
+    "b3d-test-user-store": {
+      "accountId": "manual-test-user-b3d",
+      "slug": "b3d-test-user-store",
+      "seoSlug": "b3d-test-user-store",
+      "storeName": "B3D Store",
+      "tagline": "",
+      "description": "",
+      "logoUrl": "/api/profile/media/manual-test-user-b3d/store-logo-1784491385182.webp",
+      "coverImageUrl": "/api/profile/media/manual-test-user-b3d/store-cover-1784491398394.webp",
+      "professionalProfileSlug": "b3d-test-user",
+      "isVerified": false,
+      "ratingAvg": 0,
+      "totalReviews": 0,
+      "viewCount": 0,
+      "conversionRate": 0
+    },
+    "pro-user-store": {
+      "accountId": "user-1784497414735",
+      "slug": "pro-user-store",
+      "seoSlug": "pro-user-store",
+      "storeName": "Pro Studio",
+      "tagline": "",
+      "description": "",
+      "logoUrl": "",
+      "coverImageUrl": "",
+      "professionalProfileSlug": "pro-user",
+      "isVerified": false,
+      "ratingAvg": 0,
+      "totalReviews": 0,
+      "viewCount": 0,
+      "conversionRate": 0
+    }
+  },
+  "accountLinks": {
+    "user-pro-1": {
+      "profileSlug": "alex-morgan",
+      "storeSlug": "alex-design-studio"
+    },
+    "user-owner-1": {
+      "profileSlug": "alex-morgan",
+      "storeSlug": "alex-design-studio"
+    },
+    "user-1784368662475": {
+      "profileSlug": "abadibakkar",
+      "storeSlug": "abadibakkar-store"
+    },
+    "user-1784370384645": {
+      "profileSlug": "abadibala",
+      "storeSlug": "abadibala-store"
+    },
+    "user-1784378108427": {
+      "profileSlug": "abadiooo",
+      "storeSlug": "abadiooo-store"
+    },
+    "user-1784382697741": {
+      "profileSlug": "abadulaahs",
+      "storeSlug": "abadulaahs-store"
+    },
+    "user-1784409035664": {
+      "profileSlug": "abdullah-bk",
+      "storeSlug": "abdullah-bk-store"
+    },
+    "user-1784413044059": {
+      "profileSlug": "saud-abdullah",
+      "storeSlug": "saud-abdullah-store"
+    },
+    "user-1784416190753": {
+      "profileSlug": "saoud-abdullah",
+      "storeSlug": "saoud-abdullah-store"
+    },
+    "manual-test-user-b3d": {
+      "profileSlug": "b3d-test-user",
+      "storeSlug": "b3d-test-user-store"
+    },
+    "user-1784497378425": {
+      "profileSlug": "test-user"
+    },
+    "user-1784497414735": {
+      "profileSlug": "pro-user",
+      "storeSlug": "pro-user-store"
+    },
+    "user-1784497470075": {
+      "profileSlug": "fix-test"
+    }
+  },
+  "storeServices": {}
+}

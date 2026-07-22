@@ -1,0 +1,40 @@
+{
+  "conversations": [
+    {
+      "id": "conv-1784397664571-tsfd",
+      "memberIds": [
+        "user-pro-1",
+        "user-1784368662475"
+      ],
+      "accessType": "mutual_connection",
+      "createdAt": "2026-07-18T18:01:04.571Z",
+      "updatedAt": "2026-07-18T19:01:57.515Z"
+    }
+  ],
+  "messages": {
+    "conv-1784397664571-tsfd": [
+      {
+        "id": "msg-1784397691604",
+        "conversationId": "conv-1784397664571-tsfd",
+        "senderId": "user-pro-1",
+        "fileUrl": "blob:http://localhost:3007/a9765052-6ea9-4bec-8436-0de4f0384615",
+        "fileName": "Gemini_Generated_Image_m7rtakm7rtakm7rt.png",
+        "fileSize": 4376412,
+        "status": "sent",
+        "createdAt": "2026-07-18T18:01:31.604Z"
+      },
+      {
+        "id": "msg-1784401317515",
+        "conversationId": "conv-1784397664571-tsfd",
+        "senderId": "user-pro-1",
+        "fileUrl": "/api/profile/media/user-pro-1/message-attachment-1784401312225.jpeg",
+        "fileName": "جل2.jpeg",
+        "fileSize": 397477,
+        "mimeType": "image/webp",
+        "mediaType": "image",
+        "status": "sent",
+        "createdAt": "2026-07-18T19:01:57.515Z"
+      }
+    ]
+  }
+}
