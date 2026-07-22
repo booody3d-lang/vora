@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ADMIN_USERS } from "@/lib/admin/mock-data";
 import type { AdminUserRecord, BanType, UserAccountRole } from "@/types/admin";
@@ -21,6 +21,19 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<UserAccountRole | "all">("all");
   const [banModal, setBanModal] = useState<AdminUserRecord | null>(null);
 
+  const loadUsers = useCallback(() => {
+    fetch("/api/admin/users")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { users?: AdminUserRecord[] } | null) => {
+        if (data?.users) setUsers(data.users);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
   const filtered = useMemo(() => {
     return users.filter((u) => {
       const matchSearch =
@@ -32,25 +45,76 @@ export default function AdminUsersPage() {
     });
   }, [users, search, roleFilter]);
 
-  function updateRole(id: string, role: UserAccountRole) {
+  async function updateRole(id: string, role: UserAccountRole) {
+    const previous = users;
     setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role } : u)));
+
+    const res = await fetch(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+
+    if (!res.ok) {
+      setUsers(previous);
+      return;
+    }
+
+    const data = (await res.json()) as { user?: AdminUserRecord };
+    if (data.user) {
+      setUsers((prev) => prev.map((u) => (u.id === id ? data.user! : u)));
+    }
   }
 
-  function applyBan(id: string, banType: BanType, reason: string) {
+  async function applyBan(id: string, banType: BanType, reason: string) {
+    const previous = users;
     setUsers((prev) =>
       prev.map((u) =>
         u.id === id ? { ...u, isBanned: true, banType, banReason: reason } : u
       )
     );
     setBanModal(null);
+
+    const res = await fetch(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ban: { type: banType, reason } }),
+    });
+
+    if (!res.ok) {
+      setUsers(previous);
+      return;
+    }
+
+    const data = (await res.json()) as { user?: AdminUserRecord };
+    if (data.user) {
+      setUsers((prev) => prev.map((u) => (u.id === id ? data.user! : u)));
+    }
   }
 
-  function unban(id: string) {
+  async function unban(id: string) {
+    const previous = users;
     setUsers((prev) =>
       prev.map((u) =>
         u.id === id ? { ...u, isBanned: false, banType: "none" as BanType, banReason: undefined } : u
       )
     );
+
+    const res = await fetch(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ unban: true }),
+    });
+
+    if (!res.ok) {
+      setUsers(previous);
+      return;
+    }
+
+    const data = (await res.json()) as { user?: AdminUserRecord };
+    if (data.user) {
+      setUsers((prev) => prev.map((u) => (u.id === id ? data.user! : u)));
+    }
   }
 
   return (
