@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { reviewWithdrawalRequest } from "@/lib/billing/wallet-store";
+import { getAdminFinanceSnapshot, reviewAdminWithdrawal } from "@/lib/admin/admin-finance-store";
 import { forbidFinancialAccess } from "@/lib/security/financial-guard";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import type { WithdrawalStatus } from "@/types/billing";
@@ -28,14 +28,21 @@ export async function PATCH(
       );
     }
 
-    const withdrawal = await reviewWithdrawalRequest(
+    const withdrawal = await reviewAdminWithdrawal(
       id,
       body.status as Extract<WithdrawalStatus, "approved" | "rejected" | "completed">,
       auth!.user.id,
       body.adminNotes
     );
 
-    return NextResponse.json({ success: true, withdrawal });
+    const snapshot = await getAdminFinanceSnapshot();
+
+    return NextResponse.json({
+      success: true,
+      withdrawal,
+      summary: snapshot.summary,
+      persistence: snapshot.persistence,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update withdrawal";
     return NextResponse.json({ error: message }, { status: 500 });

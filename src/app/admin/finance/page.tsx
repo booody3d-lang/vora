@@ -4,9 +4,22 @@ import { useCallback, useEffect, useState } from "react";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { useTranslations } from "@/i18n/use-translations";
 import { ADMIN_FINANCIAL_SUMMARY, ADMIN_RECENT_TRANSACTIONS } from "@/lib/admin/mock-data";
-import { DEMO_WITHDRAWALS, formatSar } from "@/lib/billing/engine";
-import type { AdminTransaction, FinancialSummary } from "@/types/admin";
+import { DEMO_WALLET, DEMO_WITHDRAWALS, formatSar } from "@/lib/billing/engine";
+import type { AdminFinanceMetrics } from "@/lib/billing/billing-supabase";
+import type { AdminTransaction } from "@/types/admin";
 import type { WithdrawalRequest, WithdrawalStatus } from "@/types/billing";
+
+const DEMO_FINANCE_SUMMARY: AdminFinanceMetrics = {
+  grossPlatformRevenue: ADMIN_FINANCIAL_SUMMARY.grossPlatformRevenue,
+  netSubscriptionRevenue: ADMIN_FINANCIAL_SUMMARY.netSubscriptionRevenue,
+  netCommissionRevenue: ADMIN_FINANCIAL_SUMMARY.netCommissionRevenue,
+  activeEscrowLiquidity: ADMIN_FINANCIAL_SUMMARY.activeEscrowLiquidity,
+  totalEscrow: DEMO_WALLET.pendingBalance,
+  availablePayouts: DEMO_WALLET.availableBalance,
+  totalWithdrawn: DEMO_WALLET.withdrawnTotal,
+  pendingWithdrawals: DEMO_WITHDRAWALS.reduce((sum, row) => sum + row.amount, 0),
+  revenueGrowthPercent: ADMIN_FINANCIAL_SUMMARY.revenueGrowthPercent,
+};
 
 const WITHDRAWAL_STATUS_KEYS: Record<WithdrawalStatus, string> = {
   pending_review: "admin.finance.statusPendingReview",
@@ -32,7 +45,7 @@ const TX_STATUS_KEYS: Record<AdminTransaction["status"], string> = {
 
 export default function AdminFinancePage() {
   const { t } = useTranslations();
-  const [finance, setFinance] = useState<FinancialSummary>(ADMIN_FINANCIAL_SUMMARY);
+  const [finance, setFinance] = useState<AdminFinanceMetrics>(DEMO_FINANCE_SUMMARY);
   const [transactions, setTransactions] = useState<AdminTransaction[]>(ADMIN_RECENT_TRANSACTIONS);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>(DEMO_WITHDRAWALS);
   const [persistence, setPersistence] = useState<"supabase" | "demo">("demo");
@@ -43,7 +56,7 @@ export default function AdminFinancePage() {
       .then(
         (
           data: {
-            summary?: FinancialSummary;
+            summary?: AdminFinanceMetrics;
             transactions?: AdminTransaction[];
             withdrawals?: WithdrawalRequest[];
             persistence?: "supabase" | "demo";
@@ -77,13 +90,20 @@ export default function AdminFinancePage() {
       return;
     }
 
-    const data = (await res.json()) as { withdrawal?: WithdrawalRequest };
+    const data = (await res.json()) as {
+      withdrawal?: WithdrawalRequest;
+      summary?: AdminFinanceMetrics;
+    };
     if (data.withdrawal) {
       setWithdrawals((prev) =>
         prev.map((row) => (row.id === id ? data.withdrawal! : row))
       );
     }
-    loadFinance();
+    if (data.summary) {
+      setFinance(data.summary);
+    } else {
+      loadFinance();
+    }
   }
 
   return (
@@ -125,6 +145,27 @@ export default function AdminFinancePage() {
         />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <MetricCard
+          label={t("admin.finance.availablePayouts")}
+          value={formatSar(finance.availablePayouts)}
+          sublabel={t("admin.finance.availablePayoutsNote")}
+          accent="blue"
+        />
+        <MetricCard
+          label={t("admin.finance.totalWithdrawn")}
+          value={formatSar(finance.totalWithdrawn)}
+          sublabel={t("admin.finance.totalWithdrawnNote")}
+          accent="emerald"
+        />
+        <MetricCard
+          label={t("admin.finance.pendingWithdrawals")}
+          value={formatSar(finance.pendingWithdrawals)}
+          sublabel={t("admin.finance.pendingWithdrawalsNote")}
+          accent="amber"
+        />
+      </div>
+
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
           {t("admin.finance.transactions")}
@@ -142,20 +183,28 @@ export default function AdminFinancePage() {
               </tr>
             </thead>
             <tbody>
-              {transactions.map((tx) => (
-                <tr key={tx.id} className="border-b border-slate-800">
-                  <td className="px-5 py-3 text-slate-300">{t(TX_TYPE_KEYS[tx.type])}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-slate-500">{tx.reference}</td>
-                  <td className="px-5 py-3 text-slate-300">{tx.party}</td>
-                  <td className="px-5 py-3 text-end font-semibold text-emerald-400">
-                    {formatSar(tx.amount)}
-                  </td>
-                  <td className="px-5 py-3 text-slate-400">{t(TX_STATUS_KEYS[tx.status])}</td>
-                  <td className="px-5 py-3 text-slate-500">
-                    {new Date(tx.createdAt).toLocaleDateString()}
+              {transactions.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center text-slate-500">
+                    {t("admin.finance.noTransactions")}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                transactions.map((tx) => (
+                  <tr key={tx.id} className="border-b border-slate-800">
+                    <td className="px-5 py-3 text-slate-300">{t(TX_TYPE_KEYS[tx.type])}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-slate-500">{tx.reference}</td>
+                    <td className="px-5 py-3 text-slate-300">{tx.party}</td>
+                    <td className="px-5 py-3 text-end font-semibold text-emerald-400">
+                      {formatSar(tx.amount)}
+                    </td>
+                    <td className="px-5 py-3 text-slate-400">{t(TX_STATUS_KEYS[tx.status])}</td>
+                    <td className="px-5 py-3 text-slate-500">
+                      {new Date(tx.createdAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -177,9 +226,17 @@ export default function AdminFinancePage() {
               </tr>
             </thead>
             <tbody>
-              {withdrawals.map((req) => (
-                <WithdrawalRow key={req.id} req={req} onUpdate={updateWithdrawal} t={t} />
-              ))}
+              {withdrawals.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-8 text-center text-slate-500">
+                    {t("admin.finance.noWithdrawals")}
+                  </td>
+                </tr>
+              ) : (
+                withdrawals.map((req) => (
+                  <WithdrawalRow key={req.id} req={req} onUpdate={updateWithdrawal} t={t} />
+                ))
+              )}
             </tbody>
           </table>
         </div>
