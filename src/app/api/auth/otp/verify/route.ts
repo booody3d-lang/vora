@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { normalizePhoneFromRequest } from "@/lib/auth/phone/detect-country";
 import {
   COOKIE_NAME,
   sessionCookieOptions,
   signSessionToken,
 } from "@/lib/security/jwt";
-import { normalizeSaudiPhone, verifyOtp } from "@/lib/security/otp";
+import { verifyOtp } from "@/lib/security/otp";
 import {
   checkRateLimit,
   getClientIp,
@@ -34,11 +35,12 @@ export async function POST(request: Request) {
 
   try {
     await initDemoAccounts(hashPassword);
-    const body = await request.json() as { phone: string; code: string; fullName?: string };
-    const phone = normalizeSaudiPhone(body.phone);
-    if (!phone) {
+    const body = await request.json() as { phone: string; code: string; fullName?: string; countryCode?: string };
+    const normalized = normalizePhoneFromRequest(body.phone, request, body.countryCode);
+    if (!normalized) {
       return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
     }
+    const phone = normalized.e164;
 
     const otpEntry = getOtp(phone);
     if (!otpEntry || Date.now() > otpEntry.expiresAt) {

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { normalizePhoneFromRequest } from "@/lib/auth/phone/detect-country";
 import {
   generateOtpCode,
   hashOtp,
-  normalizeSaudiPhone,
 } from "@/lib/security/otp";
 import {
   checkRateLimit,
@@ -23,14 +23,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json() as { phone: string; purpose?: string };
-    const phone = normalizeSaudiPhone(body.phone);
-    if (!phone) {
+    const body = await request.json() as { phone: string; countryCode?: string; purpose?: string };
+    const normalized = normalizePhoneFromRequest(body.phone, request, body.countryCode);
+    if (!normalized) {
       return NextResponse.json(
-        { error: "Invalid Saudi mobile number. Use format 05XXXXXXXX or +9665XXXXXXXX" },
+        { error: "Invalid mobile number for the selected country." },
         { status: 400 }
       );
     }
+    const phone = normalized.e164;
 
     const code = generateOtpCode();
     const codeHash = await hashOtp(code);
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       phone,
-      message: "OTP sent via SMS (Saudi telecom networks)",
+      message: "OTP sent via SMS",
     });
   } catch {
     return NextResponse.json({ error: "Failed to send OTP" }, { status: 500 });

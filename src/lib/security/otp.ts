@@ -1,9 +1,12 @@
 import { TOTP, Secret } from "otpauth";
+import { normalizePhone } from "@/lib/auth/phone/normalize";
 import { hashPassword } from "@/lib/security/password";
 
 const SAUDI_PHONE_REGEX = /^(\+966|966|0)?5[0-9]{8}$/;
 
 export function normalizeSaudiPhone(input: string): string | null {
+  const normalized = normalizePhone(input, "SA");
+  if (normalized) return normalized.e164;
   const cleaned = input.replace(/[\s\-()]/g, "");
   if (!SAUDI_PHONE_REGEX.test(cleaned)) return null;
   const digits = cleaned.replace(/^\+966|^966|^0/, "");

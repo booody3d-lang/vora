@@ -1,10 +1,12 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { PhoneInput } from "@/components/auth/PhoneInput";
 import { usePermissions } from "@/providers/VoraProviders";
 import { useTranslations } from "@/i18n/use-translations";
+import { DEFAULT_COUNTRY_ISO2, detectInitialCountryIso2 } from "@/lib/auth/phone";
 import {
   PLATFORM_ACCOUNT_OPTIONS,
   getRedirectForRole,
@@ -12,6 +14,7 @@ import {
 import { getLocaleFromPathname, localizePath } from "@/i18n/routing";
 import { DEFAULT_LOCALE } from "@/i18n/config";
 import type { AuthUser, VoraRole } from "@/types/security";
+import type { PhoneInputValue } from "@/types/auth-phone";
 
 type AuthMode = "email" | "phone";
 
@@ -33,7 +36,10 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [phone, setPhone] = useState("");
+  const [phoneNational, setPhoneNational] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_COUNTRY_ISO2);
+  const [phoneE164, setPhoneE164] = useState<string | null>(null);
+  const [phoneValid, setPhoneValid] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [totpCode, setTotpCode] = useState("");
@@ -41,6 +47,15 @@ export function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [demoOtp, setDemoOtp] = useState<string>();
+
+  useEffect(() => {
+    setPhoneCountry(detectInitialCountryIso2());
+  }, []);
+
+  function handlePhoneValueChange(value: PhoneInputValue) {
+    setPhoneE164(value.e164);
+    setPhoneValid(value.isValid);
+  }
 
   function resolveDestination(user: Pick<AuthUser, "role">, fallbackRole?: VoraRole): string {
     if (redirectTo) return redirectTo;
@@ -110,6 +125,10 @@ export function LoginForm() {
   }
 
   async function sendOtp() {
+    if (!phoneValid || !phoneE164) {
+      setError(t("auth.invalidPhone"));
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -117,7 +136,7 @@ export function LoginForm() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, purpose: "login" }),
+        body: JSON.stringify({ phone: phoneE164, countryCode: phoneCountry, purpose: "login" }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -133,6 +152,10 @@ export function LoginForm() {
 
   async function verifyOtp(e: React.FormEvent) {
     e.preventDefault();
+    if (!phoneValid || !phoneE164) {
+      setError(t("auth.invalidPhone"));
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -140,7 +163,7 @@ export function LoginForm() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, code: otp }),
+        body: JSON.stringify({ phone: phoneE164, countryCode: phoneCountry, code: otp }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -275,22 +298,19 @@ export function LoginForm() {
         </form>
       ) : (
         <form onSubmit={verifyOtp} className="space-y-4">
-          <div>
-            <label className="text-xs text-slate-400">{t("auth.saudiMobile")}</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white focus:border-[#EA580C] focus:outline-none"
-              placeholder="05XXXXXXXX"
-            />
-          </div>
+          <PhoneInput
+            nationalNumber={phoneNational}
+            countryIso2={phoneCountry}
+            onNationalNumberChange={setPhoneNational}
+            onCountryChange={setPhoneCountry}
+            onValueChange={handlePhoneValueChange}
+            disabled={loading || otpSent}
+          />
           {!otpSent ? (
             <button
               type="button"
               onClick={sendOtp}
-              disabled={loading}
+              disabled={loading || !phoneValid}
               className="w-full rounded-xl bg-[#EA580C] py-3 text-sm font-semibold text-white disabled:opacity-50"
             >
               {t("auth.sendOtp")}
