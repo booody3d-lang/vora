@@ -1,4 +1,6 @@
 import { StoreProfileView } from "@/components/freelance/store/StoreProfileView";
+import { recordStoreView } from "@/lib/freelance/analytics-store";
+import { listPublicReviewsForStoreSlug } from "@/lib/freelance/reviews-store";
 import { listPortfolioForStoreSlug } from "@/lib/freelance/store-store";
 import { listPublicServicesForStoreSlug } from "@/lib/freelance/services-store";
 import { isStoreOwner } from "@/lib/profile/profile-store";
@@ -30,10 +32,12 @@ export default async function FreelanceStorePage({ params }: StorePageProps) {
     notFound();
   }
 
-  const [storeServices, portfolio] = await Promise.all([
+  const [storeServices, portfolio, reviews] = await Promise.all([
     listPublicServicesForStoreSlug(slug),
     listPortfolioForStoreSlug(slug),
+    listPublicReviewsForStoreSlug(slug),
   ]);
+  void recordStoreView(slug);
   const auth = await getAuthenticatedUser();
   const isOwnStore = auth ? isStoreOwner(auth.user.id, slug) : false;
   const storeOwnerAccountId = await resolveAccountIdForStoreSlug(slug);
@@ -43,7 +47,7 @@ export default async function FreelanceStorePage({ params }: StorePageProps) {
       store={store}
       services={storeServices}
       portfolio={portfolio}
-      reviews={[]}
+      reviews={reviews}
       isOwnStore={isOwnStore}
       storeOwnerAccountId={storeOwnerAccountId ?? undefined}
     />

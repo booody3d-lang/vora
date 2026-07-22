@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FreelanceOrder, OrderMessage, OrderStatus } from "@/types/freelance";
+import type { FreelanceOrder, OrderMessage, OrderStatus, ReviewSubmission } from "@/types/freelance";
 import { ReviewModal } from "@/components/freelance/orders/ReviewModal";
 import { CommissionBreakdown } from "@/components/billing/CommissionBreakdown";
 import { calculateCommission, formatSar } from "@/lib/billing/engine";
@@ -186,25 +186,41 @@ export function OrderWorkspace({
     setShowReview(true);
   }
 
-  function handleReviewSubmit() {
+  function handleReviewSubmit(review: ReviewSubmission) {
     const split = calculateCommission(order.totalPrice);
-    void persistOrder({ status: "completed", escrowReleased: true });
     setShowReview(false);
-    addMessage(
-      `Order completed. ${formatSar(split.freelancerNetEarnings)} deposited to seller wallet (${formatSar(split.platformCommission)} platform fee).`,
-      true
-    );
-    fetch(`/api/billing/orders/${order.id}/complete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sellerId: order.sellerId,
-        total: order.totalPrice,
-        serviceTitle: order.service.title,
-        buyerName: viewerName ?? (isBuyer ? "Buyer" : order.service.storeName),
-      }),
-    }).catch(() => {});
-    void fire(reviewPublishedAlert(order.orderNumber, 5));
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/freelance/orders/${order.id}/review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...review,
+            sellerId: order.sellerId,
+            total: order.totalPrice,
+          }),
+        });
+
+        if (response.ok) {
+          const payload = (await response.json()) as { order?: typeof order };
+          if (payload.order) setOrder(payload.order);
+          else {
+            setOrder((current) => ({ ...current, status: "completed", escrowReleased: true }));
+          }
+        } else {
+          setOrder((current) => ({ ...current, status: "completed", escrowReleased: true }));
+        }
+      } catch {
+        setOrder((current) => ({ ...current, status: "completed", escrowReleased: true }));
+      }
+
+      addMessage(
+        `Order completed. ${formatSar(split.freelancerNetEarnings)} deposited to seller wallet (${formatSar(split.platformCommission)} platform fee).`,
+        true
+      );
+      void fire(reviewPublishedAlert(order.orderNumber, review.overallQuality));
+    })();
   }
 
   function requestRevision() {

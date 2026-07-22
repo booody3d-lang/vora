@@ -200,6 +200,12 @@ export function ManageStoreContent({ storeSlug }: ManageStoreContentProps) {
           >
             {t("storeEdit.title")}
           </Link>
+          <Link
+            href={`/freelance/store/${storeSlug}/analytics`}
+            className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-semibold text-[#EA580C] hover:bg-orange-100"
+          >
+            Analytics
+          </Link>
         </div>
       </div>
 

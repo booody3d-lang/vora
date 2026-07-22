@@ -8,7 +8,7 @@ interface SellerDashboardProps {
 }
 
 export function SellerDashboard({ analytics, storeName }: SellerDashboardProps) {
-  const maxRevenue = Math.max(...analytics.monthlyRevenue.map((m) => m.revenue));
+  const maxRevenue = Math.max(1, ...analytics.monthlyRevenue.map((m) => m.revenue));
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
