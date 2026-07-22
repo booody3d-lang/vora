@@ -27,6 +27,7 @@ In the Supabase SQL editor, run the files in order:
 19. `019_billing_wallet_phase4e.sql` — wallet bootstrap on signup + admin withdrawal policies
 20. `020_billing_escrow_withdrawals_phase4e1.sql` — escrow payment RPC + withdrawal review workflow
 21. `021_company_rls_phase5.sql` — company posts/followers/analytics RLS + subscription bootstrap trigger + ATS update policy
+22. `022_freelance_rls_phase6a.sql` — freelance schema reconciliation (services/reviews columns), order indexes, order-number generator, store analytics bootstrap, and RLS for orders/messages/disputes/addons/chat/inquiries
 
 ## 2. Quick bootstrap (empty project)
 
