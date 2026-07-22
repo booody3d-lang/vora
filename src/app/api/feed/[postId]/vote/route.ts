@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { togglePostReaction } from "@/lib/network/feed-store";
+import { votePoll } from "@/lib/network/feed-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
-import type { ReactionType } from "@/types/network";
 
 interface RouteParams {
   params: Promise<{ postId: string }>;
@@ -16,13 +15,18 @@ export async function POST(request: Request, { params }: RouteParams) {
   const { postId } = await params;
 
   try {
-    const body = (await request.json()) as { type?: ReactionType | null };
-    const result = await togglePostReaction(auth.user.id, postId, body.type ?? null);
-    if (!result) {
-      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    const body = (await request.json()) as { optionIndex?: number };
+    if (typeof body.optionIndex !== "number") {
+      return NextResponse.json({ error: "optionIndex required" }, { status: 400 });
     }
+
+    const result = await votePoll(auth.user.id, postId, body.optionIndex);
+    if (!result) {
+      return NextResponse.json({ error: "Vote failed" }, { status: 400 });
+    }
+
     return NextResponse.json(result);
   } catch {
-    return NextResponse.json({ error: "Reaction failed" }, { status: 500 });
+    return NextResponse.json({ error: "Vote failed" }, { status: 500 });
   }
 }

@@ -20,7 +20,7 @@ export function SharePostModal({ postId, onClose }: SharePostModalProps) {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
-      void fetch(`/api/feed/${postId}/share`, { method: "POST" });
+      void fetch(`/api/feed/${postId}/share`, { method: "POST", credentials: "include" });
     } catch {
       setCopied(false);
     }
@@ -29,7 +29,7 @@ export function SharePostModal({ postId, onClose }: SharePostModalProps) {
   async function nativeShare() {
     if (typeof navigator !== "undefined" && navigator.share) {
       await navigator.share({ title: "VORA", url: shareUrl });
-      void fetch(`/api/feed/${postId}/share`, { method: "POST" });
+      void fetch(`/api/feed/${postId}/share`, { method: "POST", credentials: "include" });
       onClose();
     }
   }

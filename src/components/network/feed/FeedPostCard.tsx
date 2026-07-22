@@ -11,21 +11,27 @@ import { PostComments } from "@/components/network/feed/PostComments";
 import { FeedPostMedia } from "@/components/network/feed/FeedPostMedia";
 import { PollDisplay } from "@/components/network/feed/PollDisplay";
 import { SharePostModal } from "@/components/network/feed/SharePostModal";
+import { EditPostModal } from "@/components/network/feed/EditPostModal";
 import { ReportButton } from "@/components/security/ReportButton";
 import { useTranslations } from "@/i18n/use-translations";
 import { useGuardedAction } from "@/hooks/useGuardedAction";
+import { usePermissions } from "@/providers/VoraProviders";
 
 const TRUNCATE_LENGTH = 280;
 
 interface FeedPostCardProps {
   post: FeedPost;
   onUpdate?: (post: FeedPost) => void;
+  onDelete?: (postId: string) => void;
 }
 
-export function FeedPostCard({ post: initialPost, onUpdate }: FeedPostCardProps) {
+export function FeedPostCard({ post: initialPost, onUpdate, onDelete }: FeedPostCardProps) {
   const { t } = useTranslations();
-  const { profile, fullName, avatarUrl, profilePhotoUrl, gender, subscriptionBadge } = useCurrentProfile();
+  const { user } = usePermissions();
+  const { profile, fullName, avatarUrl, profilePhotoUrl, gender, subscriptionBadge } =
+    useCurrentProfile();
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [post, setPost] = useState(initialPost);
   const [reactions, setReactions] = useState(initialPost.reactions);
   const [userReaction, setUserReaction] = useState(initialPost.userReaction);
@@ -33,10 +39,16 @@ export function FeedPostCard({ post: initialPost, onUpdate }: FeedPostCardProps)
   const [expanded, setExpanded] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [localComments, setLocalComments] = useState<FeedComment[]>(post.comments ?? []);
   const { execute } = useGuardedAction({ action: "engage_content" });
 
-  const isOwnPost = profile?.id === post.author.id;
+  const isOwnPost =
+    (user?.id && post.authorAccountId && user.id === post.authorAccountId) ||
+    profile?.id === post.author.id;
+
   const author = isOwnPost
     ? {
         ...post.author,
@@ -85,13 +97,22 @@ export function FeedPostCard({ post: initialPost, onUpdate }: FeedPostCardProps)
     syncPost({ reactions: data.reactions, userReaction: data.userReaction });
   }
 
-  function handleVote(index: number) {
+  async function handleVote(index: number) {
     if (!post.pollOptions || !execute()) return;
-    const pollOptions = post.pollOptions.map((opt, i) =>
-      i === index ? { ...opt, votes: opt.votes + 1 } : opt
-    );
-    syncPost({ pollOptions });
-    setPost((current) => ({ ...current, pollOptions }));
+
+    const res = await fetch(`/api/feed/${post.id}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ optionIndex: index }),
+    });
+    const data = await res.json();
+    if (!res.ok) return;
+
+    const pollOptions = data.pollOptions as FeedPost["pollOptions"];
+    const userPollVoteIndex = data.userPollVoteIndex as number;
+    syncPost({ pollOptions, userPollVoteIndex });
+    setPost((current) => ({ ...current, pollOptions, userPollVoteIndex }));
   }
 
   async function handleAddComment(content: string) {
@@ -128,6 +149,25 @@ export function FeedPostCard({ post: initialPost, onUpdate }: FeedPostCardProps)
     syncPost({ isSaved: data.isSaved });
   }
 
+  async function handleDelete() {
+    if (deleting) return;
+    if (!window.confirm(t("network.feed.delete.confirm"))) return;
+
+    setDeleting(true);
+    setMenuOpen(false);
+
+    try {
+      const res = await fetch(`/api/feed/${post.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      onDelete?.(post.id);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function focusCommentInput() {
     setCommentsExpanded(true);
     window.setTimeout(() => commentInputRef.current?.focus(), 0);
@@ -155,13 +195,66 @@ export function FeedPostCard({ post: initialPost, onUpdate }: FeedPostCardProps)
                 {author.fullName}
               </Link>
               <p className="text-xs text-slate-500">{author.headline}</p>
-              <p className="text-[10px] text-slate-400">{timeAgo(post.createdAt)}</p>
+              <p className="text-[10px] text-slate-400">
+                {timeAgo(post.createdAt)}
+                {post.updatedAt && post.updatedAt !== post.createdAt && (
+                  <span className="ms-1">· {t("network.feed.edited")}</span>
+                )}
+              </p>
             </div>
-            <ReportButton
-              targetType="post"
-              targetId={post.id}
-              targetLabel={`Post by ${author.fullName}`}
-            />
+            <div className="flex items-start gap-1">
+              {isOwnPost && (
+                <div className="relative" ref={menuRef}>
+                  <button
+                    type="button"
+                    aria-label={t("network.feed.postMenu")}
+                    onClick={() => setMenuOpen((open) => !open)}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zm0 4a2 2 0 110-4 2 2 0 010 4zm0 4a2 2 0 110-4 2 2 0 010 4z" />
+                    </svg>
+                  </button>
+                  {menuOpen && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label={t("common.cancel")}
+                        className="fixed inset-0 z-10"
+                        onClick={() => setMenuOpen(false)}
+                      />
+                      <div className="absolute end-0 top-full z-20 mt-1 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            setEditOpen(true);
+                          }}
+                          className="block w-full px-4 py-2 text-start text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          {t("common.edit")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deleting}
+                          onClick={() => void handleDelete()}
+                          className="block w-full px-4 py-2 text-start text-sm text-red-600 hover:bg-red-50 disabled:opacity-60"
+                        >
+                          {deleting ? t("network.feed.delete.deleting") : t("common.delete")}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {!isOwnPost && (
+                <ReportButton
+                  targetType="post"
+                  targetId={post.id}
+                  targetLabel={`Post by ${author.fullName}`}
+                />
+              )}
+            </div>
           </div>
 
           {post.type === "article" && post.articleCoverUrl && (
@@ -242,7 +335,8 @@ export function FeedPostCard({ post: initialPost, onUpdate }: FeedPostCardProps)
               question={post.pollQuestion}
               options={post.pollOptions}
               expiresAt={post.pollExpiresAt}
-              onVote={handleVote}
+              initialVotedIndex={post.userPollVoteIndex ?? null}
+              onVote={(index) => void handleVote(index)}
             />
           )}
 
@@ -269,6 +363,16 @@ export function FeedPostCard({ post: initialPost, onUpdate }: FeedPostCardProps)
       </article>
 
       {shareOpen && <SharePostModal postId={post.id} onClose={() => setShareOpen(false)} />}
+      {editOpen && (
+        <EditPostModal
+          post={post}
+          onClose={() => setEditOpen(false)}
+          onSaved={(updated) => {
+            setPost(updated);
+            onUpdate?.(updated);
+          }}
+        />
+      )}
     </>
   );
 }

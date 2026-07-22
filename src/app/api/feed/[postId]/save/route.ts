@@ -15,7 +15,7 @@ export async function POST(_request: Request, { params }: RouteParams) {
   const { postId } = await params;
 
   try {
-    const isSaved = togglePostSave(auth.user.id, postId);
+    const isSaved = await togglePostSave(auth.user.id, postId);
     return NextResponse.json({ isSaved });
   } catch {
     return NextResponse.json({ error: "Save failed" }, { status: 500 });

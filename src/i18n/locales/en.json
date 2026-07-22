@@ -222,6 +222,18 @@
       "poll": {
         "ends": "Poll ends {date}",
         "votes": "{count} vote(s)"
+      },
+      "postMenu": "Post options",
+      "edited": "Edited",
+      "edit": {
+        "title": "Edit post",
+        "save": "Save changes",
+        "failed": "Failed to update post",
+        "pollMinOptions": "Polls need at least two options"
+      },
+      "delete": {
+        "confirm": "Delete this post permanently?",
+        "deleting": "Deleting..."
       }
     },
     "connections": {

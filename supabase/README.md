@@ -18,6 +18,7 @@ In the Supabase SQL editor, run the files in order:
 10. `010_supabase_auth_signup_metadata.sql`
 11. `011_storage_bucket.sql`
 12. `012_core_schema_bootstrap_fn.sql`
+13. `013_feed_rls_policies.sql` — feed engagement RLS (requires `002_network_ecosystem.sql` tables)
 
 ## 2. Quick bootstrap (empty project)
 

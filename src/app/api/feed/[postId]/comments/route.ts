@@ -20,7 +20,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Comment required" }, { status: 400 });
     }
 
-    const comment = addPostComment(auth.user.id, postId, body.content.trim());
+    const comment = await addPostComment(auth.user.id, postId, body.content.trim());
     if (!comment) {
       return NextResponse.json({ error: "Failed to add comment" }, { status: 400 });
     }

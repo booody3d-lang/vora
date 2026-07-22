@@ -10,30 +10,34 @@ interface PollDisplayProps {
   question: string;
   options: PollOption[];
   expiresAt?: string;
+  initialVotedIndex?: number | null;
   onVote?: (index: number) => void;
 }
 
-export function PollDisplay({ question, options, expiresAt, onVote }: PollDisplayProps) {
+export function PollDisplay({
+  question,
+  options,
+  expiresAt,
+  initialVotedIndex = null,
+  onVote,
+}: PollDisplayProps) {
   const { t } = useTranslations();
-  const [votedIndex, setVotedIndex] = useState<number | null>(null);
+  const [votedIndex, setVotedIndex] = useState<number | null>(initialVotedIndex);
   const { execute, restrictionMessage, VisitorModal } = useGuardedAction({
     action: "engage_content",
   });
 
-  const totalVotes = options.reduce((sum, o) => sum + o.votes, 0);
+  const totalVotes = options.reduce((sum, option) => sum + option.votes, 0);
+  const hasVoted = votedIndex !== null;
+  const displayOptions = options;
+  const displayTotal = totalVotes;
 
   function handleVote(index: number) {
-    if (votedIndex !== null) return;
+    if (hasVoted) return;
     if (!execute()) return;
     setVotedIndex(index);
     onVote?.(index);
   }
-
-  const hasVoted = votedIndex !== null;
-  const displayOptions = hasVoted
-    ? options.map((o, i) => (i === votedIndex ? { ...o, votes: o.votes + 1 } : o))
-    : options;
-  const displayTotal = hasVoted ? totalVotes + 1 : totalVotes;
 
   return (
     <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-4">

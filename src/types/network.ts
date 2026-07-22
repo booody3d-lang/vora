@@ -157,6 +157,8 @@ export interface FeedPost {
   id: string;
   type: PostType;
   author: FeedPostAuthor;
+  /** Supabase accounts.id — used for owner permission checks */
+  authorAccountId?: string;
   content?: string;
   mediaUrls?: string[];
   media?: PostMediaItem[];
@@ -171,7 +173,9 @@ export interface FeedPost {
   shareCount: number;
   isSaved: boolean;
   comments?: FeedComment[];
+  userPollVoteIndex?: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface RecommendedJob {
