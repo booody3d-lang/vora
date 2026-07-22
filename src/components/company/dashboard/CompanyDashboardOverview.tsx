@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { computeSubscriptionState, getAtsUrl } from "@/lib/company/mock-data";
+import { CompanyPostsPanel } from "@/components/company/dashboard/CompanyPostsPanel";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { useLocale } from "@/providers/LocaleProvider";
 import type { JobPosting } from "@/types/company";
@@ -33,8 +34,8 @@ export function CompanyDashboardOverview() {
     };
   }, []);
 
-  const companyName = company?.name ?? "TechCorp Global";
-  const followerCount = company?.followerCount ?? 12400;
+  const companyName = company?.name ?? "Company";
+  const followerCount = company?.followerCount ?? 0;
   const subState = subscription
     ? computeSubscriptionState(subscription)
     : {
@@ -129,6 +130,10 @@ export function CompanyDashboardOverview() {
             </li>
           </ul>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <CompanyPostsPanel />
       </div>
     </div>
   );

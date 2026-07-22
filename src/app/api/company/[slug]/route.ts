@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCompanyBySlug } from "@/lib/company/company-store";
 import { listCurrentEmployeesForCompany } from "@/lib/company/employees";
+import { listActiveJobsForCompany } from "@/lib/company/jobs-store";
+import { listPostsForCompany } from "@/lib/company/posts-store";
 import { getCompanySocialContext } from "@/lib/network/social-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 
@@ -18,6 +20,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   const auth = await getAuthenticatedUser();
   const social = await getCompanySocialContext(auth?.user.id ?? null, company.id);
+  const posts = await listPostsForCompany(company.id);
+  const jobs = await listActiveJobsForCompany(company.id);
 
   const responseCompany = {
     ...company,
@@ -30,5 +34,5 @@ export async function GET(_request: Request, { params }: RouteParams) {
     responseCompany.currentEmployees = listCurrentEmployeesForCompany(company.id);
   }
 
-  return NextResponse.json({ company: responseCompany, social });
+  return NextResponse.json({ company: responseCompany, social, posts, jobs });
 }

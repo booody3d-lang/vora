@@ -21,6 +21,7 @@ import {
   listJobsByCompanyFromSupabase,
   updateJobInSupabase,
 } from "@/lib/company/jobs-supabase";
+import { createJobAnnouncementPost } from "@/lib/company/posts-store";
 import type { JobPosting, JobPostingForm } from "@/types/company";
 import type { PublicJobListing } from "@/lib/jobs/listings";
 
@@ -224,6 +225,10 @@ export async function createJobForAccount(
 
   if (status === "active") {
     await incrementJobsPublishedCountForAccount(accountId);
+    await createJobAnnouncementPost(accountId, {
+      jobId: created.id,
+      jobTitle: created.title,
+    });
   }
 
   return created;

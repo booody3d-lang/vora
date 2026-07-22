@@ -21,6 +21,13 @@ import {
   requestFollowInSupabase,
   unfollowInSupabase,
 } from "@/lib/network/social-supabase";
+import {
+  followCompanyInSupabase,
+  getCompanyFollowerCountFromSupabase,
+  isCompanyFollowersSupabaseReady,
+  migrateJsonCompanyFollowsToSupabase,
+  unfollowCompanyInSupabase,
+} from "@/lib/company/company-followers-supabase";
 import { getCompanyByIdSync, isKnownCompanyId } from "@/lib/company/company-store";
 import { findAccountById } from "@/lib/security/demo-store";
 import {
@@ -30,6 +37,7 @@ import {
 
 const DATA_FILE = "social-data.json";
 const MIGRATION_FLAG = "social-supabase-migrated.json";
+const COMPANY_FOLLOWERS_MIGRATION_FLAG = "company-followers-supabase-migrated.json";
 
 export type FollowTargetType = "user" | "company";
 export type FollowStatus = "pending" | "accepted" | "declined";
@@ -140,6 +148,28 @@ async function maybeMigrateJsonToSupabase(): Promise<void> {
   }
 }
 
+async function maybeMigrateCompanyFollowsToSupabase(): Promise<void> {
+  if (!(await isCompanyFollowersSupabaseReady())) return;
+
+  const flag = readJsonStore(COMPANY_FOLLOWERS_MIGRATION_FLAG, () => ({ done: false as boolean }));
+  if (flag.done) return;
+
+  const companyFollowRows = companyFollows(readData()).filter(
+    (follow) => follow.status === "accepted"
+  );
+
+  await runOptionalDbSync(
+    "company-followers-migration",
+    () => migrateJsonCompanyFollowsToSupabase(companyFollowRows),
+    0
+  );
+
+  writeJsonStore(COMPANY_FOLLOWERS_MIGRATION_FLAG, {
+    done: true,
+    migratedAt: new Date().toISOString(),
+  });
+}
+
 export async function requestFollow(input: {
   followerAccountId: string;
   targetId: string;
@@ -156,7 +186,22 @@ export async function requestFollow(input: {
   const targetType = input.targetType ?? "user";
 
   if (targetType === "company") {
-    return requestFollowJson(input);
+    const jsonResult = requestFollowJson(input);
+    if (!jsonResult.ok) return jsonResult;
+
+    if (await isCompanyFollowersSupabaseReady()) {
+      await maybeMigrateCompanyFollowsToSupabase();
+      await runOptionalDbSync(
+        "followCompany",
+        async () => {
+          await followCompanyInSupabase(input.followerAccountId, input.targetId);
+          return true;
+        },
+        true
+      );
+    }
+
+    return jsonResult;
   }
 
   if (!getProfileByAccountId(input.targetId)) {
@@ -257,7 +302,17 @@ export async function unfollow(input: {
   const targetType = input.targetType ?? "user";
 
   if (targetType === "company") {
-    return unfollowJson(input);
+    const jsonResult = unfollowJson(input);
+
+    if (await isCompanyFollowersSupabaseReady()) {
+      await runOptionalDbSync(
+        "unfollowCompany",
+        () => unfollowCompanyInSupabase(input.followerAccountId, input.targetId),
+        jsonResult
+      );
+    }
+
+    return jsonResult;
   }
 
   if (await isSocialSupabaseReady()) {
@@ -291,6 +346,15 @@ export async function getFollowerCount(
   targetType: FollowTargetType = "user"
 ): Promise<number> {
   if (targetType === "company") {
+    if (await isCompanyFollowersSupabaseReady()) {
+      await maybeMigrateCompanyFollowsToSupabase();
+      return runOptionalDbSync(
+        "getCompanyFollowerCount",
+        () => getCompanyFollowerCountFromSupabase(targetId),
+        getFollowerCountJson(targetId, targetType)
+      );
+    }
+
     return getFollowerCountJson(targetId, targetType);
   }
 

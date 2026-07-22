@@ -4,6 +4,7 @@ import {
   getCompanySlugForAccount,
   getCompanySubscriptionForAccount,
 } from "@/lib/company/company-store";
+import { getCompanySocialContext } from "@/lib/network/social-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { getCompanyPublishState } from "@/lib/security/feature-guard";
 
@@ -25,12 +26,16 @@ export async function GET() {
 
   const subscription = await getCompanySubscriptionForAccount(auth.user.id);
   const publishGuard = await getCompanyPublishState(auth.user.id);
+  const social = await getCompanySocialContext(auth.user.id, company.id);
 
   return NextResponse.json({
     authenticated: true,
     hasCompany: true,
     companySlug,
-    company,
+    company: {
+      ...company,
+      followerCount: social.followerCount,
+    },
     subscription,
     publishGuard: {
       allowed: publishGuard.allowed,
