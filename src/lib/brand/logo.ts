@@ -1,8 +1,8 @@
 /** Official VORA wordmark — do not alter colors or proportions */
 export const VORA_LOGO = {
   src: "/brand/vora-logo.png",
-  width: 329,
-  height: 126,
+  width: 1024,
+  height: 682,
 } as const;
 
 export const VORA_LOGO_SIZES = {
