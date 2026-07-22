@@ -44,7 +44,11 @@ export function VoraLogo(props: VoraLogoProps) {
       width={displayWidth}
       height={preset.height}
       priority={priority}
-      className={cn("w-auto max-w-full shrink-0 object-contain object-start", preset.className, className)}
+      className={cn(
+        "w-auto max-w-full shrink-0 bg-transparent object-contain object-start",
+        preset.className,
+        className
+      )}
     />
   );
 
@@ -53,7 +57,7 @@ export function VoraLogo(props: VoraLogoProps) {
       <Link
         href={linkHref}
         className={cn(
-          linkClassName ?? "inline-flex max-w-full transition-opacity hover:opacity-90"
+          linkClassName ?? "inline-flex max-w-full bg-transparent transition-opacity hover:opacity-90"
         )}
       >
         {image}
