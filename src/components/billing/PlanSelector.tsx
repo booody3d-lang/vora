@@ -11,14 +11,16 @@ interface PlanSelectorProps {
   plans: PlanDefinition[];
   currentPlan?: string;
   target?: "individual" | "company";
-  stripeConfigured?: boolean;
+  simulationMode?: boolean;
+  onSubscriptionChange?: () => void;
 }
 
 export function PlanSelector({
   plans,
   currentPlan = "free",
   target = "individual",
-  stripeConfigured = false,
+  simulationMode = false,
+  onSubscriptionChange,
 }: PlanSelectorProps) {
   const { locale } = useLocale();
   const { t } = useTranslations();
@@ -41,17 +43,13 @@ export function PlanSelector({
       });
       const data = await res.json();
       if (data.url) {
+        if (data.simulated) {
+          onSubscriptionChange?.();
+        }
         window.location.href = data.url;
-      } else if (!stripeConfigured) {
-        alert(
-          t("billing.plans.stripeDemo").replace(
-            "{plan}",
-            locale === "ar" ? plan.nameAr : plan.nameEn
-          )
-        );
-      } else {
-        alert(data.error ?? t("billing.plans.paymentFailed"));
+        return;
       }
+      alert(data.error ?? t("billing.plans.paymentFailed"));
     } catch {
       alert(t("billing.plans.paymentFailed"));
     } finally {
@@ -68,7 +66,8 @@ export function PlanSelector({
       {visiblePlans.map((plan) => {
         const isCurrent = currentPlan === plan.id;
         const features = locale === "ar" ? plan.featuresAr : plan.features;
-        const canSubscribe = plan.priceSar > 0 && Boolean(plan.stripePriceId);
+        const canSubscribe =
+          plan.priceSar > 0 && (simulationMode || Boolean(plan.stripePriceId));
 
         return (
           <div
@@ -127,8 +126,8 @@ export function PlanSelector({
                   ? t("billing.plans.currentPlan")
                   : plan.priceSar === 0
                     ? t("billing.plans.active")
-                    : !canSubscribe
-                      ? t("billing.plans.paymentFailed")
+                    : simulationMode
+                      ? t("billing.plans.simulateSubscribe")
                       : t("billing.plans.subscribe")}
             </button>
           </div>

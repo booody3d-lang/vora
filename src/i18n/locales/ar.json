@@ -372,8 +372,14 @@
       "currentPlan": "الخطة الحالية",
       "active": "نشط",
       "subscribe": "اشترك",
+      "simulateSubscribe": "تفعيل (محاكاة)",
       "manageSubscription": "إدارة الاشتراك",
       "paymentFailed": "فشل بدء الدفع",
+      "paymentSuccess": "تم تفعيل الاشتراك بنجاح.",
+      "simulationBanner": "الفوترة تعمل حالياً في وضع المحاكاة المحلية ({provider}). لا توجد بوابة دفع حقيقية متصلة — يتم تفعيل الاشتراكات فوراً للاختبار.",
+      "simulationSuccess": "تم تفعيل الاشتراك في وضع المحاكاة. مميزات Premium متاحة الآن.",
+      "simulationCancelled": "تم إلغاء الاشتراك المحاكى. عدت إلى الخطة المجانية.",
+      "cancelSimulationConfirm": "إلغاء الاشتراك المحاكى؟ سيتم إزالة مميزات Premium فوراً.",
       "stripeDemo": "Stripe غير مُعد. وضع تجريبي: سيُفعّل الاشتراك لـ {plan}"
     },
     "withdraw": {

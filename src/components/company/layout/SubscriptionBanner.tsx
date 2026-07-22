@@ -21,9 +21,9 @@ export function SubscriptionBanner({ subscription }: SubscriptionBannerProps) {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           plan: "company_annual",
-          accountId: "demo-company-1",
           successUrl: `${window.location.origin}/company/dashboard?subscribed=true`,
         }),
       });
@@ -31,7 +31,7 @@ export function SubscriptionBanner({ subscription }: SubscriptionBannerProps) {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert("Stripe not configured. Demo: Company subscription would activate at SAR 600/year.");
+        alert(data.error ?? "Payment initiation failed");
         setShowPaywall(false);
       }
     } catch {
@@ -112,7 +112,7 @@ export function SubscriptionBanner({ subscription }: SubscriptionBannerProps) {
               {loading ? "Processing..." : `Subscribe — SAR ${ANNUAL_SUBSCRIPTION_SAR}/year`}
             </button>
             <p className="mt-3 text-center text-xs text-slate-400">
-              Secure payment via Stripe · Mada cards accepted
+              Secure payment · Mada cards accepted when live billing is enabled
             </p>
             <Link
               href="/billing/plans"

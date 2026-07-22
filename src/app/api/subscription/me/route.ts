@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { inferCheckoutPlanId } from "@/lib/billing/resolve-plans";
+import { userHasSimulatedBilling } from "@/lib/billing/simulate-subscription";
 import { getEffectiveSubscription } from "@/lib/subscription/resolve-subscription";
 import {
   ensureSubscriptionCacheHydrated,
@@ -30,11 +31,17 @@ export async function GET(request: Request) {
       ? null
       : "free";
 
+  const hasActiveBilling =
+    assignment?.source === "billing" && assignment.status === "active";
+  const hasStripeCustomer = Boolean(getStripeCustomerMapping(auth.user.id));
+
   return NextResponse.json({
     authenticated: true,
     audience,
     effective,
     currentPlanId,
-    hasStripeCustomer: Boolean(getStripeCustomerMapping(auth.user.id)),
+    hasBillingAccount: hasActiveBilling || hasStripeCustomer,
+    hasSimulatedBilling: userHasSimulatedBilling(auth.user.id),
+    hasStripeCustomer,
   });
 }

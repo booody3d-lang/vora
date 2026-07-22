@@ -372,8 +372,14 @@
       "currentPlan": "Current Plan",
       "active": "Active",
       "subscribe": "Subscribe",
+      "simulateSubscribe": "Activate (simulation)",
       "manageSubscription": "Manage subscription",
       "paymentFailed": "Payment initiation failed",
+      "paymentSuccess": "Subscription activated successfully.",
+      "simulationBanner": "Billing is running in local simulation mode ({provider}). No live payment gateway is connected yet — subscriptions activate instantly for testing.",
+      "simulationSuccess": "Subscription activated in simulation mode. Premium features are now enabled.",
+      "simulationCancelled": "Simulated subscription cancelled. You are back on the free plan.",
+      "cancelSimulationConfirm": "Cancel your simulated subscription? This will remove premium access immediately.",
       "stripeDemo": "Stripe is not configured. Demo mode: subscription would activate for {plan}"
     },
     "withdraw": {
