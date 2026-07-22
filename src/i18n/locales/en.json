@@ -875,7 +875,8 @@
       "approveBadge": "Approve Badge",
       "reject": "Reject",
       "documentPreview": "Document Preview",
-      "documentHint": "{type} — click to view full document"
+      "documentHint": "{type} — click to view full document",
+      "openDocument": "Open submitted document"
     },
     "moderation": {
       "title": "Business & Marketplace Moderation",

@@ -875,7 +875,8 @@
       "approveBadge": "الموافقة على الشارة",
       "reject": "رفض",
       "documentPreview": "معاينة الوثيقة",
-      "documentHint": "{type} — انقر لعرض الوثيقة كاملة"
+      "documentHint": "{type} — انقر لعرض الوثيقة كاملة",
+      "openDocument": "فتح الوثيقة المرفقة"
     },
     "moderation": {
       "title": "إشراف الأعمال والسوق",
