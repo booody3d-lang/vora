@@ -12,20 +12,25 @@ import {
 import {
   ensureFreelancerStoreForAccount,
   getAccountIdByProfileSlug,
-  getAccountIdByStoreSlug,
   getAccountLink,
   getProfileByAccountId,
   getProfileBySlug,
-  getStoreByAccountId,
-  getStoreBySlug,
   syncJsonCacheFromSupabase,
   updateProfileForAccount,
-  updateStoreForAccount,
   createProfileForAccount,
 } from "@/lib/profile/profile-store";
 import { slugifyName, uniqueSlug } from "@/lib/profile/slugify";
 import { calculateProfessionalScore } from "@/lib/professional-score/calculator";
-import type { FreelancerStore } from "@/types/freelance";
+import {
+  fetchStoreRowByAccountId as fetchStoreRowByAccountIdUnsafe,
+  type DbStoreRow,
+} from "@/lib/freelance/store-supabase";
+import {
+  getStoreBySlugLive,
+  getStoreForAccount,
+  resolveAccountIdForStoreSlugLive,
+  updateStoreForAccountLive,
+} from "@/lib/freelance/store-store";
 import type { FullProfessionalProfile } from "@/types/network";
 import type { AuthUser } from "@/types/security";
 
@@ -59,24 +64,6 @@ interface DbProfileRow {
   website_url: string | null;
   contact_phone: string | null;
   current_role: string | null;
-}
-
-interface DbStoreRow {
-  id: string;
-  account_id: string;
-  slug: string;
-  store_name: string;
-  tagline: string | null;
-  description: string | null;
-  logo_url: string | null;
-  cover_image_url: string | null;
-  video_intro_url: string | null;
-  seo_slug: string | null;
-  rating_avg: number | null;
-  total_reviews: number | null;
-  view_count: number | null;
-  conversion_rate: number | null;
-  is_verified: boolean | null;
 }
 
 function mapDbProfileRow(row: DbProfileRow, base?: FullProfessionalProfile | null): FullProfessionalProfile {
@@ -131,26 +118,6 @@ function mapDbProfileRow(row: DbProfileRow, base?: FullProfessionalProfile | nul
   return merged;
 }
 
-function mapDbStoreRow(row: DbStoreRow, base?: FreelancerStore | null): FreelancerStore {
-  return {
-    id: row.id,
-    slug: row.slug,
-    seoSlug: row.seo_slug ?? row.slug,
-    storeName: row.store_name,
-    tagline: row.tagline ?? "",
-    description: row.description ?? "",
-    logoUrl: row.logo_url ?? "",
-    coverImageUrl: row.cover_image_url ?? "",
-    videoIntroUrl: row.video_intro_url ?? base?.videoIntroUrl,
-    professionalProfileSlug: base?.professionalProfileSlug ?? "",
-    isVerified: row.is_verified ?? base?.isVerified ?? false,
-    ratingAvg: Number(row.rating_avg ?? base?.ratingAvg ?? 0),
-    totalReviews: row.total_reviews ?? base?.totalReviews ?? 0,
-    viewCount: row.view_count ?? base?.viewCount ?? 0,
-    conversionRate: Number(row.conversion_rate ?? base?.conversionRate ?? 0),
-  };
-}
-
 async function fetchProfileRowByAccountId(accountId: string): Promise<DbProfileRow | null> {
   if (!isSupabasePersistenceEnabled()) return null;
   const admin = createAdminClient();
@@ -172,46 +139,16 @@ async function fetchProfileRowByAccountId(accountId: string): Promise<DbProfileR
   return data as DbProfileRow | null;
 }
 
-async function fetchProfileRowBySlug(slug: string): Promise<DbProfileRow | null> {
-  if (!isSupabasePersistenceEnabled()) return null;
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("professional_profiles")
-    .select(
-      "id, account_id, slug, headline, about, profile_photo_url, cover_image_url, resume_url, video_intro_url, location, contact_email, full_name, gender, professional_score, is_verified, is_premium, website_url, contact_phone, current_role"
-    )
-    .eq("slug", slug)
-    .maybeSingle();
-  if (error) {
-    if (isMissingRelationError(error)) {
-      markSupabaseDbSyncUnavailable("fetch profile by slug", error);
-    } else {
-      console.error("[profile-persistence] fetch profile by slug:", error.message);
-    }
-    return null;
-  }
-  return data as DbProfileRow | null;
-}
-
 async function fetchStoreRowByAccountId(accountId: string): Promise<DbStoreRow | null> {
   if (!isSupabasePersistenceEnabled()) return null;
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("freelancer_stores")
-    .select(
-      "id, account_id, slug, store_name, tagline, description, logo_url, cover_image_url, video_intro_url, seo_slug, rating_avg, total_reviews, view_count, conversion_rate, is_verified"
-    )
-    .eq("account_id", accountId)
-    .maybeSingle();
-  if (error) {
-    if (isMissingRelationError(error)) {
-      markSupabaseDbSyncUnavailable("fetch store", error);
-    } else {
-      console.error("[profile-persistence] fetch store:", error.message);
+  try {
+    return await fetchStoreRowByAccountIdUnsafe(accountId);
+  } catch (error) {
+    if (error && typeof error === "object" && "message" in error) {
+      console.error("[profile-persistence] fetch store:", String(error.message));
     }
     return null;
   }
-  return data as DbStoreRow | null;
 }
 
 function syncJsonFromDbProfile(row: DbProfileRow, storeRow?: DbStoreRow | null): void {
@@ -247,6 +184,7 @@ function syncJsonFromDbProfile(row: DbProfileRow, storeRow?: DbStoreRow | null):
           videoIntroUrl: storeRow.video_intro_url ?? undefined,
           seoSlug: storeRow.seo_slug ?? storeRow.slug,
           isVerified: storeRow.is_verified ?? undefined,
+          isPremium: storeRow.is_premium ?? undefined,
           ratingAvg: storeRow.rating_avg ?? undefined,
           totalReviews: storeRow.total_reviews ?? undefined,
           viewCount: storeRow.view_count ?? undefined,
@@ -257,25 +195,25 @@ function syncJsonFromDbProfile(row: DbProfileRow, storeRow?: DbStoreRow | null):
   });
 }
 
-async function fetchStoreRowBySlug(slug: string): Promise<DbStoreRow | null> {
+async function fetchProfileRowBySlug(slug: string): Promise<DbProfileRow | null> {
   if (!isSupabasePersistenceEnabled()) return null;
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from("freelancer_stores")
+    .from("professional_profiles")
     .select(
-      "id, account_id, slug, store_name, tagline, description, logo_url, cover_image_url, video_intro_url, seo_slug, rating_avg, total_reviews, view_count, conversion_rate, is_verified"
+      "id, account_id, slug, headline, about, profile_photo_url, cover_image_url, resume_url, video_intro_url, location, contact_email, full_name, gender, professional_score, is_verified, is_premium, website_url, contact_phone, current_role"
     )
     .eq("slug", slug)
     .maybeSingle();
   if (error) {
     if (isMissingRelationError(error)) {
-      markSupabaseDbSyncUnavailable("fetch store by slug", error);
+      markSupabaseDbSyncUnavailable("fetch profile by slug", error);
     } else {
-      console.error("[profile-persistence] fetch store by slug:", error.message);
+      console.error("[profile-persistence] fetch profile by slug:", error.message);
     }
     return null;
   }
-  return data as DbStoreRow | null;
+  return data as DbProfileRow | null;
 }
 
 export async function upsertSupabaseProfile(
@@ -334,70 +272,6 @@ export async function upsertSupabaseProfile(
   return true;
 }
 
-export async function upsertSupabaseStore(
-  accountId: string,
-  store: FreelancerStore,
-  profileSlug: string
-): Promise<boolean> {
-  if (!(await ensureDbReadyForSync())) return false;
-
-  const admin = createAdminClient();
-  const { data: profileRow } = await admin
-    .from("professional_profiles")
-    .select("id")
-    .eq("account_id", accountId)
-    .maybeSingle();
-
-  const { data: storeRow, error } = await admin
-    .from("freelancer_stores")
-    .upsert(
-      {
-        account_id: accountId,
-        slug: store.slug,
-        seo_slug: store.seoSlug ?? store.slug,
-        store_name: store.storeName,
-        tagline: store.tagline || null,
-        description: store.description || null,
-        logo_url: store.logoUrl || null,
-        cover_image_url: store.coverImageUrl || null,
-        video_intro_url: store.videoIntroUrl || null,
-        rating_avg: store.ratingAvg ?? 0,
-        total_reviews: store.totalReviews ?? 0,
-        view_count: store.viewCount ?? 0,
-        conversion_rate: store.conversionRate ?? 0,
-        is_verified: store.isVerified ?? false,
-        is_active: true,
-      },
-      { onConflict: "account_id" }
-    )
-    .select("id")
-    .single();
-
-  if (error) {
-    if (isMissingRelationError(error)) {
-      markSupabaseDbSyncUnavailable("upsert store", error);
-    } else {
-      console.error("[profile-persistence] upsert store:", error.message);
-    }
-    return false;
-  }
-
-  await admin.from("accounts").update({ has_freelancer_store: true }).eq("id", accountId);
-
-  if (profileRow?.id && storeRow?.id) {
-    await admin.from("platform_links").upsert(
-      {
-        account_id: accountId,
-        professional_profile_id: profileRow.id,
-        freelancer_store_id: storeRow.id,
-      },
-      { onConflict: "account_id" }
-    );
-  }
-
-  return true;
-}
-
 export async function ensureSupabaseProfileAndStore(authUser: AuthUser): Promise<void> {
   if (!getProfileByAccountId(authUser.id)) {
     createProfileForAccount({
@@ -425,10 +299,7 @@ export async function ensureSupabaseProfileAndStore(authUser: AuthUser): Promise
 
     if (authUser.hasFreelancerStore || getAccountLink(authUser.id)?.storeSlug) {
       ensureFreelancerStoreForAccount(authUser.id);
-      const store = getStoreByAccountId(authUser.id);
-      if (store) {
-        await upsertSupabaseStore(authUser.id, store, profile.slug);
-      }
+      await getStoreForAccount(authUser.id);
     }
   });
 }
@@ -505,67 +376,27 @@ export async function saveProfileForAccount(
   return profile;
 }
 
-export async function loadStoreForAccount(accountId: string): Promise<FreelancerStore | null> {
-  ensureFreelancerStoreForAccount(accountId);
-  let jsonStore = getStoreByAccountId(accountId);
-  const dbRow = await fetchStoreRowByAccountId(accountId);
-  const profileSlug = getProfileByAccountId(accountId)?.slug ?? "";
-
-  if (dbRow) {
-    const profileRow = await fetchProfileRowByAccountId(accountId);
-    if (profileRow) {
-      syncJsonFromDbProfile(profileRow, dbRow);
-    }
-    jsonStore = getStoreByAccountId(accountId);
-    const fromDb = mapDbStoreRow(dbRow, jsonStore);
-    return { ...fromDb, professionalProfileSlug: profileSlug || fromDb.professionalProfileSlug };
-  }
-
-  if (jsonStore && isSupabasePersistenceEnabled() && profileSlug) {
-    await upsertSupabaseStore(accountId, jsonStore, profileSlug);
-  }
-
-  return jsonStore;
+export async function loadStoreForAccount(accountId: string) {
+  return getStoreForAccount(accountId);
 }
 
-export async function loadStoreBySlug(slug: string): Promise<FreelancerStore | null> {
-  let jsonStore = getStoreBySlug(slug);
-  const dbRow = await fetchStoreRowBySlug(slug);
-
-  if (dbRow) {
-    const profileRow = await fetchProfileRowByAccountId(dbRow.account_id);
-    if (profileRow) {
-      syncJsonFromDbProfile(profileRow, dbRow);
-    }
-    jsonStore = getStoreBySlug(slug);
-    return mapDbStoreRow(dbRow, jsonStore);
-  }
-
-  return jsonStore;
+export async function loadStoreBySlug(slug: string) {
+  return getStoreBySlugLive(slug);
 }
 
 export async function resolveAccountIdForStoreSlug(slug: string): Promise<string | null> {
-  return getAccountIdByStoreSlug(slug) ?? (await fetchStoreRowBySlug(slug))?.account_id ?? null;
-}
-
-export async function resolveAccountIdForProfileSlug(slug: string): Promise<string | null> {
-  return getAccountIdByProfileSlug(slug) ?? (await fetchProfileRowBySlug(slug))?.account_id ?? null;
+  return resolveAccountIdForStoreSlugLive(slug);
 }
 
 export async function saveStoreForAccount(
   accountId: string,
-  updates: Partial<FreelancerStore>
-): Promise<FreelancerStore | null> {
-  ensureFreelancerStoreForAccount(accountId);
-  const store = updateStoreForAccount(accountId, updates);
-  if (!store) return null;
+  updates: Parameters<typeof updateStoreForAccountLive>[1]
+) {
+  return updateStoreForAccountLive(accountId, updates);
+}
 
-  const profile = getProfileByAccountId(accountId);
-  if (isSupabasePersistenceEnabled() && profile) {
-    await upsertSupabaseStore(accountId, store, profile.slug);
-  }
-
-  return store;
+export async function resolveAccountIdForProfileSlug(slug: string): Promise<string | null> {
+  return getAccountIdByProfileSlug(slug) ?? (await fetchProfileRowBySlug(slug))?.account_id ?? null;
 }
 
 export async function resolveUniqueProfileSlug(fullName: string, accountId: string): Promise<string> {

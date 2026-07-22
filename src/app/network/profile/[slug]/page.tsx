@@ -36,6 +36,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     : null;
 
   const profile = {
+    ...rawProfile,
     ...stripPrivateProfileFields(rawProfile),
     accountId: targetAccountId,
     followerCount: social.followerCount,
