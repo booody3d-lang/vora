@@ -1,14 +1,26 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "@/i18n/use-translations";
 import { ADMIN_DISPUTES } from "@/lib/admin/mock-data";
 import { formatSar } from "@/lib/billing/engine";
-import type { DisputeStatus } from "@/types/admin";
+import type { DisputeStatus, DisputeTicket } from "@/types/admin";
 
 export default function AdminDisputesPage() {
   const { t } = useTranslations();
-  const urgent = ADMIN_DISPUTES.filter((d) => d.status === "urgent");
+  const [disputes, setDisputes] = useState<DisputeTicket[]>(ADMIN_DISPUTES);
+
+  useEffect(() => {
+    void fetch("/api/admin/disputes")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.disputes?.length) setDisputes(data.disputes);
+      })
+      .catch(() => {});
+  }, []);
+
+  const urgent = disputes.filter((d) => d.status === "urgent");
 
   return (
     <div className="space-y-6">
@@ -24,7 +36,7 @@ export default function AdminDisputesPage() {
       )}
 
       <div className="space-y-3">
-        {ADMIN_DISPUTES.map((ticket) => (
+        {disputes.map((ticket) => (
           <Link
             key={ticket.id}
             href={`/admin/disputes/${ticket.id}`}

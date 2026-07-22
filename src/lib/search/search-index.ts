@@ -3,6 +3,9 @@ import "server-only";
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { listAllCompanies } from "@/lib/admin/admin-companies-store";
 import { listActivePublicJobListings } from "@/lib/company/jobs-store";
+import { listActiveMarketplaceServices } from "@/lib/freelance/services-store";
+import { getStoreBySlugLive } from "@/lib/freelance/store-store";
+import { DEMO_STORE } from "@/lib/freelance/mock-data";
 import { DEMO_JOBS, DEMO_PROFILES } from "@/lib/network/mock-data";
 import {
   getProfileByAccountId,
@@ -12,7 +15,7 @@ import {
 
 const INDEX_FILE = "search-index.json";
 
-export type SearchResultType = "profile" | "job" | "company";
+export type SearchResultType = "profile" | "job" | "company" | "store" | "service";
 
 export interface SearchIndexEntry {
   id: string;
@@ -139,11 +142,54 @@ async function collectCompanies(): Promise<SearchIndexEntry[]> {
   return entries;
 }
 
+async function collectStores(): Promise<SearchIndexEntry[]> {
+  const services = await listActiveMarketplaceServices();
+  const seen = new Set<string>();
+  const entries: SearchIndexEntry[] = [];
+
+  for (const service of services) {
+    if (seen.has(service.storeSlug)) continue;
+    seen.add(service.storeSlug);
+
+    const store = (await getStoreBySlugLive(service.storeSlug)) ?? DEMO_STORE;
+    entries.push({
+      id: `store-${store.id}`,
+      type: "store",
+      slug: store.slug,
+      title: store.storeName,
+      subtitle: store.tagline ?? "",
+      href: `/freelance/store/${store.slug}`,
+      keywords: [store.storeName, store.tagline, store.description].filter(Boolean).join(" "),
+      isPremium: store.isPremium,
+    });
+  }
+
+  return entries;
+}
+
+async function collectServices(): Promise<SearchIndexEntry[]> {
+  const services = await listActiveMarketplaceServices();
+  return services.map((service) => ({
+    id: `service-${service.id}`,
+    type: "service" as const,
+    slug: service.slug,
+    title: service.title,
+    subtitle: `${service.storeName} · ${service.category}`,
+    href: `/freelance/services/${service.slug}`,
+    keywords: [service.title, service.storeName, service.category, service.shortDescription]
+      .filter(Boolean)
+      .join(" "),
+    isPremium: service.isSponsored || service.isFeatured,
+  }));
+}
+
 export async function rebuildSearchIndex(): Promise<SearchIndexFile> {
   const entries = [
     ...collectProfiles(),
     ...(await collectJobs()),
     ...(await collectCompanies()),
+    ...(await collectStores()),
+    ...(await collectServices()),
   ];
   const index: SearchIndexFile = {
     entries,

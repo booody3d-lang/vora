@@ -15,11 +15,18 @@ export function DisputeDetailView({ ticket }: DisputeDetailViewProps) {
   const split = calculateCommission(ticket.amount);
 
   function resolve(action: "refund" | "pay_seller") {
+    const nextStatus = action === "refund" ? "resolved_refund" : "resolved_pay_seller";
+    setStatus(nextStatus);
+
+    void fetch(`/api/admin/disputes/${ticket.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: nextStatus }),
+    }).catch(() => {});
+
     if (action === "refund") {
-      setStatus("resolved_refund");
       setResolved(`Full ${formatSar(ticket.amount)} refunded to ${ticket.buyerName}'s available balance.`);
     } else {
-      setStatus("resolved_pay_seller");
       setResolved(
         `Order completed. ${formatSar(split.freelancerNetEarnings)} released to ${ticket.sellerName} (${formatSar(split.platformCommission)} platform fee).`
       );

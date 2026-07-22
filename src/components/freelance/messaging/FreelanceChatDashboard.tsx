@@ -13,12 +13,14 @@ interface FreelanceChatDashboardProps {
   initialChats?: FreelanceChatSession[];
   initialInquiries?: FreelanceInquiry[];
   isSeller?: boolean;
+  viewerAccountId?: string;
 }
 
 export function FreelanceChatDashboard({
   initialChats = DEMO_FREELANCE_CHATS,
   initialInquiries = DEMO_INQUIRIES,
   isSeller = true,
+  viewerAccountId,
 }: FreelanceChatDashboardProps) {
   const { locale } = useLocale();
   const isAr = locale === "ar";
@@ -41,6 +43,13 @@ export function FreelanceChatDashboard({
         c.id === "fc2" ? { ...c, isUnlocked: true, unlockReason: "inquiry_accepted" as const } : c
       )
     );
+
+    void fetch(`/api/freelance/inquiries/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "accepted" }),
+    }).catch(() => {});
+
     if (inq) {
       void fire(
         buildTriggerNotification({
@@ -57,10 +66,19 @@ export function FreelanceChatDashboard({
 
   function sendMessage(content: string) {
     if (!active?.isUnlocked) return;
+    const senderId = viewerAccountId ?? (isSeller ? "seller" : "buyer");
     setMessages((prev) => [
       ...prev,
-      { id: `m-${Date.now()}`, senderId: isSeller ? "seller" : "buyer", content, createdAt: new Date().toISOString() },
+      { id: `m-${Date.now()}`, senderId, content, createdAt: new Date().toISOString() },
     ]);
+
+    if (viewerAccountId && !active.id.startsWith("fc")) {
+      void fetch(`/api/freelance/chat/${active.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      }).catch(() => {});
+    }
   }
 
   return (

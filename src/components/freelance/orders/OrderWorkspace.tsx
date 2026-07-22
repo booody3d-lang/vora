@@ -241,6 +241,20 @@ export function OrderWorkspace({
     void persistOrder({ status: "disputed" });
     addMessage("Dispute ticket opened. Admin will review within 48 hours.", true);
     void fire(disputeFiledAlert(order.orderNumber, order.id, order.totalPrice));
+
+    if (order.id !== "ord-1" && order.id !== "ord-new") {
+      void fetch(`/api/freelance/orders/${order.id}/dispute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: "Buyer opened a dispute for this order.",
+          orderNumber: order.orderNumber,
+          serviceTitle: order.service.title,
+          sellerName: order.service.storeName,
+          amount: order.totalPrice,
+        }),
+      }).catch(() => {});
+    }
   }
 
   const currentStepIndex = STATUS_STEPS.findIndex((s) => s.status === order.status);
