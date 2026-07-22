@@ -13,6 +13,11 @@ import {
   saveStoreForAccount,
 } from "@/lib/supabase/profile-persistence";
 import { uploadProfileMedia } from "@/lib/supabase/media-storage";
+import {
+  canBypassFeatureChecks,
+  forbidUploadWithoutAccess,
+  recordGatedUpload,
+} from "@/lib/security/feature-guard";
 import type { ProfileUploadKind } from "@/types/profile";
 
 const AVATAR_KINDS: ProfileUploadKind[] = ["photo", "store-logo", "company-logo"];
@@ -169,6 +174,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Missing kind or file in upload" }, { status: 400 });
       }
 
+      const uploadDenied = await forbidUploadWithoutAccess(auth.user, kind);
+      if (uploadDenied) return uploadDenied;
+
       const durationRaw = form.get("durationSeconds");
       const durationSeconds = durationRaw ? Number(durationRaw) : undefined;
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -181,6 +189,10 @@ export async function POST(request: Request) {
         durationSeconds,
         accountId: auth.user.id,
       });
+
+      if (!canBypassFeatureChecks(auth.user)) {
+        recordGatedUpload(auth.user.id, kind);
+      }
 
       return NextResponse.json(result);
     }
@@ -196,6 +208,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing upload data" }, { status: 400 });
     }
 
+    const uploadDenied = await forbidUploadWithoutAccess(auth.user, body.kind);
+    if (uploadDenied) return uploadDenied;
+
     const { buffer, mime } = parseDataUrl(body.dataUrl);
     const result = await processUploadInput({
       kind: body.kind,
@@ -205,6 +220,10 @@ export async function POST(request: Request) {
       durationSeconds: body.durationSeconds,
       accountId: auth.user.id,
     });
+
+    if (!canBypassFeatureChecks(auth.user)) {
+      recordGatedUpload(auth.user.id, body.kind);
+    }
 
     return NextResponse.json(result);
   } catch (err) {

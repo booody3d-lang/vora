@@ -12,6 +12,7 @@ import {
   isAIConfigured,
 } from "@/lib/ai/engine";
 import { requireAuthenticatedApiUser } from "@/lib/security/require-api-auth";
+import { forbidAiAction } from "@/lib/security/feature-guard";
 
 export async function POST(request: Request) {
   const authResult = await requireAuthenticatedApiUser();
@@ -19,6 +20,13 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json() as { action: string; payload: Record<string, unknown> };
+
+    if (!body.action) {
+      return NextResponse.json({ error: "Action required" }, { status: 400 });
+    }
+
+    const featureDenied = await forbidAiAction(authResult.auth.user, body.action);
+    if (featureDenied) return featureDenied;
 
     switch (body.action) {
       case "profile-optimize":
