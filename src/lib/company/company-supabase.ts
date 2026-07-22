@@ -341,3 +341,47 @@ export async function migrateJsonCompanyToSupabase(input: {
 
   return migrated;
 }
+
+export async function activateCompanySubscriptionInSupabase(
+  companyId: string,
+  expiresAt: string
+): Promise<CompanySubscription> {
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  const { data, error } = await admin
+    .from("company_subscriptions")
+    .update({
+      status: "active",
+      subscription_started_at: now,
+      subscription_expires_at: expiresAt,
+      updated_at: now,
+    })
+    .eq("company_id", companyId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return mapSubscriptionRow(data as DbSubscriptionRow);
+}
+
+export async function expireCompanySubscriptionInSupabase(
+  companyId: string
+): Promise<CompanySubscription | null> {
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  const { data, error } = await admin
+    .from("company_subscriptions")
+    .update({
+      status: "expired",
+      updated_at: now,
+    })
+    .eq("company_id", companyId)
+    .select("*")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return mapSubscriptionRow(data as DbSubscriptionRow);
+}

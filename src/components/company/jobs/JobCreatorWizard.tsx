@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { JobPostingForm, WorkLocation, EmploymentType } from "@/types/company";
-import { evaluatePublishGuard } from "@/lib/company/permissions";
-import { DEMO_SUBSCRIPTION } from "@/lib/company/mock-data";
+import { useCurrentCompany } from "@/hooks/use-current-company";
 import { ANNUAL_SUBSCRIPTION_SAR } from "@/types/company";
 import { cn } from "@/lib/utils";
 
@@ -39,12 +38,13 @@ interface JobCreatorWizardProps {
 
 export function JobCreatorWizard({ onComplete }: JobCreatorWizardProps) {
   const router = useRouter();
+  const { publishGuard, loading } = useCurrentCompany();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<JobPostingForm>(INITIAL);
   const [skillInput, setSkillInput] = useState("");
   const [showPaywall, setShowPaywall] = useState(false);
 
-  const guard = evaluatePublishGuard(DEMO_SUBSCRIPTION);
+  const guard = publishGuard ?? { allowed: false, reason: "Loading subscription…" };
 
   function update<K extends keyof JobPostingForm>(key: K, value: JobPostingForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -59,6 +59,7 @@ export function JobCreatorWizard({ onComplete }: JobCreatorWizardProps) {
   }
 
   function handlePublish() {
+    if (loading) return;
     if (!guard.allowed) {
       setShowPaywall(true);
       return;

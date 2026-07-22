@@ -1,16 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { DEMO_JOBS, DEMO_SUBSCRIPTION, computeSubscriptionState, getAtsUrl } from "@/lib/company/mock-data";
+import { DEMO_JOBS, computeSubscriptionState, getAtsUrl } from "@/lib/company/mock-data";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { useLocale } from "@/providers/LocaleProvider";
 
 export function CompanyDashboardOverview() {
   const { t } = useLocale();
-  const { company } = useCurrentCompany();
+  const { company, subscription } = useCurrentCompany();
   const companyName = company?.name ?? "TechCorp Global";
   const followerCount = company?.followerCount ?? 12400;
-  const subState = computeSubscriptionState(DEMO_SUBSCRIPTION);
+  const subState = subscription
+    ? computeSubscriptionState(subscription)
+    : {
+        canPublish: false,
+        isPaywallActive: true,
+        daysRemaining: 0,
+        freeJobsRemaining: 0,
+        message: "No subscription data",
+      };
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6 md:px-6">

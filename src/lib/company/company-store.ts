@@ -12,7 +12,9 @@ import {
 } from "@/lib/supabase/safe-db";
 import { DEMO_COMPANY, DEMO_SUBSCRIPTION } from "@/lib/company/mock-data";
 import {
+  activateCompanySubscriptionInSupabase,
   createCompanyInSupabase,
+  expireCompanySubscriptionInSupabase,
   getCompanyByIdFromSupabase,
   getCompanyByOwnerFromSupabase,
   getCompanyBySlugFromSupabase,
@@ -22,6 +24,7 @@ import {
   type CreateCompanyInput,
 } from "@/lib/company/company-supabase";
 import type { CompanyProfile, CompanySubscription } from "@/types/company";
+import { ANNUAL_SUBSCRIPTION_SAR, FREE_JOBS_LIMIT } from "@/types/company";
 
 const DATA_FILE = "company-data.json";
 const MIGRATION_FLAG = "company-supabase-migrated.json";
@@ -29,6 +32,7 @@ const MIGRATION_FLAG = "company-supabase-migrated.json";
 interface CompanyDataFile {
   companies: Record<string, Partial<CompanyProfile> & { accountId?: string }>;
   accountLinks: Record<string, string>;
+  subscriptions: Record<string, CompanySubscription>;
 }
 
 let companyTableProbed = false;
@@ -61,9 +65,11 @@ function readData(): CompanyDataFile {
   const data = readJsonStore(DATA_FILE, () => ({
     companies: {} as CompanyDataFile["companies"],
     accountLinks: {} as Record<string, string>,
+    subscriptions: {} as Record<string, CompanySubscription>,
   }));
   if (!data.accountLinks) data.accountLinks = {};
   if (!data.companies) data.companies = {};
+  if (!data.subscriptions) data.subscriptions = {};
   return data;
 }
 
@@ -202,20 +208,85 @@ export async function getCompanyById(companyId: string): Promise<CompanyProfile 
   );
 }
 
+function getSubscriptionFromJson(accountId: string): CompanySubscription | null {
+  return readData().subscriptions[accountId] ?? null;
+}
+
+function saveSubscriptionToJson(accountId: string, subscription: CompanySubscription) {
+  const data = readData();
+  data.subscriptions[accountId] = subscription;
+  writeData(data);
+}
+
 export async function getCompanySubscriptionForAccount(
   accountId: string
 ): Promise<CompanySubscription | null> {
   const company = await getCompanyByAccountId(accountId);
   if (!company) return null;
 
+  const jsonSub = getSubscriptionFromJson(accountId);
+  const jsonFallback = jsonSub ?? DEMO_SUBSCRIPTION;
+
   if (!(await isCompanySupabaseReady())) {
-    return DEMO_SUBSCRIPTION;
+    return jsonFallback;
   }
 
   return runOptionalDbSync(
     "getCompanySubscriptionForAccount",
     () => getCompanySubscriptionFromSupabase(company.id),
-    DEMO_SUBSCRIPTION
+    jsonFallback
+  );
+}
+
+export async function activateCompanySubscriptionForAccount(
+  accountId: string,
+  expiresAt: string
+): Promise<CompanySubscription | null> {
+  const company = await getCompanyByAccountId(accountId);
+  if (!company) return null;
+
+  const existing = (await getCompanySubscriptionForAccount(accountId)) ?? DEMO_SUBSCRIPTION;
+  const activated: CompanySubscription = {
+    ...existing,
+    status: "active",
+    subscriptionExpiresAt: expiresAt,
+  };
+
+  saveSubscriptionToJson(accountId, activated);
+
+  if (!(await isCompanySupabaseReady())) {
+    return activated;
+  }
+
+  return runOptionalDbSync(
+    "activateCompanySubscriptionForAccount",
+    () => activateCompanySubscriptionInSupabase(company.id, expiresAt),
+    activated
+  );
+}
+
+export async function expireCompanySubscriptionForAccount(
+  accountId: string
+): Promise<CompanySubscription | null> {
+  const company = await getCompanyByAccountId(accountId);
+  if (!company) return null;
+
+  const existing = (await getCompanySubscriptionForAccount(accountId)) ?? DEMO_SUBSCRIPTION;
+  const expired: CompanySubscription = {
+    ...existing,
+    status: "expired",
+  };
+
+  saveSubscriptionToJson(accountId, expired);
+
+  if (!(await isCompanySupabaseReady())) {
+    return expired;
+  }
+
+  return runOptionalDbSync(
+    "expireCompanySubscriptionForAccount",
+    () => expireCompanySubscriptionInSupabase(company.id),
+    expired
   );
 }
 
@@ -281,6 +352,10 @@ export async function createCompanyForAccount(
     }
     writeData(data);
   }
+
+  if (!data.subscriptions) data.subscriptions = {};
+  data.subscriptions[accountId] = subscription;
+  writeData(data);
 
   return { company, subscription };
 }

@@ -24,6 +24,7 @@ import {
   type SubscriptionSnapshot,
 } from "@/lib/subscription/subscription-supabase";
 import { syncAccountPremiumProfile } from "@/lib/subscription/sync-premium-profile";
+import { syncCompanySubscriptionFromStripe } from "@/lib/company/company-billing-sync";
 import type {
   AccountSubscriptionAssignment,
   ManualSubscriptionOverride,
@@ -575,6 +576,13 @@ export async function applyStripeCheckoutCompleted(input: {
   };
 
   await setAccountAssignment(input.accountId, assignment);
+  await syncCompanySubscriptionFromStripe({
+    accountId: input.accountId,
+    plan: input.plan,
+    tierId,
+    action: "activate",
+    expiresAt: input.currentPeriodEnd,
+  });
   await recordStripePaymentEvent({
     stripeEventId: input.stripeEventId,
     type: "checkout.session.completed",
@@ -619,6 +627,13 @@ export async function applyStripeInvoicePaid(input: {
   };
 
   await setAccountAssignment(input.accountId, assignment);
+  await syncCompanySubscriptionFromStripe({
+    accountId: input.accountId,
+    plan: input.plan,
+    tierId,
+    action: "activate",
+    expiresAt: input.currentPeriodEnd ?? assignment.expiresAt,
+  });
   await recordStripePaymentEvent({
     stripeEventId: input.stripeEventId,
     type: "invoice.paid",
@@ -658,6 +673,22 @@ export async function applyStripeSubscriptionUpdated(input: {
   };
 
   await setAccountAssignment(input.accountId, assignment);
+
+  if (input.status === "expired" || input.status === "cancelled") {
+    await syncCompanySubscriptionFromStripe({
+      accountId: input.accountId,
+      tierId: existing.tierId,
+      action: "expire",
+    });
+  } else if (input.status === "active" && input.currentPeriodEnd) {
+    await syncCompanySubscriptionFromStripe({
+      accountId: input.accountId,
+      tierId: existing.tierId,
+      action: "activate",
+      expiresAt: input.currentPeriodEnd,
+    });
+  }
+
   await recordStripePaymentEvent({
     stripeEventId: input.stripeEventId,
     type: "customer.subscription.updated",
@@ -682,6 +713,12 @@ export async function applyStripeSubscriptionCancelled(
   await setAccountAssignment(accountId, {
     ...existing,
     status: "cancelled",
+  });
+
+  await syncCompanySubscriptionFromStripe({
+    accountId,
+    tierId: existing.tierId,
+    action: "expire",
   });
 
   await recordStripePaymentEvent({

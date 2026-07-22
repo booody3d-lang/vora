@@ -10,11 +10,26 @@ import {
   type ReactNode,
 } from "react";
 import { usePermissions } from "@/providers/VoraProviders";
-import type { CompanyProfile } from "@/types/company";
+import type { CompanyProfile, CompanySubscription } from "@/types/company";
+
+export interface CompanyPublishGuard {
+  allowed: boolean;
+  reason?: string;
+  source?: "paid" | "trial" | "locked";
+  state?: {
+    canPublish: boolean;
+    isPaywallActive: boolean;
+    daysRemaining: number;
+    freeJobsRemaining: number;
+    message: string;
+  } | null;
+}
 
 interface CurrentCompanyState {
   companySlug: string | null;
   company: CompanyProfile | null;
+  subscription: CompanySubscription | null;
+  publishGuard: CompanyPublishGuard | null;
   loading: boolean;
 }
 
@@ -27,6 +42,8 @@ interface CurrentCompanyContextValue extends CurrentCompanyState {
 const emptyState: CurrentCompanyState = {
   companySlug: null,
   company: null,
+  subscription: null,
+  publishGuard: null,
   loading: true,
 };
 
@@ -47,6 +64,8 @@ export function CurrentCompanyProvider({ children }: { children: ReactNode }) {
       setState({
         companySlug: data.companySlug ?? data.company?.slug ?? null,
         company: data.company ?? null,
+        subscription: data.subscription ?? null,
+        publishGuard: data.publishGuard ?? null,
         loading: false,
       });
     } catch {
@@ -55,11 +74,12 @@ export function CurrentCompanyProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const applyCompany = useCallback((company: CompanyProfile) => {
-    setState({
+    setState((prev) => ({
+      ...prev,
       companySlug: company.slug,
       company,
       loading: false,
-    });
+    }));
   }, []);
 
   const patchCompany = useCallback(async (updates: Partial<CompanyProfile>) => {
@@ -83,11 +103,12 @@ export function CurrentCompanyProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Update failed");
 
-      setState({
+      setState((prev) => ({
+        ...prev,
         companySlug: data.company.slug,
         company: data.company,
         loading: false,
-      });
+      }));
 
       return data.company as CompanyProfile;
     } catch {
