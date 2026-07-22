@@ -26,6 +26,7 @@ In the Supabase SQL editor, run the files in order:
 18. `018_notification_preferences_phase4d.sql` — notification preferences RLS + default row bootstrap
 19. `019_billing_wallet_phase4e.sql` — wallet bootstrap on signup + admin withdrawal policies
 20. `020_billing_escrow_withdrawals_phase4e1.sql` — escrow payment RPC + withdrawal review workflow
+21. `021_company_rls_phase5.sql` — company posts/followers/analytics RLS + subscription bootstrap trigger + ATS update policy
 
 ## 2. Quick bootstrap (empty project)
 

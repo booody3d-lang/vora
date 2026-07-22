@@ -2,7 +2,7 @@ import "server-only";
 
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { DEMO_COMPANY, DEMO_JOBS as COMPANY_JOBS } from "@/lib/company/mock-data";
-import { getCompanyBySlug } from "@/lib/company/company-store";
+import { getCompanyBySlugSync } from "@/lib/company/company-store";
 import { DEMO_JOBS, DEMO_PROFILES } from "@/lib/network/mock-data";
 import {
   getProfileByAccountId,
@@ -118,7 +118,7 @@ function collectJobs(): SearchIndexEntry[] {
 
 function collectCompanies(): SearchIndexEntry[] {
   const companies = [DEMO_COMPANY];
-  const stored = getCompanyBySlug(DEMO_COMPANY.slug);
+  const stored = getCompanyBySlugSync(DEMO_COMPANY.slug);
   if (stored && stored.slug !== DEMO_COMPANY.slug) companies.push(stored);
 
   return companies.map((company) => ({

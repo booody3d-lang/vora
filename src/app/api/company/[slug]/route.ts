@@ -10,7 +10,7 @@ interface RouteParams {
 
 export async function GET(_request: Request, { params }: RouteParams) {
   const { slug } = await params;
-  const company = getCompanyBySlug(slug);
+  const company = await getCompanyBySlug(slug);
 
   if (!company) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

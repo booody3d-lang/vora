@@ -10,6 +10,8 @@ const STEPS = ["Company Info", "Verification", "Complete"];
 export default function CompanyOnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     companyName: "",
     industry: "",
@@ -18,9 +20,40 @@ export default function CompanyOnboardingPage() {
     website: "",
   });
 
-  function handleComplete() {
-    router.push("/company/dashboard");
+  async function handleComplete() {
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: form.companyName,
+          industry: form.industry,
+          sizeRange: form.size,
+          headquarters: form.headquarters,
+          websiteUrl: form.website,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Registration failed");
+      }
+
+      router.push("/company/dashboard");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setSubmitting(false);
+    }
   }
+
+  const canContinue =
+    step === 0 ? form.companyName.trim().length > 0 : true;
 
   return (
     <div className="min-h-screen bg-[#F1F5F9]" data-platform="network">
@@ -61,6 +94,7 @@ export default function CompanyOnboardingPage() {
                 <label key={field} className="block">
                   <span className="text-sm font-medium capitalize text-slate-700">
                     {field.replace(/([A-Z])/g, " $1")}
+                    {field === "companyName" ? " *" : ""}
                   </span>
                   <input
                     value={form[field]}
@@ -104,11 +138,15 @@ export default function CompanyOnboardingPage() {
             </div>
           )}
 
+          {error && (
+            <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          )}
+
           <div className="mt-6 flex justify-between">
             <button
               type="button"
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              disabled={step === 0}
+              disabled={step === 0 || submitting}
               className="text-sm text-slate-500 disabled:opacity-40"
             >
               Back
@@ -117,7 +155,8 @@ export default function CompanyOnboardingPage() {
               <button
                 type="button"
                 onClick={() => setStep((s) => s + 1)}
-                className="rounded-lg bg-[#3B5998] px-5 py-2 text-sm font-semibold text-white"
+                disabled={!canContinue}
+                className="rounded-lg bg-[#3B5998] px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 Continue
               </button>
@@ -125,9 +164,10 @@ export default function CompanyOnboardingPage() {
               <button
                 type="button"
                 onClick={handleComplete}
-                className="rounded-lg bg-[#3B5998] px-5 py-2 text-sm font-semibold text-white"
+                disabled={submitting || !form.companyName.trim()}
+                className="rounded-lg bg-[#3B5998] px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
-                Go to Dashboard
+                {submitting ? "Creating..." : "Go to Dashboard"}
               </button>
             )}
           </div>

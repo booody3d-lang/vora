@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   getCompanyByAccountId,
   getCompanySlugForAccount,
+  getCompanySubscriptionForAccount,
 } from "@/lib/company/company-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 
@@ -11,8 +12,8 @@ export async function GET() {
     return NextResponse.json({ authenticated: false });
   }
 
-  const company = getCompanyByAccountId(auth.user.id);
-  const companySlug = getCompanySlugForAccount(auth.user.id);
+  const company = await getCompanyByAccountId(auth.user.id);
+  const companySlug = getCompanySlugForAccount(auth.user.id) ?? company?.slug ?? null;
 
   if (!company || !companySlug) {
     return NextResponse.json({
@@ -21,10 +22,13 @@ export async function GET() {
     });
   }
 
+  const subscription = await getCompanySubscriptionForAccount(auth.user.id);
+
   return NextResponse.json({
     authenticated: true,
     hasCompany: true,
     companySlug,
     company,
+    subscription,
   });
 }

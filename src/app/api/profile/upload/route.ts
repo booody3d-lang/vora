@@ -141,9 +141,9 @@ async function processUploadInput(input: {
   } else if (kind === "store-cover") {
     await saveStoreForAccount(input.accountId, { coverImageUrl: url });
   } else if (kind === "company-logo") {
-    updateCompanyForAccount(input.accountId, { logoUrl: url });
+    await updateCompanyForAccount(input.accountId, { logoUrl: url });
   } else if (kind === "company-cover") {
-    updateCompanyForAccount(input.accountId, { coverImageUrl: url });
+    await updateCompanyForAccount(input.accountId, { coverImageUrl: url });
   } else if (kind === "video-intro") {
     await saveProfileForAccount(input.accountId, { videoIntroUrl: url });
   }

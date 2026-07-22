@@ -2,13 +2,59 @@ import "server-only";
 
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { saveUploadedFile } from "@/lib/profile/profile-store";
-import type { CompanyProfile } from "@/types/company";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
+import {
+  isMissingRelationError,
+  markSupabaseDbSyncUnavailable,
+  runOptionalDbSync,
+  runOptionalDbSyncVoid,
+} from "@/lib/supabase/safe-db";
+import { DEMO_COMPANY, DEMO_SUBSCRIPTION } from "@/lib/company/mock-data";
+import {
+  createCompanyInSupabase,
+  getCompanyByIdFromSupabase,
+  getCompanyByOwnerFromSupabase,
+  getCompanyBySlugFromSupabase,
+  getCompanySubscriptionFromSupabase,
+  migrateJsonCompanyToSupabase,
+  upsertCompanyInSupabase,
+  type CreateCompanyInput,
+} from "@/lib/company/company-supabase";
+import type { CompanyProfile, CompanySubscription } from "@/types/company";
 
 const DATA_FILE = "company-data.json";
+const MIGRATION_FLAG = "company-supabase-migrated.json";
 
 interface CompanyDataFile {
   companies: Record<string, Partial<CompanyProfile> & { accountId?: string }>;
   accountLinks: Record<string, string>;
+}
+
+let companyTableProbed = false;
+let companyTableAvailable = false;
+
+export async function isCompanySupabaseReady(): Promise<boolean> {
+  if (!isSupabasePersistenceEnabled()) return false;
+  if (companyTableProbed) return companyTableAvailable;
+
+  companyTableProbed = true;
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.from("companies").select("id").limit(1);
+    if (error) {
+      if (isMissingRelationError(error)) {
+        markSupabaseDbSyncUnavailable("companies missing", error);
+      }
+      companyTableAvailable = false;
+      return false;
+    }
+    companyTableAvailable = true;
+    return true;
+  } catch {
+    companyTableAvailable = false;
+    return false;
+  }
 }
 
 function readData(): CompanyDataFile {
@@ -50,38 +96,199 @@ function mergeCompany(slug: string, data: CompanyDataFile): CompanyProfile | nul
   } as CompanyProfile;
 }
 
+function getCompanyBySlugFromJson(slug: string): CompanyProfile | null {
+  const merged = mergeCompany(slug, readData());
+  if (merged) return merged;
+  if (slug === DEMO_COMPANY.slug) return DEMO_COMPANY;
+  return null;
+}
+
 function getAccountLink(accountId: string): string | null {
   const data = readData();
   return data.accountLinks[accountId] ?? null;
+}
+
+async function maybeMigrateJsonToSupabase(): Promise<void> {
+  if (!(await isCompanySupabaseReady())) return;
+
+  const flag = readJsonStore(MIGRATION_FLAG, () => ({ done: false as boolean }));
+  if (flag.done) return;
+
+  const jsonData = readData();
+  await runOptionalDbSyncVoid("company-json-migration", async () => {
+    const migrated = await migrateJsonCompanyToSupabase(jsonData);
+    writeJsonStore(MIGRATION_FLAG, {
+      done: true,
+      migratedAt: new Date().toISOString(),
+      migratedCount: migrated,
+    });
+  });
+
+  if (!readJsonStore(MIGRATION_FLAG, () => ({ done: false as boolean })).done) {
+    writeJsonStore(MIGRATION_FLAG, { done: true, skipped: true });
+  }
 }
 
 export function getCompanySlugForAccount(accountId: string): string | null {
   return getAccountLink(accountId);
 }
 
-export function getCompanyBySlug(slug: string): CompanyProfile | null {
-  return mergeCompany(slug, readData());
+export function getCompanyBySlugSync(slug: string): CompanyProfile | null {
+  return getCompanyBySlugFromJson(slug);
 }
 
-export function getCompanyByAccountId(accountId: string): CompanyProfile | null {
+export async function getCompanyBySlug(slug: string): Promise<CompanyProfile | null> {
+  if (!(await isCompanySupabaseReady())) {
+    return getCompanyBySlugFromJson(slug);
+  }
+
+  await maybeMigrateJsonToSupabase();
+
+  return runOptionalDbSync(
+    "getCompanyBySlug",
+    () => getCompanyBySlugFromSupabase(slug),
+    getCompanyBySlugFromJson(slug)
+  );
+}
+
+export async function getCompanyByAccountId(accountId: string): Promise<CompanyProfile | null> {
   const slug = getAccountLink(accountId);
-  if (!slug) return null;
-  return getCompanyBySlug(slug);
+  const jsonFallback = slug ? getCompanyBySlugFromJson(slug) : null;
+
+  if (!(await isCompanySupabaseReady())) {
+    return jsonFallback;
+  }
+
+  await maybeMigrateJsonToSupabase();
+
+  return runOptionalDbSync(
+    "getCompanyByAccountId",
+    () => getCompanyByOwnerFromSupabase(accountId),
+    jsonFallback
+  );
 }
 
-export function getCompanyById(companyId: string): CompanyProfile | null {
+function getCompanyByIdFromJson(companyId: string): CompanyProfile | null {
   const data = readData();
   for (const slug of Object.keys(data.companies)) {
     const company = mergeCompany(slug, data);
     if (company?.id === companyId) return company;
   }
+  if (DEMO_COMPANY.id === companyId) return DEMO_COMPANY;
   return null;
 }
 
-export function updateCompanyForAccount(
+export function getCompanyByIdSync(companyId: string): CompanyProfile | null {
+  return getCompanyByIdFromJson(companyId);
+}
+
+export function isKnownCompanyId(companyId: string): boolean {
+  return getCompanyByIdFromJson(companyId) !== null;
+}
+
+export async function getCompanyById(companyId: string): Promise<CompanyProfile | null> {
+  const jsonFallback = getCompanyByIdFromJson(companyId);
+
+  if (!(await isCompanySupabaseReady())) {
+    return jsonFallback;
+  }
+
+  await maybeMigrateJsonToSupabase();
+
+  return runOptionalDbSync(
+    "getCompanyById",
+    () => getCompanyByIdFromSupabase(companyId),
+    jsonFallback
+  );
+}
+
+export async function getCompanySubscriptionForAccount(
+  accountId: string
+): Promise<CompanySubscription | null> {
+  const company = await getCompanyByAccountId(accountId);
+  if (!company) return null;
+
+  if (!(await isCompanySupabaseReady())) {
+    return DEMO_SUBSCRIPTION;
+  }
+
+  return runOptionalDbSync(
+    "getCompanySubscriptionForAccount",
+    () => getCompanySubscriptionFromSupabase(company.id),
+    DEMO_SUBSCRIPTION
+  );
+}
+
+export async function createCompanyForAccount(
+  accountId: string,
+  input: CreateCompanyInput
+): Promise<{ company: CompanyProfile; subscription: CompanySubscription }> {
+  const data = readData();
+  if (data.accountLinks[accountId]) {
+    throw new Error("Company already exists for this account");
+  }
+
+  const slugBase = input.name.trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-") || "company";
+  let slug = slugBase;
+  let i = 2;
+  while (data.companies[slug]) {
+    slug = `${slugBase}-${i}`;
+    i += 1;
+  }
+
+  const companyId = `co-${Date.now().toString(36)}`;
+  const company: CompanyProfile = {
+    id: companyId,
+    slug,
+    name: input.name.trim(),
+    tagline: input.tagline,
+    logoUrl: input.logoUrl,
+    coverImageUrl: input.coverImageUrl,
+    about: input.about,
+    industry: input.industry,
+    sizeRange: input.sizeRange,
+    headquarters: input.headquarters,
+    websiteUrl: input.websiteUrl,
+    isVerified: false,
+    employeeCount: 0,
+    followerCount: 0,
+    branches: input.branches ?? [],
+    announcement: input.announcement,
+  };
+
+  data.companies[slug] = { ...company, accountId };
+  data.accountLinks[accountId] = slug;
+  writeData(data);
+
+  let subscription = DEMO_SUBSCRIPTION;
+
+  if (await isCompanySupabaseReady()) {
+    const created = await runOptionalDbSync(
+      "createCompanyForAccount",
+      () => createCompanyInSupabase(accountId, input),
+      { company, subscription }
+    );
+
+    company.id = created.company.id;
+    company.slug = created.company.slug;
+    subscription = created.subscription;
+
+    data.companies[slug] = { ...company, accountId };
+    data.accountLinks[accountId] = company.slug;
+    if (company.slug !== slug) {
+      delete data.companies[slug];
+      data.companies[company.slug] = { ...company, accountId };
+    }
+    writeData(data);
+  }
+
+  return { company, subscription };
+}
+
+export async function updateCompanyForAccount(
   accountId: string,
   updates: Partial<CompanyProfile>
-): CompanyProfile | null {
+): Promise<CompanyProfile | null> {
   const data = readData();
   const slug = getAccountLink(accountId);
   if (!slug) return null;
@@ -94,7 +301,17 @@ export function updateCompanyForAccount(
     id: data.companies[slug]?.id ?? slug,
   };
   writeData(data);
-  return getCompanyBySlug(slug);
+
+  const jsonCompany = getCompanyBySlugFromJson(slug);
+  if (!(await isCompanySupabaseReady())) {
+    return jsonCompany;
+  }
+
+  return runOptionalDbSync(
+    "updateCompanyForAccount",
+    () => upsertCompanyInSupabase(accountId, updates),
+    jsonCompany
+  );
 }
 
 export { saveUploadedFile };

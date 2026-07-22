@@ -11,7 +11,7 @@ interface CompanyPublicPageProps {
 
 export default async function CompanyPublicPage({ params }: CompanyPublicPageProps) {
   const { slug } = await params;
-  const baseCompany = getCompanyBySlug(slug);
+  const baseCompany = await getCompanyBySlug(slug);
 
   if (!baseCompany) {
     notFound();

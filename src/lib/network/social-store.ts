@@ -21,7 +21,7 @@ import {
   requestFollowInSupabase,
   unfollowInSupabase,
 } from "@/lib/network/social-supabase";
-import { getCompanyById } from "@/lib/company/company-store";
+import { getCompanyByIdSync, isKnownCompanyId } from "@/lib/company/company-store";
 import { findAccountById } from "@/lib/security/demo-store";
 import {
   getAccountIdByProfileSlug,
@@ -115,9 +115,6 @@ function isCompanyAccount(accountId: string): boolean {
   return findAccountById(accountId)?.role === "company";
 }
 
-export function isKnownCompanyId(companyId: string): boolean {
-  return getCompanyById(companyId) !== null;
-}
 
 async function maybeMigrateJsonToSupabase(): Promise<void> {
   if (!(await isSocialSupabaseReady())) return;
@@ -548,7 +545,7 @@ function listFollowingCompaniesJson(ownerAccountId: string): FollowListEntry[] {
   return companyFollows(data)
     .filter((follow) => follow.followerAccountId === ownerAccountId)
     .map((follow) => {
-      const company = getCompanyById(follow.targetId);
+      const company = getCompanyByIdSync(follow.targetId);
       return {
         accountId: follow.targetId,
         fullName: company?.name ?? "Company",
