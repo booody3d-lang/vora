@@ -1,5 +1,5 @@
 import { ServiceDetailView } from "@/components/freelance/services/ServiceDetailView";
-import { DEMO_SERVICES } from "@/lib/freelance/mock-data";
+import { getMarketplaceServiceBySlug } from "@/lib/freelance/services-store";
 import { buildServiceMetadata } from "@/lib/seo/metadata";
 import { serviceJsonLd } from "@/lib/seo/json-ld";
 import { notFound } from "next/navigation";
@@ -11,14 +11,14 @@ interface ServicePageProps {
 
 export async function generateMetadata({ params }: ServicePageProps): Promise<Metadata> {
   const { slug } = await params;
-  const service = DEMO_SERVICES.find((s) => s.slug === slug);
+  const service = await getMarketplaceServiceBySlug(slug);
   if (!service) return {};
   return buildServiceMetadata(service);
 }
 
 export default async function ServicePage({ params }: ServicePageProps) {
   const { slug } = await params;
-  const service = DEMO_SERVICES.find((s) => s.slug === slug);
+  const service = await getMarketplaceServiceBySlug(slug);
 
   if (!service) {
     notFound();

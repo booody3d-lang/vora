@@ -1,6 +1,7 @@
 import { StoreProfileView } from "@/components/freelance/store/StoreProfileView";
 import { listPortfolioForStoreSlug } from "@/lib/freelance/store-store";
-import { getStoreServices, isStoreOwner } from "@/lib/profile/profile-store";
+import { listPublicServicesForStoreSlug } from "@/lib/freelance/services-store";
+import { isStoreOwner } from "@/lib/profile/profile-store";
 import { buildStoreMetadata } from "@/lib/seo/metadata";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import {
@@ -30,7 +31,7 @@ export default async function FreelanceStorePage({ params }: StorePageProps) {
   }
 
   const [storeServices, portfolio] = await Promise.all([
-    Promise.resolve(getStoreServices(slug)),
+    listPublicServicesForStoreSlug(slug),
     listPortfolioForStoreSlug(slug),
   ]);
   const auth = await getAuthenticatedUser();

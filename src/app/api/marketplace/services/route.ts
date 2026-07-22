@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
-import { listAllMarketplaceServices } from "@/lib/profile/profile-store";
+import {
+  isServicesPersistenceActive,
+  listActiveMarketplaceServices,
+} from "@/lib/freelance/services-store";
 
 export async function GET() {
-  return NextResponse.json({ services: listAllMarketplaceServices() });
+  const services = await listActiveMarketplaceServices();
+  return NextResponse.json({
+    services,
+    persistence: isServicesPersistenceActive() ? "supabase" : "json",
+  });
 }
