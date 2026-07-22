@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   isMissingRelationError,
   markSupabaseDbSyncUnavailable,
+  runOptionalDbSync,
   runOptionalDbSyncVoid,
 } from "@/lib/supabase/safe-db";
 import {
@@ -69,12 +70,14 @@ export function mapDbAccount(row: DbAccountRow): AuthUser {
 export function buildAuthUserFromMetadata(user: User): AuthUser {
   const meta = user.user_metadata ?? {};
   const role = parseRole(meta.role) ?? "registered";
+  const phoneFromMeta = typeof meta.phone === "string" ? meta.phone : undefined;
   return {
     id: user.id,
     email: user.email ?? "",
     fullName: String(meta.full_name ?? meta.fullName ?? ""),
     role,
-    phoneVerified: false,
+    phone: phoneFromMeta ?? user.phone ?? undefined,
+    phoneVerified: Boolean(meta.phone_verified ?? user.phone_confirmed_at),
     totpEnabled: false,
     isBanned: false,
     professionalUnlocked: role === "professional" || role === "owner" || role === "admin",
@@ -84,7 +87,36 @@ export function buildAuthUserFromMetadata(user: User): AuthUser {
   };
 }
 
-export async function upsertAccountRow(authUser: AuthUser): Promise<void> {
+export async function findAccountByPhoneFromDb(phoneE164: string): Promise<AuthUser | null> {
+  if (!isAdminClientAvailable()) return null;
+
+  return runOptionalDbSync(
+    "find account by phone",
+    async () => {
+      const admin = createAdminClient();
+      const { data, error } = await admin
+        .from("accounts")
+        .select(ACCOUNT_SELECT)
+        .eq("phone", phoneE164)
+        .maybeSingle();
+
+      if (error) {
+        if (isMissingRelationError(error)) {
+          markSupabaseDbSyncUnavailable("find account by phone", error);
+        }
+        throw error;
+      }
+
+      return data ? mapDbAccount(data as DbAccountRow) : null;
+    },
+    null
+  );
+}
+
+export async function upsertAccountRow(
+  authUser: AuthUser,
+  extras?: { phoneCountry?: string; preferredOtpChannel?: "sms" | "whatsapp" }
+): Promise<void> {
   if (!isAdminClientAvailable()) return;
 
   await runOptionalDbSyncVoid("upsert account row", async () => {
@@ -96,11 +128,16 @@ export async function upsertAccountRow(authUser: AuthUser): Promise<void> {
         full_name: authUser.fullName,
         primary_role: authUser.role,
         gender: authUser.gender ?? null,
+        phone: authUser.phone ?? null,
+        phone_verified: authUser.phoneVerified,
         professional_unlocked: authUser.professionalUnlocked,
         has_freelancer_store: authUser.hasFreelancerStore,
         is_banned: authUser.isBanned,
-        phone_verified: authUser.phoneVerified,
         totp_enabled: authUser.totpEnabled,
+        ...(extras?.phoneCountry ? { phone_country: extras.phoneCountry } : {}),
+        ...(extras?.preferredOtpChannel
+          ? { preferred_otp_channel: extras.preferredOtpChannel }
+          : {}),
       },
       { onConflict: "id" }
     );

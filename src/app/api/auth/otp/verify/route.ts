@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clearLegacySessionCookie } from "@/lib/auth/legacy-cookie";
+import { resolvePhoneLoginSession } from "@/lib/auth/phone-auth-supabase";
 import { verifyOtpDelivery } from "@/lib/auth/otp-store";
 import { normalizePhoneFromRequest } from "@/lib/auth/phone/detect-country";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { persistSession } from "@/lib/security/auth-store";
 import {
   COOKIE_NAME,
@@ -69,6 +72,30 @@ export async function POST(request: NextRequest) {
 
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    if (isSupabaseConfigured()) {
+      const sessionResult = await resolvePhoneLoginSession({
+        phoneE164: normalized.e164,
+        fullName: body.fullName,
+      });
+
+      if (!sessionResult.ok) {
+        return NextResponse.json(
+          { error: sessionResult.error },
+          { status: sessionResult.status }
+        );
+      }
+
+      const response = NextResponse.json({
+        ok: true,
+        verified: true,
+        phone: normalized.e164,
+        purpose,
+        user: sessionResult.authUser,
+      });
+      clearLegacySessionCookie(response);
+      return response;
     }
 
     await initDemoAccounts(hashPassword);
