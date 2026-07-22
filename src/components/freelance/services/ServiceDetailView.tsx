@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MarketplaceService } from "@/types/freelance";
-import { getStoreUrl, getOrderUrl } from "@/lib/freelance/mock-data";
+import { getStoreUrl } from "@/lib/freelance/mock-data";
 import { useLocale } from "@/providers/LocaleProvider";
 
 interface ServiceDetailViewProps {
@@ -17,6 +17,8 @@ export function ServiceDetailView({ service }: ServiceDetailViewProps) {
   const [activeImage, setActiveImage] = useState(0);
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const images = [service.thumbnailUrl, ...service.galleryUrls];
   const basePrice = service.price ?? 0;
@@ -36,8 +38,38 @@ export function ServiceDetailView({ service }: ServiceDetailViewProps) {
     );
   }
 
-  function handleBuyNow() {
-    router.push(getOrderUrl("ord-new"));
+  async function handleBuyNow() {
+    if (isSubmitting) return;
+    setCheckoutError(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/freelance/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceSlug: service.slug,
+          selectedAddonIds: selectedAddons,
+        }),
+      });
+
+      if (response.status === 401) {
+        router.push(`/login?next=/freelance/services/${service.slug}`);
+        return;
+      }
+
+      const payload = (await response.json()) as { order?: { id: string }; error?: string };
+      if (!response.ok || !payload.order?.id) {
+        setCheckoutError(payload.error ?? "Unable to create order");
+        return;
+      }
+
+      router.push(`/freelance/orders/${payload.order.id}`);
+    } catch {
+      setCheckoutError("Unable to create order");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -178,10 +210,14 @@ export function ServiceDetailView({ service }: ServiceDetailViewProps) {
             <button
               type="button"
               onClick={handleBuyNow}
-              className="mt-4 w-full rounded-xl bg-[#EA580C] py-3.5 text-sm font-bold text-white shadow-lg transition-opacity hover:opacity-90"
+              disabled={isSubmitting || (!hasFixedPrice && addonsTotal <= 0)}
+              className="mt-4 w-full rounded-xl bg-[#EA580C] py-3.5 text-sm font-bold text-white shadow-lg transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {t("buyNow")}
+              {isSubmitting ? "Creating order..." : t("buyNow")}
             </button>
+            {checkoutError && (
+              <p className="mt-2 text-center text-xs text-red-600">{checkoutError}</p>
+            )}
             <p className="mt-2 text-center text-[10px] text-slate-400">
               🔒 Protected by VORA Escrow · Fixed price · No bidding
             </p>

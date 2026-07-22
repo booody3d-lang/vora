@@ -1,5 +1,7 @@
+import { notFound, redirect } from "next/navigation";
 import { OrderWorkspace } from "@/components/freelance/orders/OrderWorkspace";
-import { DEMO_ORDER, DEMO_ORDER_MESSAGES } from "@/lib/freelance/mock-data";
+import { getOrderForParticipant } from "@/lib/freelance/orders-store";
+import { getAuthenticatedUser } from "@/lib/security/session";
 
 interface OrderPageProps {
   params: Promise<{ id: string }>;
@@ -7,12 +9,24 @@ interface OrderPageProps {
 
 export default async function OrderPage({ params }: OrderPageProps) {
   const { id } = await params;
+  const auth = await getAuthenticatedUser();
+
+  if (!auth && id !== "ord-1") {
+    redirect("/login");
+  }
+
+  const result = await getOrderForParticipant(id, auth?.user.id ?? null);
+  if (!result) {
+    notFound();
+  }
 
   return (
     <OrderWorkspace
-      initialOrder={{ ...DEMO_ORDER, id }}
-      initialMessages={DEMO_ORDER_MESSAGES}
-      isBuyer
+      initialOrder={result.order}
+      initialMessages={result.messages}
+      isBuyer={result.isBuyer}
+      viewerAccountId={auth?.user.id}
+      viewerName={auth?.user.fullName ?? auth?.user.email ?? undefined}
     />
   );
 }

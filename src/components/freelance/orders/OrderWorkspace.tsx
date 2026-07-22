@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FreelanceOrder, OrderMessage, OrderStatus } from "@/types/freelance";
 import { ReviewModal } from "@/components/freelance/orders/ReviewModal";
 import { CommissionBreakdown } from "@/components/billing/CommissionBreakdown";
@@ -26,9 +26,17 @@ interface OrderWorkspaceProps {
   initialOrder: FreelanceOrder;
   initialMessages: OrderMessage[];
   isBuyer?: boolean;
+  viewerAccountId?: string;
+  viewerName?: string;
 }
 
-export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }: OrderWorkspaceProps) {
+export function OrderWorkspace({
+  initialOrder,
+  initialMessages,
+  isBuyer = true,
+  viewerAccountId,
+  viewerName,
+}: OrderWorkspaceProps) {
   const { t } = useLocale();
   const { fire } = useNotificationTrigger();
   const [order, setOrder] = useState(initialOrder);
@@ -38,21 +46,103 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
   const [showReview, setShowReview] = useState(false);
   const escrowSyncedRef = useRef(false);
 
+  const persistOrder = useCallback(
+    async (updates: Partial<FreelanceOrder>) => {
+      setOrder((current) => ({ ...current, ...updates }));
+
+      if (order.id === "ord-1" || order.id === "ord-new") return;
+
+      try {
+        const response = await fetch(`/api/freelance/orders/${order.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+        if (response.ok) {
+          const payload = (await response.json()) as { order?: FreelanceOrder };
+          if (payload.order) setOrder(payload.order);
+        }
+      } catch {
+        // Keep optimistic UI when persistence is unavailable.
+      }
+    },
+    [order.id]
+  );
+
+  const persistMessage = useCallback(
+    async (input: {
+      content?: string;
+      fileUrl?: string;
+      fileName?: string;
+      isSystem?: boolean;
+      senderName?: string;
+    }) => {
+      const optimistic: OrderMessage = {
+        id: `msg-${Date.now()}`,
+        senderId: input.isSystem ? "system" : (viewerAccountId ?? (isBuyer ? "buyer" : "seller")),
+        senderName:
+          input.senderName ??
+          (input.isSystem ? "VORA Escrow" : isBuyer ? "You (Buyer)" : "You (Seller)"),
+        content: input.content,
+        fileUrl: input.fileUrl,
+        fileName: input.fileName,
+        isSystem: input.isSystem ?? false,
+        createdAt: new Date().toISOString(),
+      };
+
+      setMessages((prev) => [...prev, optimistic]);
+
+      if (order.id === "ord-1" || order.id === "ord-new") return;
+
+      try {
+        const response = await fetch(`/api/freelance/orders/${order.id}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        });
+        if (response.ok) {
+          const payload = (await response.json()) as { message?: OrderMessage };
+          if (payload.message) {
+            setMessages((prev) => [...prev.filter((msg) => msg.id !== optimistic.id), payload.message!]);
+          }
+        }
+      } catch {
+        // Keep optimistic message.
+      }
+    },
+    [isBuyer, order.id, viewerAccountId]
+  );
+
   useEffect(() => {
     if (escrowSyncedRef.current) return;
-    if (order.escrowReleased || order.status === "completed" || order.status === "disputed") return;
+    if (order.status !== "pending_payment" || order.escrowReleased) return;
 
     escrowSyncedRef.current = true;
-    fetch(`/api/billing/orders/${order.id}/pay`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sellerId: order.sellerId,
-        total: order.totalPrice,
-        serviceTitle: order.service.title,
-        orderNumber: order.orderNumber,
-      }),
-    }).catch(() => {});
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/billing/orders/${order.id}/pay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sellerId: order.sellerId,
+            total: order.totalPrice,
+            serviceTitle: order.service.title,
+            orderNumber: order.orderNumber,
+          }),
+        });
+
+        if (!response.ok) return;
+
+        await persistOrder({ status: "awaiting_requirements" });
+        await persistMessage({
+          isSystem: true,
+          content: `Payment of SAR ${order.totalPrice} received. Funds secured in escrow.`,
+        });
+      } catch {
+        // Escrow sync is best-effort for demo/json orders.
+      }
+    })();
   }, [
     order.escrowReleased,
     order.id,
@@ -61,32 +151,35 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
     order.service.title,
     order.status,
     order.totalPrice,
+    persistMessage,
+    persistOrder,
   ]);
 
   function addMessage(content: string, isSystem = false) {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `msg-${Date.now()}`,
-        senderId: isBuyer ? "buyer-1" : "seller-1",
-        senderName: isBuyer ? "You (Buyer)" : "You (Seller)",
-        content,
-        isSystem,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+    void persistMessage({
+      content,
+      isSystem,
+      senderName: isSystem
+        ? "VORA Escrow"
+        : isBuyer
+          ? "You (Buyer)"
+          : viewerName ?? "You (Seller)",
+    });
   }
 
   function submitRequirements() {
     if (!requirements.trim()) return;
-    setOrder((o) => ({ ...o, status: "in_progress", requirementsText: requirements }));
+    void persistOrder({ status: "in_progress", requirementsText: requirements });
     addMessage("Requirements submitted. Seller can now start work.", true);
   }
 
   function deliverWork() {
-    setOrder((o) => ({ ...o, status: "delivered", deliveryFiles: ["final-deliverables.zip"] }));
+    void persistOrder({
+      status: "delivered",
+      deliveryFiles: ["final-deliverables.zip"],
+    });
     addMessage("Seller delivered the final work.", true);
-    void fire(orderDeliveredAlert(order.orderNumber, order.id, "Alex Design Studio"));
+    void fire(orderDeliveredAlert(order.orderNumber, order.id, order.service.storeName));
   }
 
   function acceptOrder() {
@@ -95,7 +188,7 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
 
   function handleReviewSubmit() {
     const split = calculateCommission(order.totalPrice);
-    setOrder((o) => ({ ...o, status: "completed", escrowReleased: true }));
+    void persistOrder({ status: "completed", escrowReleased: true });
     setShowReview(false);
     addMessage(
       `Order completed. ${formatSar(split.freelancerNetEarnings)} deposited to seller wallet (${formatSar(split.platformCommission)} platform fee).`,
@@ -105,10 +198,10 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sellerId: order.sellerId ?? "seller-1",
+        sellerId: order.sellerId,
         total: order.totalPrice,
         serviceTitle: order.service.title,
-        buyerName: isBuyer ? "Buyer" : order.service.storeName,
+        buyerName: viewerName ?? (isBuyer ? "Buyer" : order.service.storeName),
       }),
     }).catch(() => {});
     void fire(reviewPublishedAlert(order.orderNumber, 5));
@@ -117,18 +210,19 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
   function requestRevision() {
     if (order.revisionsRemaining <= 0) return;
     const remaining = order.revisionsRemaining - 1;
-    setOrder((o) => ({
-      ...o,
+    void persistOrder({
       status: "revision_requested",
       revisionsRemaining: remaining,
-    }));
+    });
     addMessage(`Revision requested. ${remaining} revisions remaining.`, true);
     void fire(revisionRequestedAlert(order.orderNumber, order.id, remaining));
-    setTimeout(() => setOrder((o) => ({ ...o, status: "in_progress" })), 500);
+    setTimeout(() => {
+      void persistOrder({ status: "in_progress" });
+    }, 500);
   }
 
   function initiateDispute() {
-    setOrder((o) => ({ ...o, status: "disputed" }));
+    void persistOrder({ status: "disputed" });
     addMessage("Dispute ticket opened. Admin will review within 48 hours.", true);
     void fire(disputeFiledAlert(order.orderNumber, order.id, order.totalPrice));
   }
@@ -137,7 +231,6 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-6">
-      {/* Header */}
       <div className="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -150,7 +243,6 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
           </span>
         </div>
 
-        {/* Progress steps */}
         <div className="mt-4 flex gap-1 overflow-x-auto">
           {STATUS_STEPS.map((step, i) => (
             <div
@@ -164,7 +256,7 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
           ))}
         </div>
 
-        {!order.escrowReleased && (
+        {!order.escrowReleased && order.status !== "pending_payment" && (
           <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
             🔒 {t("order.escrow")} — SAR {order.totalPrice}
           </p>
@@ -172,7 +264,6 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        {/* Chat workspace */}
         <div className="lg:col-span-2">
           <div className="flex h-[480px] flex-col rounded-2xl border border-orange-100 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-4 py-3">
@@ -181,16 +272,15 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
             <div className="flex-1 overflow-y-auto p-4">
               <ul className="space-y-3">
                 {messages.map((msg) => (
-                  <li
-                    key={msg.id}
-                    className={`${msg.isSystem ? "text-center" : ""}`}
-                  >
+                  <li key={msg.id} className={`${msg.isSystem ? "text-center" : ""}`}>
                     {msg.isSystem ? (
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] text-slate-500">{msg.content}</span>
                     ) : (
-                      <div className={`flex ${msg.senderId.includes("buyer") ? "justify-end" : "justify-start"}`}>
+                      <div className={`flex ${msg.senderId === order.buyerId || msg.senderName.includes("Buyer") ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
-                          msg.senderId.includes("buyer") ? "bg-[#EA580C] text-white" : "bg-slate-100 text-slate-800"
+                          msg.senderId === order.buyerId || msg.senderName.includes("Buyer")
+                            ? "bg-[#EA580C] text-white"
+                            : "bg-slate-100 text-slate-800"
                         }`}>
                           <p className="text-[10px] opacity-70">{msg.senderName}</p>
                           {msg.content && <p>{msg.content}</p>}
@@ -218,7 +308,12 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
                 />
                 <button
                   type="button"
-                  onClick={() => { if (newMessage.trim()) { addMessage(newMessage.trim()); setNewMessage(""); } }}
+                  onClick={() => {
+                    if (newMessage.trim()) {
+                      addMessage(newMessage.trim());
+                      setNewMessage("");
+                    }
+                  }}
                   className="rounded-xl bg-[#EA580C] px-4 py-2 text-sm font-semibold text-white"
                 >
                   Send
@@ -228,9 +323,7 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
           </div>
         </div>
 
-        {/* Actions sidebar */}
         <div className="space-y-4">
-          {/* Requirements phase */}
           {(order.status === "paid" || order.status === "awaiting_requirements") && isBuyer && (
             <div className="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
               <h3 className="font-semibold text-[#0F172A]">{t("order.requirements")}</h3>
@@ -253,7 +346,6 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
             </div>
           )}
 
-          {/* Seller deliver */}
           {!isBuyer && order.status === "in_progress" && (
             <div className="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
               <h3 className="font-semibold text-[#0F172A]">{t("order.deliver")}</h3>
@@ -270,7 +362,6 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
             </div>
           )}
 
-          {/* Buyer review actions */}
           {isBuyer && order.status === "delivered" && (
             <div className="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
               <h3 className="font-semibold text-[#0F172A]">Review Delivery</h3>
