@@ -1,3 +1,4 @@
+import { groupApplicantsByStage as groupApplicantsByStageFromUtils } from "@/lib/company/ats-utils";
 import type {
   ApplicantCard,
   AtsStage,
@@ -284,19 +285,5 @@ export function computeSubscriptionState(sub: CompanySubscription): {
 }
 
 export function groupApplicantsByStage(applicants: ApplicantCard[]): Record<AtsStage, ApplicantCard[]> {
-  const groups = {} as Record<AtsStage, ApplicantCard[]>;
-  const stages: AtsStage[] = [
-    "new_applications",
-    "under_review",
-    "interview_scheduled",
-    "final_review",
-    "hired",
-    "rejected",
-  ];
-  for (const stage of stages) {
-    groups[stage] = applicants
-      .filter((a) => a.stage === stage)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-  }
-  return groups;
+  return groupApplicantsByStageFromUtils(applicants) as Record<AtsStage, ApplicantCard[]>;
 }

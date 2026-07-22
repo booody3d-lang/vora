@@ -1,8 +1,12 @@
 import { VideoReviewPanel } from "@/components/company/ats/VideoReviewPanel";
-import { DEMO_APPLICANTS, DEMO_NOTES } from "@/lib/company/mock-data";
+import {
+  getApplicantForJob,
+  listInternalNotes,
+} from "@/lib/company/applications-store";
 import { getJobByIdForAccount } from "@/lib/company/jobs-store";
+import { forbidCompanyAts } from "@/lib/security/feature-guard";
 import { getAuthenticatedUser } from "@/lib/security/session";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 interface ReviewPageProps {
   params: Promise<{ jobId: string; applicantId: string }>;
@@ -13,14 +17,16 @@ export default async function ApplicantReviewPage({ params }: ReviewPageProps) {
   const auth = await getAuthenticatedUser();
   if (!auth) notFound();
 
+  const denied = await forbidCompanyAts(auth.user);
+  if (denied) redirect("/billing/plans");
+
   const job = await getJobByIdForAccount(auth.user.id, jobId);
-  const applicant = DEMO_APPLICANTS.find((a) => a.id === applicantId);
+  if (!job) notFound();
 
-  if (!job || !applicant) {
-    notFound();
-  }
+  const applicant = await getApplicantForJob(auth.user.id, jobId, applicantId);
+  if (!applicant) notFound();
 
-  const notes = DEMO_NOTES[applicant.applicationId] ?? [];
+  const notes = await listInternalNotes(auth.user.id, jobId, applicantId);
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6 md:px-6">
@@ -30,11 +36,7 @@ export default async function ApplicantReviewPage({ params }: ReviewPageProps) {
           {applicant.fullName} · {job.title}
         </p>
       </div>
-      <VideoReviewPanel
-        applicant={applicant}
-        jobId={jobId}
-        initialNotes={notes}
-      />
+      <VideoReviewPanel applicant={applicant} jobId={jobId} initialNotes={notes} />
     </div>
   );
 }

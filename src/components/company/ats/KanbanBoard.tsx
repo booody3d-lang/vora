@@ -5,22 +5,31 @@ import type { ApplicantCard, AtsStage } from "@/types/company";
 import { ATS_STAGES } from "@/types/company";
 import { ApplicantCardView } from "@/components/company/ats/ApplicantCardView";
 import { CandidateRankingPanel } from "@/components/ai/company/CandidateRankingPanel";
-import { groupApplicantsByStage } from "@/lib/company/mock-data";
+import { groupApplicantsByStage } from "@/lib/company/ats-utils";
 import { useNotificationTrigger } from "@/hooks/useNotificationTrigger";
 import { applicationStatusAlert } from "@/lib/notifications/triggers";
 
 interface KanbanBoardProps {
   jobId: string;
   jobTitle: string;
+  companyName?: string;
   jobDescription?: string;
   requiredSkills?: string[];
   initialApplicants: ApplicantCard[];
 }
 
-export function KanbanBoard({ jobId, jobTitle, jobDescription = "", requiredSkills = [], initialApplicants }: KanbanBoardProps) {
+export function KanbanBoard({
+  jobId,
+  jobTitle,
+  companyName = "Company",
+  jobDescription = "",
+  requiredSkills = [],
+  initialApplicants,
+}: KanbanBoardProps) {
   const [applicants, setApplicants] = useState(initialApplicants);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { fire } = useNotificationTrigger();
 
   const grouped = groupApplicantsByStage(applicants);
@@ -37,40 +46,62 @@ export function KanbanBoard({ jobId, jobTitle, jobDescription = "", requiredSkil
   }, []);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent, targetStage: AtsStage) => {
+    async (e: React.DragEvent, targetStage: AtsStage) => {
       e.preventDefault();
       const id = e.dataTransfer.getData("text/plain") || draggedId;
       if (!id) return;
 
-      const applicant = applicants.find((a) => a.id === id);
+      const applicant = applicants.find((entry) => entry.id === id);
       if (!applicant || applicant.stage === targetStage) {
         setDraggedId(null);
         return;
       }
 
+      const sortOrder = grouped[targetStage].length;
+      const previousApplicants = applicants;
+
       setApplicants((prev) =>
-        prev.map((a) =>
-          a.id === id
-            ? { ...a, stage: targetStage, sortOrder: grouped[targetStage].length }
-            : a
+        prev.map((entry) =>
+          entry.id === id ? { ...entry, stage: targetStage, sortOrder } : entry
         )
       );
+      setError(null);
 
-      const stageLabel = ATS_STAGES.find((s) => s.id === targetStage)?.label ?? targetStage;
-      void fire(
-        applicationStatusAlert(applicant.fullName, jobTitle, stageLabel, "TechCorp Global")
-      );
+      try {
+        const res = await fetch(
+          `/api/company/jobs/${jobId}/applications/${applicant.applicationId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ stage: targetStage, sortOrder }),
+          }
+        );
 
-      if (targetStage === "hired") {
-        setNotification(`🎉 Congratulatory email sent to ${applicant.fullName}`);
-      } else if (targetStage === "rejected") {
-        setNotification(`Professional rejection notification sent to ${applicant.fullName}`);
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error ?? "Failed to update stage");
+        }
+
+        const stageLabel = ATS_STAGES.find((stage) => stage.id === targetStage)?.label ?? targetStage;
+        void fire(applicationStatusAlert(applicant.fullName, jobTitle, stageLabel, companyName));
+
+        if (targetStage === "hired") {
+          setNotification(`Congratulatory email sent to ${applicant.fullName}`);
+        } else if (targetStage === "rejected") {
+          setNotification(`Professional rejection notification sent to ${applicant.fullName}`);
+        }
+      } catch (persistError) {
+        setApplicants(previousApplicants);
+        setError(
+          persistError instanceof Error ? persistError.message : "Failed to save stage change"
+        );
       }
 
       setDraggedId(null);
       setTimeout(() => setNotification(null), 4000);
     },
-    [applicants, draggedId, grouped, fire, jobTitle]
+    [applicants, draggedId, grouped, fire, jobId, jobTitle, companyName]
   );
 
   return (
@@ -82,6 +113,12 @@ export function KanbanBoard({ jobId, jobTitle, jobDescription = "", requiredSkil
         </div>
         <p className="text-sm text-slate-400">{applicants.length} applicants</p>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {notification && (
         <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -103,7 +140,7 @@ export function KanbanBoard({ jobId, jobTitle, jobDescription = "", requiredSkil
           <div
             key={stage.id}
             onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, stage.id)}
+            onDrop={(e) => void handleDrop(e, stage.id)}
             className="flex w-64 shrink-0 flex-col rounded-xl border border-slate-200 bg-slate-50"
             style={{ minHeight: 400 }}
           >

@@ -50,7 +50,7 @@ export function ApplicantCardView({ applicant, jobId, onDragStart }: ApplicantCa
         </a>
         {applicant.videoPitchUrl && (
           <Link
-            href={getApplicantReviewUrl(jobId, applicant.id)}
+            href={getApplicantReviewUrl(jobId, applicant.applicationId)}
             className="flex-1 rounded border border-[#3B5998]/30 bg-[#3B5998]/5 py-1 text-center text-[10px] font-medium text-[#3B5998] hover:bg-[#3B5998]/10"
           >
             🎬 Review
