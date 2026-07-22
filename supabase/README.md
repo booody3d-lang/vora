@@ -23,6 +23,8 @@ In the Supabase SQL editor, run the files in order:
 15. `015_subscription_ecosystem.sql` — subscription tiers, assignments, Stripe mappings, payment events (auto-migrates from JSON store when service role is configured)
 16. `016_subscription_stripe_phase4b.sql` — Stripe Price ID map per tier + subscription linkage on assignments
 17. `017_email_delivery_log.sql` — email delivery audit log for Resend/console transport
+18. `018_notification_preferences_phase4d.sql` — notification preferences RLS + default row bootstrap
+19. `019_billing_wallet_phase4e.sql` — wallet bootstrap on signup + admin withdrawal policies
 
 ## 2. Quick bootstrap (empty project)
 

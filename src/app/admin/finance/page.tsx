@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { useTranslations } from "@/i18n/use-translations";
 import { ADMIN_FINANCIAL_SUMMARY, ADMIN_RECENT_TRANSACTIONS } from "@/lib/admin/mock-data";
@@ -33,7 +33,16 @@ const TX_STATUS_KEYS: Record<AdminTransaction["status"], string> = {
 export default function AdminFinancePage() {
   const { t } = useTranslations();
   const finance = ADMIN_FINANCIAL_SUMMARY;
-  const [withdrawals, setWithdrawals] = useState(DEMO_WITHDRAWALS);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>(DEMO_WITHDRAWALS);
+
+  useEffect(() => {
+    fetch("/api/admin/finance")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { withdrawals?: WithdrawalRequest[] } | null) => {
+        if (data?.withdrawals?.length) setWithdrawals(data.withdrawals);
+      })
+      .catch(() => {});
+  }, []);
 
   function updateWithdrawal(id: string, status: WithdrawalStatus) {
     setWithdrawals((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));

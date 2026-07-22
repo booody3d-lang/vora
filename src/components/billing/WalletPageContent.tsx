@@ -1,12 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TriWalletCards } from "@/components/billing/TriWalletCards";
 import { CommissionBreakdown } from "@/components/billing/CommissionBreakdown";
 import { useLocale } from "@/providers/LocaleProvider";
 import { useTranslations } from "@/i18n/use-translations";
 import { DEMO_WALLET, DEMO_TRANSACTIONS, formatSar } from "@/lib/billing/engine";
-import type { TransactionType, WalletLedgerType } from "@/types/billing";
+import type { TransactionType, TriWallet, WalletLedgerType, WalletTransaction } from "@/types/billing";
 
 const TX_TYPE_KEYS: Record<TransactionType, string> = {
   order_escrow: "billing.wallet.typeOrderEscrow",
@@ -27,6 +28,18 @@ const LEDGER_KEYS: Record<WalletLedgerType, string> = {
 export function WalletPageContent() {
   const { t } = useTranslations();
   const { locale } = useLocale();
+  const [wallet, setWallet] = useState<TriWallet>(DEMO_WALLET);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>(DEMO_TRANSACTIONS);
+
+  useEffect(() => {
+    fetch("/api/billing/wallet")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { wallet?: TriWallet; transactions?: WalletTransaction[] } | null) => {
+        if (data?.wallet) setWallet(data.wallet);
+        if (data?.transactions) setTransactions(data.transactions);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="space-y-8">
@@ -35,13 +48,13 @@ export function WalletPageContent() {
         <p className="mt-1 text-sm text-slate-500">{t("billing.wallet.subtitle")}</p>
       </div>
 
-      <TriWalletCards wallet={DEMO_WALLET} />
+      <TriWalletCards wallet={wallet} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-bold text-[#0F172A]">{t("billing.wallet.recentTransactions")}</h2>
           <ul className="mt-4 divide-y divide-slate-100">
-            {DEMO_TRANSACTIONS.map((tx) => (
+            {transactions.map((tx) => (
               <li key={tx.id} className="flex items-center justify-between py-3">
                 <div>
                   <p className="text-sm font-medium text-[#0F172A]">
@@ -78,7 +91,7 @@ export function WalletPageContent() {
         </Link>
         <Link
           href="/billing/invoices"
-          className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-[#0F172A] hover:bg-slate-50"
         >
           {t("billing.wallet.viewInvoices")}
         </Link>

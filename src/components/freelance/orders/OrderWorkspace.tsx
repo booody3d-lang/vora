@@ -75,6 +75,16 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
       `Order completed. ${formatSar(split.freelancerNetEarnings)} deposited to seller wallet (${formatSar(split.platformCommission)} platform fee).`,
       true
     );
+    fetch(`/api/billing/orders/${order.id}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sellerId: order.sellerId ?? "seller-1",
+        total: order.totalPrice,
+        serviceTitle: order.service.title,
+        buyerName: isBuyer ? "Buyer" : order.service.storeName,
+      }),
+    }).catch(() => {});
     void fire(reviewPublishedAlert(order.orderNumber, 5));
   }
 

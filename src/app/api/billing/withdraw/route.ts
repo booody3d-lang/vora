@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { canWithdraw } from "@/lib/billing/engine";
+import { getAccountWallet, submitWithdrawalRequest } from "@/lib/billing/wallet-store";
 import { serverDispatchNotification } from "@/lib/notifications/server-dispatch";
 import { withdrawalRequestAlert } from "@/lib/notifications/triggers";
 import { requireAuthenticatedApiUser } from "@/lib/security/require-api-auth";
@@ -9,15 +10,15 @@ export async function POST(request: Request) {
   if ("response" in authResult) return authResult.response;
 
   try {
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       amount: number;
       iban: string;
       bankName: string;
       accountHolder: string;
-      availableBalance: number;
     };
 
-    const validation = canWithdraw(body.amount, body.availableBalance);
+    const wallet = await getAccountWallet(authResult.auth.user.id);
+    const validation = canWithdraw(body.amount, wallet.availableBalance);
     if (!validation.allowed) {
       return NextResponse.json({ error: validation.reason }, { status: 400 });
     }
@@ -26,16 +27,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid Saudi IBAN format" }, { status: 400 });
     }
 
-    const withdrawal = {
-      id: `wd-${Date.now()}`,
-      accountId: authResult.auth.user.id,
+    const withdrawal = await submitWithdrawalRequest(authResult.auth.user.id, {
       amount: body.amount,
       iban: body.iban,
       bankName: body.bankName,
       accountHolder: body.accountHolder,
-      status: "pending_review" as const,
-      createdAt: new Date().toISOString(),
-    };
+    });
 
     const ibanLast4 = body.iban.replace(/\s/g, "").slice(-4);
     const ownerAlert = withdrawalRequestAlert(
@@ -47,7 +44,8 @@ export async function POST(request: Request) {
     await serverDispatchNotification(ownerAlert, { ownerEmail: true });
 
     return NextResponse.json({ success: true, withdrawal, ownerAlert });
-  } catch {
-    return NextResponse.json({ error: "Failed to create withdrawal request" }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to create withdrawal request";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

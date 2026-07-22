@@ -1,15 +1,38 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
 import { useTranslations } from "@/i18n/use-translations";
 import { DEMO_INVOICES } from "@/lib/billing/engine";
+import type { Invoice } from "@/types/billing";
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { t } = useTranslations();
   const { id } = use(params);
-  const invoice = DEMO_INVOICES.find((inv) => inv.id === id);
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/billing/invoices/${id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { invoice?: Invoice } | null) => {
+        if (data?.invoice) {
+          setInvoice(data.invoice);
+          return;
+        }
+        setInvoice(DEMO_INVOICES.find((inv) => inv.id === id) ?? null);
+      })
+      .catch(() => {
+        setInvoice(DEMO_INVOICES.find((inv) => inv.id === id) ?? null);
+      })
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return <div className="py-12 text-center text-sm text-slate-500">{t("common.loading")}</div>;
+  }
+
   if (!invoice) notFound();
 
   function handlePrint() {

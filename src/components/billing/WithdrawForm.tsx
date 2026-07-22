@@ -40,12 +40,10 @@ export function WithdrawForm({ wallet, onSubmit }: WithdrawFormProps) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        accountId: "demo-user-1",
         amount: numAmount,
         iban,
         bankName,
         accountHolder,
-        availableBalance: wallet.availableBalance,
       }),
     })
       .then((res) => res.json())

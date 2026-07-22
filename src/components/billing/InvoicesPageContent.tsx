@@ -1,10 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/providers/LocaleProvider";
 import { useTranslations } from "@/i18n/use-translations";
 import { DEMO_INVOICES, formatSar } from "@/lib/billing/engine";
-import type { InvoiceType } from "@/types/billing";
+import type { Invoice, InvoiceType } from "@/types/billing";
 
 const INVOICE_TYPE_KEYS: Record<InvoiceType, string> = {
   subscription: "billing.invoices.typeSubscription",
@@ -16,6 +17,16 @@ const INVOICE_TYPE_KEYS: Record<InvoiceType, string> = {
 export function InvoicesPageContent() {
   const { t } = useTranslations();
   const { locale } = useLocale();
+  const [invoices, setInvoices] = useState<Invoice[]>(DEMO_INVOICES);
+
+  useEffect(() => {
+    fetch("/api/billing/invoices")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { invoices?: Invoice[] } | null) => {
+        if (data?.invoices) setInvoices(data.invoices);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -36,7 +47,7 @@ export function InvoicesPageContent() {
             </tr>
           </thead>
           <tbody>
-            {DEMO_INVOICES.map((inv) => (
+            {invoices.map((inv) => (
               <tr key={inv.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                 <td className="px-5 py-3 font-mono text-xs">{inv.invoiceNumber}</td>
                 <td className="px-5 py-3">{t(INVOICE_TYPE_KEYS[inv.type])}</td>

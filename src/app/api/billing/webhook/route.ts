@@ -4,8 +4,13 @@ import {
   resolveTierAndPlanFromStripePriceId,
 } from "@/lib/billing/resolve-plans";
 import { getServerStripe, resolveStripeWebhookSecret } from "@/lib/billing/stripe-server";
+import { createSubscriptionInvoice } from "@/lib/billing/wallet-store";
 import { serverDispatchNotification } from "@/lib/notifications/server-dispatch";
-import { PLAN_AMOUNTS, subscriptionPaymentAlert } from "@/lib/notifications/triggers";
+import {
+  buildTriggerNotification,
+  PLAN_AMOUNTS,
+  subscriptionPaymentAlert,
+} from "@/lib/notifications/triggers";
 import {
   applyStripeCheckoutCompleted,
   applyStripeInvoicePaid,
@@ -130,7 +135,37 @@ export async function POST(request: Request) {
         currentPeriodEnd,
       });
 
-      if (planInfo) {
+      if (planInfo && accountId) {
+        const alert = subscriptionPaymentAlert(
+          planInfo.label,
+          planInfo.amount,
+          (session.customer_details?.name ?? accountId) || "User"
+        );
+        await serverDispatchNotification(alert, { ownerEmail: true });
+
+        const paymentIntentId =
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id;
+
+        const invoice = await createSubscriptionInvoice(accountId, {
+          planName: planInfo.label,
+          amount: planInfo.amount,
+          stripePaymentIntentId: paymentIntentId,
+        });
+
+        const userReceipt = buildTriggerNotification({
+          trigger: "subscription_payment",
+          title: `Payment confirmed — ${planInfo.label}`,
+          titleAr: `تم تأكيد الدفع — ${planInfo.label}`,
+          body: `Your ${planInfo.label} subscription is active. Invoice ${invoice.invoiceNumber} for SR ${planInfo.amount}.`,
+          bodyAr: `اشتراكك في ${planInfo.label} مفعّل. فاتورة ${invoice.invoiceNumber} بمبلغ ${planInfo.amount} ر.س.`,
+          amountSar: planInfo.amount,
+          href: `/billing/invoices/${invoice.id}`,
+          channels: ["in_app", "email"],
+        });
+        await serverDispatchNotification(userReceipt, { accountId, ownerEmail: false });
+      } else if (planInfo) {
         const alert = subscriptionPaymentAlert(
           planInfo.label,
           planInfo.amount,
@@ -176,6 +211,27 @@ export async function POST(request: Request) {
           stripeSubscriptionId: subscription?.id,
           currentPeriodEnd: subscription ? periodEndIso(subscription) : undefined,
         });
+
+        if (amountSar && plan) {
+          const planInfo = PLAN_AMOUNTS[plan];
+          const planLabel = planInfo?.label ?? plan;
+          const invoice = await createSubscriptionInvoice(accountId, {
+            planName: `${planLabel} (renewal)`,
+            amount: amountSar,
+          });
+
+          const userReceipt = buildTriggerNotification({
+            trigger: "subscription_payment",
+            title: `Renewal confirmed — ${planLabel}`,
+            titleAr: `تم تجديد الاشتراك — ${planLabel}`,
+            body: `Your subscription renewed. Invoice ${invoice.invoiceNumber} for SR ${amountSar}.`,
+            bodyAr: `تم تجديد اشتراكك. فاتورة ${invoice.invoiceNumber} بمبلغ ${amountSar} ر.س.`,
+            amountSar,
+            href: `/billing/invoices/${invoice.id}`,
+            channels: ["in_app", "email"],
+          });
+          await serverDispatchNotification(userReceipt, { accountId, ownerEmail: false });
+        }
       } else {
         await recordStripePaymentEvent({
           stripeEventId: event.id,

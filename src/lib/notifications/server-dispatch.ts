@@ -2,7 +2,9 @@ import type { NotificationPayload } from "@/types/notifications";
 import { buildEmailHtml } from "@/lib/notifications/email-templates";
 import { sendEmail } from "@/lib/email/send";
 import { resolveEmailLocale } from "@/lib/email/email-i18n";
-import { emitNotification } from "@/lib/notifications/engine";
+import { emitNotification, resolveChannels } from "@/lib/notifications/engine";
+import { getNotificationPreferences } from "@/lib/notifications/notification-preferences-store";
+import { persistInAppNotification } from "@/lib/notifications/notifications-store";
 import { resolveNotificationRecipientAsync } from "@/lib/notifications/recipient-resolver";
 import { SITE_URL } from "@/i18n/config";
 
@@ -26,24 +28,39 @@ export async function serverDispatchNotification(
 ): Promise<NotificationPayload> {
   const isOwnerAlert = opts?.ownerEmail ?? isOwnerAlertTrigger(notification);
 
-  if (notification.channels.includes("email") || isOwnerAlert) {
+  let enriched = notification;
+  if (!isOwnerAlert && opts?.accountId) {
+    const prefs = await getNotificationPreferences(opts.accountId);
+    const channels = resolveChannels(notification.trigger, prefs);
+    enriched = { ...notification, channels };
+  } else if (isOwnerAlert) {
+    enriched = {
+      ...notification,
+      channels: notification.channels.length ? notification.channels : ["in_app", "email"],
+    };
+  }
+
+  const shouldEmail =
+    enriched.channels.includes("email") || isOwnerAlert;
+
+  if (shouldEmail) {
     const locale = resolveEmailLocale({
-      titleAr: notification.titleAr,
-      bodyAr: notification.bodyAr,
+      titleAr: enriched.titleAr,
+      bodyAr: enriched.bodyAr,
     });
 
     const html = buildEmailHtml({
-      title: notification.title,
-      body: notification.body,
-      titleAr: notification.titleAr,
-      bodyAr: notification.bodyAr,
+      title: enriched.title,
+      body: enriched.body,
+      titleAr: enriched.titleAr,
+      bodyAr: enriched.bodyAr,
       locale,
-      ctaUrl: notification.href ? `${SITE_URL}${notification.href}` : undefined,
-      amountSar: notification.amountSar,
+      ctaUrl: enriched.href ? `${SITE_URL}${enriched.href}` : undefined,
+      amountSar: enriched.amountSar,
     });
 
     const recipient = await resolveNotificationRecipientAsync({
-      notification,
+      notification: enriched,
       ownerEmail: isOwnerAlert,
       recipientEmail: opts?.recipientEmail,
       accountId: opts?.accountId,
@@ -52,23 +69,27 @@ export async function serverDispatchNotification(
     if (recipient.to) {
       await sendEmail({
         to: recipient.to,
-        subject: locale === "ar" && notification.titleAr ? notification.titleAr : notification.title,
+        subject: locale === "ar" && enriched.titleAr ? enriched.titleAr : enriched.title,
         html,
-        text: locale === "ar" && notification.bodyAr ? notification.bodyAr : notification.body,
-        trigger: notification.trigger,
+        text: locale === "ar" && enriched.bodyAr ? enriched.bodyAr : enriched.body,
+        trigger: enriched.trigger,
         locale,
       });
     } else {
       console.warn("[email] skipped notification email", {
-        trigger: notification.trigger,
+        trigger: enriched.trigger,
         reason: recipient.reason,
       });
     }
   }
 
-  if (notification.channels.includes("in_app")) {
-    emitNotification(notification);
+  if (enriched.channels.includes("in_app")) {
+    if (opts?.accountId && !isOwnerAlert) {
+      await persistInAppNotification(opts.accountId, enriched);
+    } else {
+      emitNotification(enriched);
+    }
   }
 
-  return notification;
+  return enriched;
 }

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { ADMIN_FINANCIAL_SUMMARY, ADMIN_RECENT_TRANSACTIONS } from "@/lib/admin/mock-data";
-import { DEMO_WITHDRAWALS } from "@/lib/billing/engine";
+import { ADMIN_RECENT_TRANSACTIONS } from "@/lib/admin/mock-data";
+import {
+  getAdminFinanceSummary,
+  isWalletPersistenceActive,
+  listAdminWithdrawals,
+} from "@/lib/billing/wallet-store";
 import { forbidFinancialAccess } from "@/lib/security/financial-guard";
 import { getAuthenticatedUser } from "@/lib/security/session";
 
@@ -9,9 +13,29 @@ export async function GET() {
   const denied = forbidFinancialAccess(auth?.user);
   if (denied) return denied;
 
+  const [summaryData, withdrawals] = await Promise.all([
+    getAdminFinanceSummary(),
+    listAdminWithdrawals(),
+  ]);
+
+  const summary = isWalletPersistenceActive()
+    ? {
+        totalEscrow: summaryData.totalPending,
+        availablePayouts: summaryData.totalAvailable,
+        totalWithdrawn: summaryData.totalWithdrawn,
+        pendingWithdrawals: summaryData.pendingWithdrawals,
+      }
+    : {
+        totalEscrow: summaryData.totalPending,
+        availablePayouts: summaryData.totalAvailable,
+        totalWithdrawn: summaryData.totalWithdrawn,
+        pendingWithdrawals: summaryData.pendingWithdrawals,
+      };
+
   return NextResponse.json({
-    summary: ADMIN_FINANCIAL_SUMMARY,
+    summary,
     transactions: ADMIN_RECENT_TRANSACTIONS,
-    withdrawals: DEMO_WITHDRAWALS,
+    withdrawals,
+    persistence: isWalletPersistenceActive() ? "supabase" : "demo",
   });
 }
