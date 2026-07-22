@@ -1,22 +1,49 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { OwnerAlertFeed } from "@/components/notifications/OwnerAlertFeed";
 import { useTranslations } from "@/i18n/use-translations";
 import {
-  ADMIN_PLATFORM_OVERVIEW,
   ADMIN_FINANCIAL_SUMMARY,
-  getUrgentDisputeCount,
-  ADMIN_DISPUTES,
+  ADMIN_PLATFORM_OVERVIEW,
 } from "@/lib/admin/mock-data";
 import { formatSar } from "@/lib/billing/engine";
+import type { FinancialSummary, PlatformOverview } from "@/types/admin";
+
+interface OverviewApiResponse {
+  overview?: PlatformOverview;
+  finance?: FinancialSummary;
+  urgentDisputeCount?: number;
+  latestDispute?: { orderNumber: string; serviceTitle: string } | null;
+  persistence?: "supabase" | "demo" | "mixed";
+}
 
 export function AdminOverviewClient() {
   const { t } = useTranslations();
-  const overview = ADMIN_PLATFORM_OVERVIEW;
-  const finance = ADMIN_FINANCIAL_SUMMARY;
-  const urgentCount = getUrgentDisputeCount();
+  const [overview, setOverview] = useState<PlatformOverview>(ADMIN_PLATFORM_OVERVIEW);
+  const [finance, setFinance] = useState<FinancialSummary>(ADMIN_FINANCIAL_SUMMARY);
+  const [urgentCount, setUrgentCount] = useState(0);
+  const [latestDispute, setLatestDispute] = useState<{ orderNumber: string; serviceTitle: string } | null>(
+    null
+  );
+
+  const loadOverview = useCallback(() => {
+    fetch("/api/admin/overview")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: OverviewApiResponse | null) => {
+        if (data?.overview) setOverview(data.overview);
+        if (data?.finance) setFinance(data.finance);
+        if (typeof data?.urgentDisputeCount === "number") setUrgentCount(data.urgentDisputeCount);
+        if (data?.latestDispute !== undefined) setLatestDispute(data.latestDispute);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadOverview();
+  }, [loadOverview]);
 
   return (
     <div className="space-y-8">
@@ -105,7 +132,7 @@ export function AdminOverviewClient() {
         </div>
       </section>
 
-      {urgentCount > 0 && (
+      {urgentCount > 0 && latestDispute && (
         <Link
           href="/admin/disputes"
           className="block rounded-2xl border border-red-500/30 bg-red-500/10 p-5 transition-colors hover:bg-red-500/15"
@@ -120,8 +147,8 @@ export function AdminOverviewClient() {
               </h3>
               <p className="mt-1 text-sm text-slate-400">
                 {t("admin.overview.latestDispute", {
-                  order: ADMIN_DISPUTES[0].orderNumber,
-                  service: ADMIN_DISPUTES[0].serviceTitle,
+                  order: latestDispute.orderNumber,
+                  service: latestDispute.serviceTitle,
                 })}
               </p>
             </div>
