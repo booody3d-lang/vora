@@ -372,6 +372,7 @@
       "currentPlan": "الخطة الحالية",
       "active": "نشط",
       "subscribe": "اشترك",
+      "manageSubscription": "إدارة الاشتراك",
       "paymentFailed": "فشل بدء الدفع",
       "stripeDemo": "Stripe غير مُعد. وضع تجريبي: سيُفعّل الاشتراك لـ {plan}"
     },
@@ -775,7 +776,9 @@
       "accountIdPlaceholder": "معرف الحساب (مثل user-pro-1)",
       "reasonPlaceholder": "سبب المنح اليدوي",
       "grantLifetime": "منح بريميوم مدى الحياة / مجاني",
-      "reindexSearch": "إعادة بناء فهرس البحث"
+      "reindexSearch": "إعادة بناء فهرس البحث",
+      "stripePriceIds": "معرفات Stripe Price",
+      "stripePriceIdPlaceholder": "price_..."
     },
     "finance": {
       "title": "مراقبة مالية",

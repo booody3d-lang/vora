@@ -40,6 +40,11 @@ export async function POST(request: Request) {
       features: Array.isArray(body.features) ? body.features : [],
       iconUrl: body.iconUrl,
       iconSvg: body.iconSvg,
+      stripePriceId: body.stripePriceId || undefined,
+      stripePriceIds:
+        body.stripePriceIds && typeof body.stripePriceIds === "object"
+          ? body.stripePriceIds
+          : undefined,
       isActive: body.isActive !== false,
     });
     return NextResponse.json({ tier });

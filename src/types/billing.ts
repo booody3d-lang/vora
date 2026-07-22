@@ -1,3 +1,5 @@
+import { BILLING_PLAN_SPECS, ENV_STRIPE_PRICE_FALLBACKS } from "@/lib/billing/plan-catalog";
+
 export type SubscriptionPlan = "free" | "premium_monthly" | "premium_yearly" | "company_annual";
 export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "expired";
 export type WalletLedgerType = "pending" | "available" | "withdrawn";
@@ -14,6 +16,7 @@ export type InvoiceType = "subscription" | "marketplace_purchase" | "commission"
 
 export interface PlanDefinition {
   id: SubscriptionPlan;
+  tierId: string;
   nameEn: string;
   nameAr: string;
   priceSar: number;
@@ -94,86 +97,16 @@ export const PLATFORM_COMMISSION_RATE = 0.1;
 export const MIN_WITHDRAWAL_SAR = 50;
 export const CURRENCY = "SAR" as const;
 
-export const PLANS: PlanDefinition[] = [
-  {
-    id: "free",
-    nameEn: "Free",
-    nameAr: "مجاني",
-    priceSar: 0,
-    interval: "none",
-    target: "individual",
-    features: [
-      "Full VORA Network access",
-      "Connections & content creation",
-      "Freelancer Store creation",
-      "Buy & sell marketplace services",
-    ],
-    featuresAr: [
-      "وصول كامل لشبكة VORA",
-      "بناء العلاقات وإنشاء المحتوى",
-      "إنشاء متجر Freelance",
-      "شراء وبيع الخدمات",
-    ],
-  },
-  {
-    id: "premium_monthly",
-    nameEn: "Premium Monthly",
-    nameAr: "بريميوم شهري",
-    priceSar: 20,
-    interval: "month",
-    target: "individual",
-    stripePriceId: process.env.STRIPE_PREMIUM_MONTHLY_PRICE_ID,
-    features: [
-      "Premium Badge on profile & store",
-      "Higher search visibility",
-      "Profile Visitors Analytics (full)",
-      "VORA AI: Profile Optimization & Resume Review",
-    ],
-    featuresAr: [
-      "شارة Premium على الملف والمتجر",
-      "ظهور أعلى في نتائج البحث",
-      "تحليلات زوار الملف (كامل)",
-      "VORA AI: تحسين الملف ومراجعة السيرة",
-    ],
-  },
-  {
-    id: "premium_yearly",
-    nameEn: "Premium Yearly",
-    nameAr: "بريميوم سنوي",
-    priceSar: 120,
-    interval: "year",
-    target: "individual",
-    stripePriceId: process.env.STRIPE_PREMIUM_YEARLY_PRICE_ID,
-    features: [
-      "All Premium Monthly benefits",
-      "Save 50% vs monthly billing",
-      "Priority support",
-    ],
-    featuresAr: [
-      "جميع مميزات البريميوم الشهري",
-      "توفير 50% مقارنة بالشهري",
-      "دعم أولوية",
-    ],
-  },
-  {
-    id: "company_annual",
-    nameEn: "Company Annual",
-    nameAr: "شركات سنوي",
-    priceSar: 600,
-    interval: "year",
-    target: "company",
-    stripePriceId: process.env.STRIPE_COMPANY_ANNUAL_PRICE_ID,
-    features: [
-      "Unlimited job postings",
-      "Full ATS Drag-and-Drop Pipeline",
-      "Video Application Screening",
-      "Company Analytics Dashboard",
-    ],
-    featuresAr: [
-      "وظائف غير محدودة",
-      "نظام ATS كامل",
-      "مراجعة الفيدio للمتقدمين",
-      "لوحة تحليلات الشركة",
-    ],
-  },
-];
+/** Static fallback catalog — prefer live plans from `/api/billing/plans`. */
+export const PLANS: PlanDefinition[] = BILLING_PLAN_SPECS.map((spec) => ({
+  id: spec.id,
+  tierId: spec.tierId,
+  nameEn: spec.nameEn,
+  nameAr: spec.nameAr,
+  priceSar: spec.priceSar,
+  interval: spec.interval,
+  target: spec.target,
+  features: spec.features,
+  featuresAr: spec.featuresAr,
+  stripePriceId: ENV_STRIPE_PRICE_FALLBACKS[spec.id],
+}));

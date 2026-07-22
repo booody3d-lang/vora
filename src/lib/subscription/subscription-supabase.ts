@@ -37,6 +37,7 @@ interface DbTierRow {
   sort_order: number;
   is_active: boolean;
   stripe_price_id: string | null;
+  stripe_price_ids: Record<string, string> | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +49,8 @@ interface DbAssignmentRow {
   started_at: string;
   expires_at: string | null;
   source: AccountSubscriptionAssignment["source"];
+  stripe_subscription_id: string | null;
+  checkout_plan_id: string | null;
   updated_at: string;
 }
 
@@ -80,6 +83,8 @@ function mapTierRow(row: DbTierRow): SubscriptionTier {
     features: Array.isArray(row.features) ? row.features : [],
     iconUrl: row.icon_url ?? undefined,
     iconSvg: row.icon_svg ?? undefined,
+    stripePriceId: row.stripe_price_id ?? undefined,
+    stripePriceIds: row.stripe_price_ids ?? undefined,
     sortOrder: row.sort_order,
     isActive: row.is_active,
     createdAt: row.created_at,
@@ -100,6 +105,8 @@ function mapTierToRow(tier: SubscriptionTier): Record<string, unknown> {
     icon_svg: tier.iconSvg ?? null,
     sort_order: tier.sortOrder,
     is_active: tier.isActive,
+    stripe_price_id: tier.stripePriceId ?? null,
+    stripe_price_ids: tier.stripePriceIds ?? {},
     updated_at: tier.updatedAt,
     created_at: tier.createdAt,
   };
@@ -154,6 +161,8 @@ export async function loadSubscriptionSnapshotFromSupabase(): Promise<Subscripti
       startedAt: row.started_at,
       expiresAt: row.expires_at ?? undefined,
       source: row.source,
+      stripeSubscriptionId: row.stripe_subscription_id ?? undefined,
+      checkoutPlanId: row.checkout_plan_id ?? undefined,
     };
   }
 
@@ -248,6 +257,8 @@ export async function setAccountAssignmentInSupabase(
       started_at: assignment.startedAt,
       expires_at: assignment.expiresAt ?? null,
       source: assignment.source,
+      stripe_subscription_id: assignment.stripeSubscriptionId ?? null,
+      checkout_plan_id: assignment.checkoutPlanId ?? null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "account_id" }
@@ -331,7 +342,7 @@ export async function recordStripePaymentEventInSupabase(event: StripePaymentEve
       payload_summary: event.payloadSummary ?? null,
       created_at: event.createdAt,
     },
-    { onConflict: "id" }
+    { onConflict: "stripe_event_id" }
   );
   if (error) throw error;
 }

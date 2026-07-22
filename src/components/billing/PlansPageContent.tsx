@@ -1,31 +1,121 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { PlanSelector } from "@/components/billing/PlanSelector";
 import { useTranslations } from "@/i18n/use-translations";
-import { DEMO_SUBSCRIPTION } from "@/lib/billing/engine";
+import type { PlanDefinition } from "@/types/billing";
 
 export function PlansPageContent() {
   const { t } = useTranslations();
+  const [plans, setPlans] = useState<PlanDefinition[]>([]);
+  const [individualPlan, setIndividualPlan] = useState("free");
+  const [companyPlan, setCompanyPlan] = useState("free");
+  const [stripeConfigured, setStripeConfigured] = useState(false);
+  const [hasBillingAccount, setHasBillingAccount] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const loadPlans = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [plansRes, userSubRes, companySubRes] = await Promise.all([
+        fetch("/api/billing/plans", { credentials: "include" }),
+        fetch("/api/subscription/me?audience=user", { credentials: "include" }),
+        fetch("/api/subscription/me?audience=company", { credentials: "include" }),
+      ]);
+
+      const plansData = await plansRes.json();
+      if (plansRes.ok) {
+        setPlans(plansData.plans ?? []);
+        setStripeConfigured(Boolean(plansData.stripeConfigured));
+      }
+
+      const userSubData = await userSubRes.json();
+      if (userSubRes.ok && userSubData.authenticated) {
+        setIndividualPlan(userSubData.currentPlanId ?? "free");
+        setHasBillingAccount(Boolean(userSubData.hasStripeCustomer));
+      }
+
+      const companySubData = await companySubRes.json();
+      if (companySubRes.ok && companySubData.authenticated) {
+        setCompanyPlan(companySubData.currentPlanId ?? "free");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPlans();
+  }, [loadPlans]);
+
+  async function openBillingPortal() {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/billing/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error ?? t("billing.plans.paymentFailed"));
+      }
+    } catch {
+      alert(t("billing.plans.paymentFailed"));
+    } finally {
+      setPortalLoading(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-sm text-slate-500">{t("common.loading")}</p>;
+  }
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-[#0F172A]">{t("billing.plans.title")}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t("billing.plans.subtitle")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[#0F172A]">{t("billing.plans.title")}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t("billing.plans.subtitle")}</p>
+        </div>
+        {hasBillingAccount && stripeConfigured && (
+          <button
+            type="button"
+            onClick={() => void openBillingPortal()}
+            disabled={portalLoading}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#0F172A] shadow-sm hover:bg-slate-50 disabled:opacity-50"
+          >
+            {portalLoading ? t("billing.plans.processing") : t("billing.plans.manageSubscription")}
+          </button>
+        )}
       </div>
 
       <section>
         <h2 className="mb-4 text-lg font-semibold text-[#0F172A]">
           {t("billing.plans.individualSection")}
         </h2>
-        <PlanSelector currentPlan={DEMO_SUBSCRIPTION.plan} target="individual" />
+        <PlanSelector
+          plans={plans}
+          currentPlan={individualPlan}
+          target="individual"
+          stripeConfigured={stripeConfigured}
+        />
       </section>
 
       <section>
         <h2 className="mb-4 text-lg font-semibold text-[#0F172A]">
           {t("billing.plans.companySection")}
         </h2>
-        <PlanSelector currentPlan="free" target="company" />
+        <PlanSelector
+          plans={plans}
+          currentPlan={companyPlan}
+          target="company"
+          stripeConfigured={stripeConfigured}
+        />
         <p className="mt-3 text-xs text-slate-400">{t("billing.plans.companyNote")}</p>
       </section>
 

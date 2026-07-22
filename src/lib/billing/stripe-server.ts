@@ -1,9 +1,13 @@
 import "server-only";
 
 import Stripe from "stripe";
+import { resolvePlanStripePriceId } from "@/lib/billing/resolve-plans";
+import {
+  ensureSubscriptionCacheHydrated,
+  listSubscriptionTiers,
+} from "@/lib/subscription/subscription-store";
 import { getStripeConfig } from "@/lib/security/auth-store";
 import type { SubscriptionPlan } from "@/types/billing";
-import { PLANS } from "@/types/billing";
 
 let stripeInstance: Stripe | null = null;
 
@@ -31,8 +35,9 @@ export function getServerStripe(): Stripe | null {
   return stripeInstance;
 }
 
-export function getPlanStripePriceId(plan: SubscriptionPlan): string | undefined {
-  return PLANS.find((p) => p.id === plan)?.stripePriceId;
+export async function getPlanStripePriceId(plan: SubscriptionPlan): Promise<string | undefined> {
+  await ensureSubscriptionCacheHydrated();
+  return resolvePlanStripePriceId(plan, listSubscriptionTiers());
 }
 
 export const STRIPE_SERVER_CONFIG = {

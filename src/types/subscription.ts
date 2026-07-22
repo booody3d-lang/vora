@@ -21,6 +21,10 @@ export interface SubscriptionTier {
   iconUrl?: string;
   /** Inline SVG markup for badge rendering */
   iconSvg?: string;
+  /** Default Stripe Price ID for this tier's primary billing cycle */
+  stripePriceId?: string;
+  /** Checkout plan id → Stripe Price ID (e.g. premium_monthly on premium-user tier) */
+  stripePriceIds?: Partial<Record<string, string>>;
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
@@ -33,6 +37,8 @@ export interface AccountSubscriptionAssignment {
   startedAt: string;
   expiresAt?: string;
   source: SubscriptionSource;
+  stripeSubscriptionId?: string;
+  checkoutPlanId?: string;
 }
 
 export interface ManualSubscriptionOverride {

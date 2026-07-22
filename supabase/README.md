@@ -21,6 +21,7 @@ In the Supabase SQL editor, run the files in order:
 13. `013_feed_rls_policies.sql` — feed engagement RLS (requires `002_network_ecosystem.sql` tables)
 14. `014_social_messaging_rls.sql` — conversation insert/update RLS (requires `002_network_ecosystem.sql`)
 15. `015_subscription_ecosystem.sql` — subscription tiers, assignments, Stripe mappings, payment events (auto-migrates from JSON store when service role is configured)
+16. `016_subscription_stripe_phase4b.sql` — Stripe Price ID map per tier + subscription linkage on assignments
 
 ## 2. Quick bootstrap (empty project)
 

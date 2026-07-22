@@ -372,6 +372,7 @@
       "currentPlan": "Current Plan",
       "active": "Active",
       "subscribe": "Subscribe",
+      "manageSubscription": "Manage subscription",
       "paymentFailed": "Payment initiation failed",
       "stripeDemo": "Stripe is not configured. Demo mode: subscription would activate for {plan}"
     },
@@ -775,7 +776,9 @@
       "accountIdPlaceholder": "Account ID (e.g. user-pro-1)",
       "reasonPlaceholder": "Reason for manual grant",
       "grantLifetime": "Grant lifetime / free premium",
-      "reindexSearch": "Rebuild search index"
+      "reindexSearch": "Rebuild search index",
+      "stripePriceIds": "Stripe Price IDs",
+      "stripePriceIdPlaceholder": "price_..."
     },
     "finance": {
       "title": "Financial Monitoring Suite",

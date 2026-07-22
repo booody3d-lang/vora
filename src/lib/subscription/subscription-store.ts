@@ -1,5 +1,6 @@
 import "server-only";
 
+import { planIdToTierId } from "@/lib/billing/resolve-plans";
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
@@ -390,6 +391,20 @@ export function getStripeCustomerMapping(accountId: string): StripeCustomerMappi
   return getSnapshot().stripeCustomers[accountId] ?? null;
 }
 
+export function findAccountIdByStripeCustomerId(stripeCustomerId: string): string | null {
+  const data = getSnapshot();
+  for (const [accountId, mapping] of Object.entries(data.stripeCustomers)) {
+    if (mapping.stripeCustomerId === stripeCustomerId) return accountId;
+  }
+  return null;
+}
+
+export function isStripeEventProcessed(stripeEventId: string): boolean {
+  return getSnapshot().paymentEvents.some(
+    (event) => event.stripeEventId === stripeEventId && event.status === "processed"
+  );
+}
+
 export async function setStripeCustomerMapping(
   accountId: string,
   stripeCustomerId: string
@@ -425,10 +440,17 @@ export async function recordStripePaymentEvent(input: {
   currency?: string;
   status?: StripePaymentEventStatus;
   payloadSummary?: Record<string, unknown>;
-}): Promise<StripePaymentEvent> {
+}): Promise<StripePaymentEvent | null> {
   await ensureSubscriptionCacheHydrated();
   const data = getSnapshot();
-  const event: StripePaymentEvent = {
+  const existing = data.paymentEvents.find(
+    (item) => item.stripeEventId === input.stripeEventId
+  );
+  if (existing?.status === "processed" && input.status !== "failed") {
+    return existing;
+  }
+
+  const event: StripePaymentEvent = existing ?? {
     id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     stripeEventId: input.stripeEventId,
     type: input.type,
@@ -441,7 +463,21 @@ export async function recordStripePaymentEvent(input: {
     createdAt: new Date().toISOString(),
   };
 
-  data.paymentEvents.unshift(event);
+  if (existing) {
+    Object.assign(event, {
+      ...input,
+      status: input.status ?? existing.status,
+      currency: input.currency ?? existing.currency ?? "sar",
+    });
+  }
+
+  if (!existing) {
+    data.paymentEvents.unshift(event);
+  } else {
+    data.paymentEvents = data.paymentEvents.map((item) =>
+      item.stripeEventId === input.stripeEventId ? event : item
+    );
+  }
   if (data.paymentEvents.length > 500) {
     data.paymentEvents = data.paymentEvents.slice(0, 500);
   }
@@ -500,13 +536,24 @@ const PLAN_TO_TIER: Record<string, string> = {
   company_annual: "company-standard",
 };
 
+function resolveTierIdForPlan(plan?: string): string | undefined {
+  if (!plan) return undefined;
+  return planIdToTierId(plan) ?? PLAN_TO_TIER[plan];
+}
+
 export async function applyStripeCheckoutCompleted(input: {
   accountId: string;
   plan?: string;
   stripeEventId: string;
   amountSar?: number;
+  stripeSubscriptionId?: string;
+  currentPeriodEnd?: string;
 }): Promise<AccountSubscriptionAssignment | null> {
-  const tierId = input.plan ? PLAN_TO_TIER[input.plan] : undefined;
+  if (isStripeEventProcessed(input.stripeEventId)) {
+    return getAccountAssignment(input.accountId);
+  }
+
+  const tierId = resolveTierIdForPlan(input.plan);
   if (!input.accountId || !tierId) return null;
 
   const now = new Date().toISOString();
@@ -514,7 +561,10 @@ export async function applyStripeCheckoutCompleted(input: {
     tierId,
     status: "active",
     startedAt: now,
+    expiresAt: input.currentPeriodEnd,
     source: "billing",
+    stripeSubscriptionId: input.stripeSubscriptionId,
+    checkoutPlanId: input.plan,
   };
 
   await setAccountAssignment(input.accountId, assignment);
@@ -525,7 +575,89 @@ export async function applyStripeCheckoutCompleted(input: {
     tierId,
     amountSar: input.amountSar,
     status: "processed",
-    payloadSummary: { plan: input.plan },
+    payloadSummary: {
+      plan: input.plan,
+      stripeSubscriptionId: input.stripeSubscriptionId,
+    },
+  });
+
+  return assignment;
+}
+
+export async function applyStripeInvoicePaid(input: {
+  accountId: string;
+  plan?: string;
+  tierId?: string;
+  stripeEventId: string;
+  amountSar?: number;
+  stripeSubscriptionId?: string;
+  currentPeriodEnd?: string;
+}): Promise<AccountSubscriptionAssignment | null> {
+  if (isStripeEventProcessed(input.stripeEventId)) {
+    return getAccountAssignment(input.accountId);
+  }
+
+  const tierId = input.tierId ?? resolveTierIdForPlan(input.plan);
+  if (!input.accountId || !tierId) return null;
+
+  const existing = getAccountAssignment(input.accountId);
+  const assignment: AccountSubscriptionAssignment = {
+    tierId,
+    status: "active",
+    startedAt: existing?.startedAt ?? new Date().toISOString(),
+    expiresAt: input.currentPeriodEnd ?? existing?.expiresAt,
+    source: "billing",
+    stripeSubscriptionId: input.stripeSubscriptionId ?? existing?.stripeSubscriptionId,
+    checkoutPlanId: input.plan ?? existing?.checkoutPlanId,
+  };
+
+  await setAccountAssignment(input.accountId, assignment);
+  await recordStripePaymentEvent({
+    stripeEventId: input.stripeEventId,
+    type: "invoice.paid",
+    accountId: input.accountId,
+    tierId,
+    amountSar: input.amountSar,
+    status: "processed",
+    payloadSummary: {
+      plan: input.plan,
+      stripeSubscriptionId: input.stripeSubscriptionId,
+      renewal: true,
+    },
+  });
+
+  return assignment;
+}
+
+export async function applyStripeSubscriptionUpdated(input: {
+  accountId: string;
+  stripeEventId: string;
+  status: "active" | "cancelled" | "past_due" | "expired";
+  currentPeriodEnd?: string;
+  stripeSubscriptionId?: string;
+}): Promise<AccountSubscriptionAssignment | null> {
+  if (isStripeEventProcessed(input.stripeEventId)) {
+    return getAccountAssignment(input.accountId);
+  }
+
+  const existing = getAccountAssignment(input.accountId);
+  if (!existing) return null;
+
+  const assignment: AccountSubscriptionAssignment = {
+    ...existing,
+    status: input.status === "past_due" ? "active" : input.status,
+    expiresAt: input.currentPeriodEnd ?? existing.expiresAt,
+    stripeSubscriptionId: input.stripeSubscriptionId ?? existing.stripeSubscriptionId,
+  };
+
+  await setAccountAssignment(input.accountId, assignment);
+  await recordStripePaymentEvent({
+    stripeEventId: input.stripeEventId,
+    type: "customer.subscription.updated",
+    accountId: input.accountId,
+    tierId: existing.tierId,
+    status: "processed",
+    payloadSummary: { subscriptionStatus: input.status },
   });
 
   return assignment;
@@ -535,6 +667,8 @@ export async function applyStripeSubscriptionCancelled(
   accountId: string,
   stripeEventId: string
 ): Promise<void> {
+  if (isStripeEventProcessed(stripeEventId)) return;
+
   const existing = getAccountAssignment(accountId);
   if (!existing) return;
 

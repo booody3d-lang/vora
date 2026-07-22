@@ -2,26 +2,31 @@
 
 import { useState } from "react";
 import type { PlanDefinition } from "@/types/billing";
-import { PLANS } from "@/types/billing";
 import { formatSar } from "@/lib/billing/engine";
-import { isStripeConfigured } from "@/lib/billing/stripe";
 import { useLocale } from "@/providers/LocaleProvider";
 import { useTranslations } from "@/i18n/use-translations";
 import { cn } from "@/lib/utils";
 
 interface PlanSelectorProps {
+  plans: PlanDefinition[];
   currentPlan?: string;
   target?: "individual" | "company";
+  stripeConfigured?: boolean;
 }
 
-export function PlanSelector({ currentPlan = "free", target = "individual" }: PlanSelectorProps) {
+export function PlanSelector({
+  plans,
+  currentPlan = "free",
+  target = "individual",
+  stripeConfigured = false,
+}: PlanSelectorProps) {
   const { locale } = useLocale();
   const { t } = useTranslations();
   const [loading, setLoading] = useState<string | null>(null);
 
-  const plans = PLANS.filter(
-    (p) => p.target === target || (target === "individual" && p.id === "free")
-  ).filter((p) => target === "company" ? p.target === "company" : p.target === "individual");
+  const visiblePlans = plans.filter((plan) =>
+    target === "company" ? plan.target === "company" : plan.target === "individual"
+  );
 
   async function handleSubscribe(plan: PlanDefinition) {
     if (plan.priceSar === 0) return;
@@ -31,21 +36,21 @@ export function PlanSelector({ currentPlan = "free", target = "individual" }: Pl
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan: plan.id,
-          accountId: "demo-user-1",
-        }),
+        credentials: "include",
+        body: JSON.stringify({ plan: plan.id }),
       });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
-      } else if (!isStripeConfigured()) {
+      } else if (!stripeConfigured) {
         alert(
           t("billing.plans.stripeDemo").replace(
             "{plan}",
             locale === "ar" ? plan.nameAr : plan.nameEn
           )
         );
+      } else {
+        alert(data.error ?? t("billing.plans.paymentFailed"));
       }
     } catch {
       alert(t("billing.plans.paymentFailed"));
@@ -54,11 +59,16 @@ export function PlanSelector({ currentPlan = "free", target = "individual" }: Pl
     }
   }
 
+  if (!visiblePlans.length) {
+    return <p className="text-sm text-slate-500">{t("common.loading")}</p>;
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {plans.map((plan) => {
+      {visiblePlans.map((plan) => {
         const isCurrent = currentPlan === plan.id;
         const features = locale === "ar" ? plan.featuresAr : plan.features;
+        const canSubscribe = plan.priceSar > 0 && Boolean(plan.stripePriceId);
 
         return (
           <div
@@ -92,21 +102,21 @@ export function PlanSelector({ currentPlan = "free", target = "individual" }: Pl
               )}
             </p>
             <ul className="mt-4 space-y-2">
-              {features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-slate-600">
-                  <span className="text-emerald-500">✓</span> {f}
+              {features.map((feature) => (
+                <li key={feature} className="flex items-start gap-2 text-sm text-slate-600">
+                  <span className="text-emerald-500">✓</span> {feature}
                 </li>
               ))}
             </ul>
             <button
               type="button"
               onClick={() => handleSubscribe(plan)}
-              disabled={isCurrent || plan.priceSar === 0 || loading === plan.id}
+              disabled={isCurrent || !canSubscribe || loading === plan.id}
               className={cn(
                 "mt-6 w-full rounded-xl py-2.5 text-sm font-semibold transition-opacity",
                 isCurrent
                   ? "bg-emerald-100 text-emerald-700"
-                  : plan.priceSar === 0
+                  : !canSubscribe
                     ? "bg-slate-100 text-slate-400"
                     : "bg-[#EA580C] text-white hover:opacity-90 disabled:opacity-50"
               )}
@@ -117,7 +127,9 @@ export function PlanSelector({ currentPlan = "free", target = "individual" }: Pl
                   ? t("billing.plans.currentPlan")
                   : plan.priceSar === 0
                     ? t("billing.plans.active")
-                    : t("billing.plans.subscribe")}
+                    : !canSubscribe
+                      ? t("billing.plans.paymentFailed")
+                      : t("billing.plans.subscribe")}
             </button>
           </div>
         );

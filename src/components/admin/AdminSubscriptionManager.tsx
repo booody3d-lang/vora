@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { SubscriptionFeature, SubscriptionTier } from "@/types/subscription";
+import { checkoutPlansForTier } from "@/lib/billing/plan-catalog";
 import { useTranslations } from "@/i18n/use-translations";
 
 export function AdminSubscriptionManager() {
@@ -220,6 +221,14 @@ export function AdminSubscriptionManager() {
                   <p className="text-xs text-slate-400">
                     {tier.audience} · {tier.billingCycle} · {tier.priceSar} SAR
                   </p>
+                  {checkoutPlansForTier(tier.id).length > 0 && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Stripe:{" "}
+                      {checkoutPlansForTier(tier.id)
+                        .map((planId) => `${planId}=${tier.stripePriceIds?.[planId] ?? tier.stripePriceId ?? "—"}`)
+                        .join(" · ")}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
@@ -268,6 +277,19 @@ function TierEditor({
   saving: boolean;
   parseFeatures: (text: string) => SubscriptionFeature[];
 }) {
+  const { t } = useTranslations();
+  const linkedPlans = tier.id ? checkoutPlansForTier(tier.id) : [];
+
+  function updateStripePriceId(planId: string, value: string) {
+    onChange({
+      ...tier,
+      stripePriceIds: {
+        ...(tier.stripePriceIds ?? {}),
+        [planId]: value,
+      },
+    });
+  }
+
   return (
     <div className="grid gap-3 md:grid-cols-2">
       <input
@@ -325,6 +347,22 @@ function TierEditor({
         rows={5}
         className="md:col-span-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
       />
+      {linkedPlans.length > 0 && (
+        <div className="md:col-span-2 space-y-2 rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            {t("admin.subscriptions.stripePriceIds")}
+          </p>
+          {linkedPlans.map((planId) => (
+            <input
+              key={planId}
+              value={tier.stripePriceIds?.[planId] ?? tier.stripePriceId ?? ""}
+              onChange={(e) => updateStripePriceId(planId, e.target.value)}
+              placeholder={`${planId} · ${t("admin.subscriptions.stripePriceIdPlaceholder")}`}
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+            />
+          ))}
+        </div>
+      )}
       <div className="md:col-span-2 flex gap-2">
         <button
           type="button"
