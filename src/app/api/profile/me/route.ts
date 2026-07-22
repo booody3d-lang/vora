@@ -215,11 +215,16 @@ export async function PATCH(request: Request) {
           buildTriggerNotification({
             trigger: "password_reset",
             title: "Password Reset Request",
+            titleAr: "طلب إعادة تعيين كلمة المرور",
             body: `Your VORA password reset code is ${code}.`,
+            bodyAr: `رمز إعادة تعيين كلمة المرور في VORA: ${code}.`,
             href: "/auth/reset-password",
             channels: channel === "sms" ? ["in_app"] : ["email", "in_app"],
           }),
-          { recipientEmail: channel === "email" ? account.email : undefined }
+          {
+            recipientEmail: channel === "email" ? account.email : undefined,
+            accountId: account.id,
+          }
         );
 
         return NextResponse.json({

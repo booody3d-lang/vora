@@ -59,9 +59,11 @@ export async function POST(request: Request) {
         buildTriggerNotification({
           trigger: "password_reset",
           title: "Password Reset Request",
+          titleAr: "طلب إعادة تعيين كلمة المرور",
           body: "Use the secure link sent to your email to reset your VORA password.",
+          bodyAr: "استخدم الرابط الآمن المرسل إلى بريدك لإعادة تعيين كلمة مرور VORA.",
           href: "/auth/forgot-password",
-          channels: ["in_app"],
+          channels: ["email", "in_app"],
         }),
         { recipientEmail: identifier }
       );
@@ -99,15 +101,21 @@ export async function POST(request: Request) {
       buildTriggerNotification({
         trigger: "password_reset",
         title: "Password Reset Request",
+        titleAr: "طلب إعادة تعيين كلمة المرور",
         body:
           preferredChannel === "sms"
             ? `Your VORA password reset code is ${code}. It expires in 30 minutes.`
             : "Use the password reset page after verifying your recovery code.",
+        bodyAr:
+          preferredChannel === "sms"
+            ? `رمز إعادة تعيين كلمة المرور في VORA: ${code}. ينتهي خلال 30 دقيقة.`
+            : "استخدم صفحة إعادة تعيين كلمة المرور بعد التحقق من رمز الاسترداد.",
         href: "/auth/reset-password",
         channels: preferredChannel === "sms" ? ["in_app"] : ["email", "in_app"],
       }),
       {
         recipientEmail: preferredChannel === "email" ? account.email : undefined,
+        accountId: account.id,
       }
     );
 

@@ -22,6 +22,7 @@ In the Supabase SQL editor, run the files in order:
 14. `014_social_messaging_rls.sql` — conversation insert/update RLS (requires `002_network_ecosystem.sql`)
 15. `015_subscription_ecosystem.sql` — subscription tiers, assignments, Stripe mappings, payment events (auto-migrates from JSON store when service role is configured)
 16. `016_subscription_stripe_phase4b.sql` — Stripe Price ID map per tier + subscription linkage on assignments
+17. `017_email_delivery_log.sql` — email delivery audit log for Resend/console transport
 
 ## 2. Quick bootstrap (empty project)
 
@@ -63,4 +64,5 @@ Password reset emails use:
 ## 5. Email
 
 Supabase can send auth emails (signup confirm, password reset) using its built-in mailer.
-For product emails (notifications, alerts), configure `RESEND_API_KEY` later — the app already routes through `src/lib/email/send.ts`.
+For product emails (notifications, alerts), configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL`.
+The app routes through `src/lib/email/send.ts` with automatic console fallback when keys are absent.

@@ -47,33 +47,11 @@ export async function dispatchNotification(
     emitNotification(enriched);
   }
 
-  if (channels.includes("email")) {
-    await sendEmailNotification(enriched);
-  }
-
   if (channels.includes("push")) {
     await sendPushNotification(enriched);
   }
 
   return enriched;
-}
-
-async function sendEmailNotification(notification: NotificationPayload): Promise<void> {
-  try {
-    await fetch("/api/notifications/email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: "user@vora.sa",
-        subject: notification.title,
-        body: notification.body,
-        trigger: notification.trigger,
-      }),
-    });
-  } catch {
-    // Demo mode — email queued locally
-    console.info("[VORA Email]", notification.title);
-  }
 }
 
 async function sendPushNotification(notification: NotificationPayload): Promise<void> {

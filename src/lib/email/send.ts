@@ -1,44 +1,107 @@
 import "server-only";
 
-import { SITE_URL } from "@/i18n/config";
+import {
+  getEmailProviderLabel,
+  isEmailConsoleMode,
+  resolveActiveEmailProvider,
+} from "@/lib/email/email-provider";
+import { persistEmailDeliveryLog } from "@/lib/email/email-log-supabase";
+import { sendViaResend } from "@/lib/email/resend-client";
+import { isValidEmailAddress, resolveResendReplyTo } from "@/lib/email/config";
+import type { SendEmailInput, SendEmailResult } from "@/lib/email/types";
 
-export interface SendEmailInput {
-  to: string;
-  subject: string;
-  html: string;
-  text?: string;
-  trigger?: string;
+function createLogId(): string {
+  return `eml-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export interface SendEmailResult {
-  queued: boolean;
-  provider: "console" | "resend";
-  previewUrl?: string;
+async function recordDelivery(
+  input: SendEmailInput,
+  result: SendEmailResult
+): Promise<void> {
+  await persistEmailDeliveryLog({
+    id: createLogId(),
+    toEmail: input.to,
+    subject: input.subject,
+    trigger: input.trigger,
+    provider: result.provider,
+    status: result.skipped ? "skipped" : result.sent ? "sent" : result.error ? "failed" : "queued",
+    messageId: result.messageId,
+    errorMessage: result.error ?? result.skipReason,
+    payloadSummary: {
+      locale: input.locale,
+      providerLabel: getEmailProviderLabel(result.provider),
+    },
+    createdAt: new Date().toISOString(),
+  });
 }
 
 /**
- * Email transport foundation. Uses console logging until RESEND_API_KEY is configured.
+ * Unified email transport — Resend when configured, otherwise safe console fallback.
  */
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
-  const resendKey = process.env.RESEND_API_KEY?.trim();
-
-  if (resendKey) {
-    // Provider hook — wire Resend (or another ESP) in a later phase without changing callers.
-    console.info("[email] RESEND_API_KEY is set but provider integration is pending", {
-      to: input.to,
-      subject: input.subject,
-      trigger: input.trigger,
-      site: SITE_URL,
-    });
-    return { queued: true, provider: "resend" };
+  const to = input.to?.trim();
+  if (!to || !isValidEmailAddress(to)) {
+    const result: SendEmailResult = {
+      queued: false,
+      sent: false,
+      provider: resolveActiveEmailProvider(),
+      skipped: true,
+      skipReason: "invalid-recipient",
+    };
+    await recordDelivery({ ...input, to: to ?? "" }, result);
+    return result;
   }
 
-  console.info("[email] queued (console transport)", {
-    to: input.to,
-    subject: input.subject,
-    trigger: input.trigger,
-    preview: input.text ?? input.html.slice(0, 160),
+  if (isEmailConsoleMode()) {
+    console.info("[email] console transport", {
+      to,
+      subject: input.subject,
+      trigger: input.trigger,
+      locale: input.locale,
+      preview: input.text ?? input.html.slice(0, 180),
+    });
+
+    const result: SendEmailResult = {
+      queued: true,
+      sent: false,
+      provider: "console",
+    };
+    await recordDelivery(input, result);
+    return result;
+  }
+
+  const resendResult = await sendViaResend({
+    ...input,
+    to,
+    replyTo: input.replyTo ?? resolveResendReplyTo(),
   });
 
-  return { queued: true, provider: "console" };
+  if (!resendResult.ok) {
+    console.error("[email] Resend failed", {
+      to,
+      subject: input.subject,
+      trigger: input.trigger,
+      error: resendResult.error,
+    });
+
+    const result: SendEmailResult = {
+      queued: false,
+      sent: false,
+      provider: "resend",
+      error: resendResult.error,
+    };
+    await recordDelivery(input, result);
+    return result;
+  }
+
+  const result: SendEmailResult = {
+    queued: true,
+    sent: true,
+    provider: "resend",
+    messageId: resendResult.messageId,
+  };
+  await recordDelivery(input, result);
+  return result;
 }
+
+export type { SendEmailInput, SendEmailResult } from "@/lib/email/types";
