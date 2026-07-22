@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   const type = searchParams.get("type") as SearchResultType | null;
   const limit = Number(searchParams.get("limit") ?? "12");
 
-  const results = searchIndex(q, {
+  const results = await searchIndex(q, {
     type: type ?? undefined,
     limit: Number.isFinite(limit) ? limit : 12,
   });

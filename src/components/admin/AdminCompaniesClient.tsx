@@ -1,25 +1,81 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { useTranslations } from "@/i18n/use-translations";
-import {
-  ADMIN_JOB_POSTINGS,
-  ADMIN_MODERATION_COMPANIES,
-  ADMIN_PLATFORM_OVERVIEW,
-} from "@/lib/admin/mock-data";
-import { getAtsUrl } from "@/lib/company/mock-data";
+import type { AdminJobPosting, ModerationCompany } from "@/types/admin";
+
+interface AdminCompanyOverview {
+  totalCompanies: number;
+  activeJobVacancies: number;
+  pendingVerification: number;
+  expiredSubscriptions: number;
+}
+
+interface AdminCompaniesResponse {
+  overview: AdminCompanyOverview;
+  companies: ModerationCompany[];
+  jobs: AdminJobPosting[];
+  persistence: "supabase" | "demo";
+}
 
 export function AdminCompaniesClient() {
   const { t } = useTranslations();
-  const overview = ADMIN_PLATFORM_OVERVIEW;
+  const [data, setData] = useState<AdminCompaniesResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const response = await fetch("/api/admin/companies");
+        if (!response.ok) {
+          throw new Error(`Failed to load admin companies (${response.status})`);
+        }
+        const payload = (await response.json()) as AdminCompaniesResponse;
+        if (!cancelled) setData(payload);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Failed to load");
+        }
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const statusLabels: Record<string, string> = {
     active: t("admin.companies.statusActive"),
     paused: t("admin.companies.statusPaused"),
     expired: t("admin.companies.statusExpired"),
   };
-  const pendingLicense = ADMIN_MODERATION_COMPANIES.filter((c) => !c.licenseVerified).length;
-  const expiredSubs = ADMIN_MODERATION_COMPANIES.filter((c) => c.subscriptionStatus === "expired").length;
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-red-300">
+        {error}
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-2xl font-bold text-white">{t("admin.companies.title")}</h1>
+          <p className="text-sm text-slate-400">{t("admin.companies.subtitle")}</p>
+        </div>
+        <p className="text-sm text-slate-500">{t("common.loading") ?? "Loading..."}</p>
+      </div>
+    );
+  }
+
+  const { overview, companies, jobs } = data;
 
   return (
     <div className="space-y-8">
@@ -31,24 +87,22 @@ export function AdminCompaniesClient() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label={t("admin.companies.registeredCompanies")}
-          value={overview.totalCompanies.value.toLocaleString()}
-          growthPercent={overview.totalCompanies.growthPercent}
+          value={overview.totalCompanies.toLocaleString()}
           accent="blue"
         />
         <MetricCard
           label={t("admin.companies.activeJobs")}
-          value={overview.activeJobVacancies.value.toLocaleString()}
-          growthPercent={overview.activeJobVacancies.growthPercent}
+          value={overview.activeJobVacancies.toLocaleString()}
           accent="emerald"
         />
         <MetricCard
           label={t("admin.companies.pendingVerification")}
-          value={String(pendingLicense)}
+          value={String(overview.pendingVerification)}
           accent="amber"
         />
         <MetricCard
           label={t("admin.companies.expiredSubscriptions")}
-          value={String(expiredSubs)}
+          value={String(overview.expiredSubscriptions)}
           accent="orange"
         />
       </div>
@@ -70,7 +124,7 @@ export function AdminCompaniesClient() {
               </tr>
             </thead>
             <tbody>
-              {ADMIN_JOB_POSTINGS.map((job) => (
+              {jobs.map((job) => (
                 <tr key={job.id} className="border-b border-slate-800">
                   <td className="px-5 py-4">
                     <p className="font-medium text-white">{job.title}</p>
@@ -88,7 +142,7 @@ export function AdminCompaniesClient() {
                   </td>
                   <td className="px-5 py-4">
                     <Link
-                      href={getAtsUrl(job.id)}
+                      href={`/company/dashboard/ats/${job.id}`}
                       className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:border-slate-500"
                     >
                       {t("admin.companies.viewAts")}
@@ -106,7 +160,7 @@ export function AdminCompaniesClient() {
           {t("admin.companies.companyDirectory")}
         </h2>
         <div className="space-y-3">
-          {ADMIN_MODERATION_COMPANIES.map((co) => (
+          {companies.map((co) => (
             <div
               key={co.id}
               className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-700/50 bg-[#111827] p-5"

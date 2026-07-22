@@ -1,8 +1,8 @@
 import "server-only";
 
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
-import { DEMO_COMPANY, DEMO_JOBS as COMPANY_JOBS } from "@/lib/company/mock-data";
-import { getCompanyBySlugSync } from "@/lib/company/company-store";
+import { listAllCompanies } from "@/lib/admin/admin-companies-store";
+import { listActivePublicJobListings } from "@/lib/company/jobs-store";
 import { DEMO_JOBS, DEMO_PROFILES } from "@/lib/network/mock-data";
 import {
   getProfileByAccountId,
@@ -79,9 +79,24 @@ function collectProfiles(): SearchIndexEntry[] {
   return entries;
 }
 
-function collectJobs(): SearchIndexEntry[] {
+async function collectJobs(): Promise<SearchIndexEntry[]> {
   const entries: SearchIndexEntry[] = [];
   const seen = new Set<string>();
+
+  const liveJobs = await listActivePublicJobListings();
+  for (const job of liveJobs) {
+    if (seen.has(job.slug)) continue;
+    seen.add(job.slug);
+    entries.push({
+      id: `job-${job.id}`,
+      type: "job",
+      slug: job.slug,
+      title: job.title,
+      subtitle: `${job.company} · ${job.location}`,
+      href: `/network/jobs/${job.slug}`,
+      keywords: [job.title, job.company, job.location, job.employmentType].join(" "),
+    });
+  }
 
   for (const job of DEMO_JOBS) {
     if (seen.has(job.slug)) continue;
@@ -97,45 +112,39 @@ function collectJobs(): SearchIndexEntry[] {
     });
   }
 
-  for (const job of COMPANY_JOBS) {
-    if (seen.has(job.slug)) continue;
-    seen.add(job.slug);
+  return entries;
+}
+
+async function collectCompanies(): Promise<SearchIndexEntry[]> {
+  const companies = await listAllCompanies();
+  const seen = new Set<string>();
+  const entries: SearchIndexEntry[] = [];
+
+  for (const company of companies) {
+    if (seen.has(company.slug)) continue;
+    seen.add(company.slug);
     entries.push({
-      id: `job-${job.id}`,
-      type: "job",
-      slug: job.slug,
-      title: job.title,
-      subtitle: `${DEMO_COMPANY.name} · ${job.location}`,
-      href: `/network/jobs/${job.slug}`,
-      keywords: [job.title, DEMO_COMPANY.name, job.location, ...(job.requiredSkills ?? [])].join(
-        " "
-      ),
+      id: `company-${company.id}`,
+      type: "company",
+      slug: company.slug,
+      title: company.name,
+      subtitle: company.tagline ?? company.industry ?? "",
+      href: `/network/company/${company.slug}`,
+      keywords: [company.name, company.tagline, company.industry, company.headquarters]
+        .filter(Boolean)
+        .join(" "),
     });
   }
 
   return entries;
 }
 
-function collectCompanies(): SearchIndexEntry[] {
-  const companies = [DEMO_COMPANY];
-  const stored = getCompanyBySlugSync(DEMO_COMPANY.slug);
-  if (stored && stored.slug !== DEMO_COMPANY.slug) companies.push(stored);
-
-  return companies.map((company) => ({
-    id: `company-${company.id}`,
-    type: "company" as const,
-    slug: company.slug,
-    title: company.name,
-    subtitle: company.tagline ?? company.industry ?? "",
-    href: `/network/company/${company.slug}`,
-    keywords: [company.name, company.tagline, company.industry, company.headquarters]
-      .filter(Boolean)
-      .join(" "),
-  }));
-}
-
-export function rebuildSearchIndex(): SearchIndexFile {
-  const entries = [...collectProfiles(), ...collectJobs(), ...collectCompanies()];
+export async function rebuildSearchIndex(): Promise<SearchIndexFile> {
+  const entries = [
+    ...collectProfiles(),
+    ...(await collectJobs()),
+    ...(await collectCompanies()),
+  ];
   const index: SearchIndexFile = {
     entries,
     tokenIndex: buildTokenIndex(entries),
@@ -145,7 +154,7 @@ export function rebuildSearchIndex(): SearchIndexFile {
   return index;
 }
 
-function readIndex(): SearchIndexFile {
+async function readIndex(): Promise<SearchIndexFile> {
   const index = readJsonStore<SearchIndexFile>(INDEX_FILE, () => ({
     entries: [],
     tokenIndex: {},
@@ -156,11 +165,11 @@ function readIndex(): SearchIndexFile {
   return index;
 }
 
-export function searchIndex(
+export async function searchIndex(
   query: string,
   options?: { type?: SearchResultType; limit?: number }
-): SearchIndexEntry[] {
-  const index = readIndex();
+): Promise<SearchIndexEntry[]> {
+  const index = await readIndex();
   const limit = options?.limit ?? 12;
   const trimmed = query.trim().toLowerCase();
 

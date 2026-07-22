@@ -8,7 +8,7 @@ export async function POST() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const index = rebuildSearchIndex();
+  const index = await rebuildSearchIndex();
   return NextResponse.json({
     ok: true,
     count: index.entries.length,
