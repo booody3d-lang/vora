@@ -11,14 +11,19 @@ import {
 import {
   createWithdrawalRequestInSupabase,
   ensureWalletInSupabase,
-  getWalletSummaryFromSupabase,
+  getAdminFinanceMetricsFromSupabase,
   insertInvoiceInSupabase,
+  isValidBillingUuid,
+  listAdminFinanceTransactionsFromSupabase,
   listAllWithdrawalsFromSupabase,
   listInvoicesFromSupabase,
   listWalletTransactionsFromSupabase,
   loadInvoiceFromSupabase,
   loadWalletFromSupabase,
   processOrderCompletionInSupabase,
+  processOrderEscrowPaymentInSupabase,
+  reviewWithdrawalRequestInSupabase,
+  type AdminFinanceMetrics,
 } from "@/lib/billing/billing-supabase";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
@@ -28,7 +33,9 @@ import {
   runOptionalDbSync,
   runOptionalDbSyncVoid,
 } from "@/lib/supabase/safe-db";
-import type { Invoice, TriWallet, WalletTransaction, WithdrawalRequest } from "@/types/billing";
+import { ADMIN_FINANCIAL_SUMMARY, ADMIN_RECENT_TRANSACTIONS } from "@/lib/admin/mock-data";
+import type { AdminTransaction } from "@/types/admin";
+import type { Invoice, TriWallet, WalletTransaction, WithdrawalRequest, WithdrawalStatus } from "@/types/billing";
 
 let walletTableProbed = false;
 let walletTableAvailable = false;
@@ -194,7 +201,11 @@ export async function completeOrderEscrow(
   sellerId: string,
   total: number
 ): Promise<{ total: number; commission: number; netEarnings: number }> {
-  if (!(await isWalletSupabaseReady())) {
+  if (
+    !(await isWalletSupabaseReady()) ||
+    !isValidBillingUuid(sellerId) ||
+    !isValidBillingUuid(orderId)
+  ) {
     const commission = Math.round(total * 0.1 * 100) / 100;
     return {
       total,
@@ -214,6 +225,48 @@ export async function completeOrderEscrow(
   );
 }
 
+export async function lockOrderEscrowPayment(
+  orderId: string,
+  sellerId: string,
+  buyerId: string,
+  total: number,
+  description?: string
+): Promise<{ duplicate: boolean; total: number }> {
+  if (!(await isWalletSupabaseReady())) {
+    return { duplicate: false, total };
+  }
+
+  if (!isValidBillingUuid(sellerId) || !isValidBillingUuid(buyerId)) {
+    return { duplicate: false, total };
+  }
+
+  return runOptionalDbSync(
+    "lockOrderEscrowPayment",
+    () => processOrderEscrowPaymentInSupabase(orderId, sellerId, buyerId, total, description),
+    { duplicate: false, total }
+  );
+}
+
+export async function reviewWithdrawalRequest(
+  withdrawalId: string,
+  status: Extract<WithdrawalStatus, "approved" | "rejected" | "completed">,
+  reviewedBy: string,
+  adminNotes?: string
+): Promise<WithdrawalRequest> {
+  const demoFallback = DEMO_WITHDRAWALS.find((item) => item.id === withdrawalId);
+
+  if (!(await isWalletSupabaseReady()) || !isValidBillingUuid(withdrawalId)) {
+    if (!demoFallback) throw new Error("Withdrawal not found");
+    return { ...demoFallback, status };
+  }
+
+  return runOptionalDbSync(
+    "reviewWithdrawalRequest",
+    () => reviewWithdrawalRequestInSupabase(withdrawalId, status, reviewedBy, adminNotes),
+    demoFallback ? { ...demoFallback, status } : { id: withdrawalId, amount: 0, iban: "", bankName: "", accountHolder: "", status, createdAt: new Date().toISOString() }
+  );
+}
+
 export async function listAdminWithdrawals(limit = 100): Promise<WithdrawalRequest[]> {
   if (!(await isWalletSupabaseReady())) {
     return DEMO_WITHDRAWALS;
@@ -226,30 +279,47 @@ export async function listAdminWithdrawals(limit = 100): Promise<WithdrawalReque
   );
 }
 
-export async function getAdminFinanceSummary(): Promise<{
-  totalPending: number;
-  totalAvailable: number;
-  totalWithdrawn: number;
-  pendingWithdrawals: number;
-}> {
+export async function getAdminFinanceSummary(): Promise<AdminFinanceMetrics> {
   if (!(await isWalletSupabaseReady())) {
     return {
-      totalPending: DEMO_WALLET.pendingBalance,
-      totalAvailable: DEMO_WALLET.availableBalance,
+      grossPlatformRevenue: ADMIN_FINANCIAL_SUMMARY.grossPlatformRevenue,
+      netSubscriptionRevenue: ADMIN_FINANCIAL_SUMMARY.netSubscriptionRevenue,
+      netCommissionRevenue: ADMIN_FINANCIAL_SUMMARY.netCommissionRevenue,
+      activeEscrowLiquidity: ADMIN_FINANCIAL_SUMMARY.activeEscrowLiquidity,
+      totalEscrow: DEMO_WALLET.pendingBalance,
+      availablePayouts: DEMO_WALLET.availableBalance,
       totalWithdrawn: DEMO_WALLET.withdrawnTotal,
       pendingWithdrawals: DEMO_WITHDRAWALS.reduce((sum, wd) => sum + wd.amount, 0),
+      revenueGrowthPercent: ADMIN_FINANCIAL_SUMMARY.revenueGrowthPercent,
     };
   }
 
   return runOptionalDbSync(
     "getAdminFinanceSummary",
-    () => getWalletSummaryFromSupabase(),
+    () => getAdminFinanceMetricsFromSupabase(),
     {
-      totalPending: DEMO_WALLET.pendingBalance,
-      totalAvailable: DEMO_WALLET.availableBalance,
+      grossPlatformRevenue: ADMIN_FINANCIAL_SUMMARY.grossPlatformRevenue,
+      netSubscriptionRevenue: ADMIN_FINANCIAL_SUMMARY.netSubscriptionRevenue,
+      netCommissionRevenue: ADMIN_FINANCIAL_SUMMARY.netCommissionRevenue,
+      activeEscrowLiquidity: ADMIN_FINANCIAL_SUMMARY.activeEscrowLiquidity,
+      totalEscrow: DEMO_WALLET.pendingBalance,
+      availablePayouts: DEMO_WALLET.availableBalance,
       totalWithdrawn: DEMO_WALLET.withdrawnTotal,
       pendingWithdrawals: DEMO_WITHDRAWALS.reduce((sum, wd) => sum + wd.amount, 0),
+      revenueGrowthPercent: ADMIN_FINANCIAL_SUMMARY.revenueGrowthPercent,
     }
+  );
+}
+
+export async function listAdminFinanceTransactions(limit = 50): Promise<AdminTransaction[]> {
+  if (!(await isWalletSupabaseReady())) {
+    return ADMIN_RECENT_TRANSACTIONS;
+  }
+
+  return runOptionalDbSync(
+    "listAdminFinanceTransactions",
+    () => listAdminFinanceTransactionsFromSupabase(limit),
+    ADMIN_RECENT_TRANSACTIONS
   );
 }
 

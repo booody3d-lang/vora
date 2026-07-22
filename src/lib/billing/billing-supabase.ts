@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { AdminTransaction } from "@/types/admin";
 import type {
   Invoice,
   InvoiceLineItem,
@@ -62,6 +63,82 @@ interface DbWithdrawalRow {
   account_holder: string;
   status: WithdrawalStatus;
   created_at: string;
+}
+
+interface DbAccountNameRow {
+  full_name: string | null;
+  email: string | null;
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isValidBillingUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
+export interface AdminFinanceMetrics {
+  grossPlatformRevenue: number;
+  netSubscriptionRevenue: number;
+  netCommissionRevenue: number;
+  activeEscrowLiquidity: number;
+  totalEscrow: number;
+  availablePayouts: number;
+  totalWithdrawn: number;
+  pendingWithdrawals: number;
+  revenueGrowthPercent: number;
+}
+
+function mapWalletTxTypeToAdminType(type: TransactionType): AdminTransaction["type"] {
+  switch (type) {
+    case "subscription_payment":
+      return "subscription";
+    case "platform_commission":
+      return "commission";
+    case "order_release":
+    case "order_escrow":
+      return "escrow_release";
+    case "withdrawal":
+    case "withdrawal_completed":
+      return "withdrawal";
+    case "refund":
+      return "refund";
+    default:
+      return "escrow_release";
+  }
+}
+
+function mapWalletTxTypeToAdminStatus(type: TransactionType): AdminTransaction["status"] {
+  if (type === "order_escrow" || type === "withdrawal") return "pending";
+  if (type === "order_release") return "processing";
+  return "completed";
+}
+
+function resolveAdminTransactionReference(row: DbTransactionRow): string {
+  const metadata = row.metadata as { withdrawal_id?: string; demo_order_id?: string } | null;
+  if (row.order_id) return row.order_id.slice(0, 8).toUpperCase();
+  if (metadata?.demo_order_id) return metadata.demo_order_id;
+  if (metadata?.withdrawal_id) return metadata.withdrawal_id.slice(0, 8).toUpperCase();
+  return row.id.slice(0, 8).toUpperCase();
+}
+
+export function mapWalletTransactionRowToAdminTransaction(
+  row: DbTransactionRow & {
+    accounts?: DbAccountNameRow | DbAccountNameRow[] | null;
+  }
+): AdminTransaction {
+  const account = Array.isArray(row.accounts) ? row.accounts[0] : row.accounts;
+  const party = account?.full_name?.trim() || account?.email || row.account_id.slice(0, 8);
+
+  return {
+    id: row.id,
+    type: mapWalletTxTypeToAdminType(row.type),
+    reference: resolveAdminTransactionReference(row),
+    party,
+    amount: Number(row.amount),
+    status: mapWalletTxTypeToAdminStatus(row.type),
+    createdAt: row.created_at,
+  };
 }
 
 export function mapDbWalletToTriWallet(row: DbWalletRow): TriWallet {
@@ -344,4 +421,185 @@ export async function getWalletSummaryFromSupabase(): Promise<{
   );
 
   return { totalPending, totalAvailable, totalWithdrawn, pendingWithdrawals };
+}
+
+async function processOrderEscrowPaymentManual(
+  orderRef: string,
+  sellerId: string,
+  buyerId: string,
+  total: number,
+  description: string
+): Promise<{ duplicate: boolean; total: number }> {
+  const admin = createAdminClient();
+
+  const { data: existing } = await admin
+    .from("wallet_transactions")
+    .select("id")
+    .eq("account_id", sellerId)
+    .eq("type", "order_escrow")
+    .contains("metadata", { demo_order_id: orderRef })
+    .maybeSingle();
+
+  if (existing) {
+    return { duplicate: true, total };
+  }
+
+  await ensureWalletInSupabase(sellerId);
+
+  const wallet = await loadWalletFromSupabase(sellerId);
+  if (!wallet) throw new Error("Seller wallet unavailable");
+
+  const { error: walletError } = await admin
+    .from("user_wallets")
+    .update({
+      pending_balance: wallet.pendingBalance + total,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("account_id", sellerId);
+  if (walletError) throw walletError;
+
+  const { error: txError } = await admin.from("wallet_transactions").insert({
+    account_id: sellerId,
+    type: "order_escrow",
+    ledger: "pending",
+    amount: total,
+    order_id: null,
+    description,
+    metadata: {
+      buyer_id: buyerId,
+      demo_order_id: orderRef,
+      description_ar: "دفع الطلب — escrow",
+    },
+  });
+  if (txError) throw txError;
+
+  if (isValidBillingUuid(buyerId)) {
+    await admin.from("payment_records").insert({
+      account_id: buyerId,
+      amount: total,
+      order_id: null,
+      status: "completed",
+    });
+  }
+
+  return { duplicate: false, total };
+}
+
+export async function processOrderEscrowPaymentInSupabase(
+  orderId: string,
+  sellerId: string,
+  buyerId: string,
+  total: number,
+  description?: string
+): Promise<{ duplicate: boolean; total: number }> {
+  const label = description ?? `Order escrow payment — ${orderId}`;
+
+  if (!isValidBillingUuid(orderId)) {
+    return processOrderEscrowPaymentManual(orderId, sellerId, buyerId, total, label);
+  }
+
+  if (!isValidBillingUuid(sellerId) || !isValidBillingUuid(buyerId)) {
+    return processOrderEscrowPaymentManual(orderId, sellerId, buyerId, total, label);
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("process_order_escrow_payment", {
+    p_order_id: orderId,
+    p_seller_id: sellerId,
+    p_buyer_id: buyerId,
+    p_total: total,
+    p_description: label,
+  });
+  if (error) throw error;
+
+  const result = data as { duplicate?: boolean; total?: number };
+  return {
+    duplicate: Boolean(result.duplicate),
+    total: Number(result.total ?? total),
+  };
+}
+
+export async function reviewWithdrawalRequestInSupabase(
+  withdrawalId: string,
+  status: Extract<WithdrawalStatus, "approved" | "rejected" | "completed">,
+  reviewedBy: string,
+  adminNotes?: string
+): Promise<WithdrawalRequest> {
+  if (!isValidBillingUuid(withdrawalId)) {
+    throw new Error("Invalid withdrawal id");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("review_withdrawal_request", {
+    p_withdrawal_id: withdrawalId,
+    p_status: status,
+    p_reviewed_by: reviewedBy,
+    p_admin_notes: adminNotes ?? null,
+  });
+  if (error) throw error;
+
+  const { data, error: loadError } = await admin
+    .from("withdrawal_requests")
+    .select("*")
+    .eq("id", withdrawalId)
+    .single();
+  if (loadError) throw loadError;
+
+  return mapDbWithdrawalToWithdrawalRequest(data as DbWithdrawalRow);
+}
+
+export async function listAdminFinanceTransactionsFromSupabase(
+  limit = 50
+): Promise<AdminTransaction[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("wallet_transactions")
+    .select("*, accounts(full_name, email)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+
+  return ((data ?? []) as Array<
+    DbTransactionRow & { accounts?: DbAccountNameRow | DbAccountNameRow[] | null }
+  >).map(mapWalletTransactionRowToAdminTransaction);
+}
+
+export async function getAdminFinanceMetricsFromSupabase(): Promise<AdminFinanceMetrics> {
+  const admin = createAdminClient();
+
+  const [
+    walletSummary,
+    { data: invoiceRows, error: invoiceError },
+    { data: commissionRows, error: commissionError },
+  ] = await Promise.all([
+    getWalletSummaryFromSupabase(),
+    admin.from("invoices").select("type, total"),
+    admin.from("wallet_transactions").select("amount").eq("type", "platform_commission"),
+  ]);
+
+  if (invoiceError) throw invoiceError;
+  if (commissionError) throw commissionError;
+
+  const netSubscriptionRevenue = (invoiceRows ?? [])
+    .filter((row) => row.type === "subscription")
+    .reduce((sum, row) => sum + Number(row.total), 0);
+
+  const netCommissionRevenue = (commissionRows ?? []).reduce(
+    (sum, row) => sum + Number(row.amount),
+    0
+  );
+
+  const grossPlatformRevenue = netSubscriptionRevenue + netCommissionRevenue;
+
+  return {
+    grossPlatformRevenue,
+    netSubscriptionRevenue,
+    netCommissionRevenue,
+    activeEscrowLiquidity: walletSummary.totalPending,
+    totalEscrow: walletSummary.totalPending,
+    availablePayouts: walletSummary.totalAvailable,
+    totalWithdrawn: walletSummary.totalWithdrawn,
+    pendingWithdrawals: walletSummary.pendingWithdrawals,
+    revenueGrowthPercent: 0,
+  };
 }

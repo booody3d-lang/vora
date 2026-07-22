@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FreelanceOrder, OrderMessage, OrderStatus } from "@/types/freelance";
 import { ReviewModal } from "@/components/freelance/orders/ReviewModal";
 import { CommissionBreakdown } from "@/components/billing/CommissionBreakdown";
@@ -36,6 +36,32 @@ export function OrderWorkspace({ initialOrder, initialMessages, isBuyer = true }
   const [newMessage, setNewMessage] = useState("");
   const [requirements, setRequirements] = useState(order.requirementsText ?? "");
   const [showReview, setShowReview] = useState(false);
+  const escrowSyncedRef = useRef(false);
+
+  useEffect(() => {
+    if (escrowSyncedRef.current) return;
+    if (order.escrowReleased || order.status === "completed" || order.status === "disputed") return;
+
+    escrowSyncedRef.current = true;
+    fetch(`/api/billing/orders/${order.id}/pay`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sellerId: order.sellerId,
+        total: order.totalPrice,
+        serviceTitle: order.service.title,
+        orderNumber: order.orderNumber,
+      }),
+    }).catch(() => {});
+  }, [
+    order.escrowReleased,
+    order.id,
+    order.orderNumber,
+    order.sellerId,
+    order.service.title,
+    order.status,
+    order.totalPrice,
+  ]);
 
   function addMessage(content: string, isSystem = false) {
     setMessages((prev) => [

@@ -25,6 +25,7 @@ In the Supabase SQL editor, run the files in order:
 17. `017_email_delivery_log.sql` — email delivery audit log for Resend/console transport
 18. `018_notification_preferences_phase4d.sql` — notification preferences RLS + default row bootstrap
 19. `019_billing_wallet_phase4e.sql` — wallet bootstrap on signup + admin withdrawal policies
+20. `020_billing_escrow_withdrawals_phase4e1.sql` — escrow payment RPC + withdrawal review workflow
 
 ## 2. Quick bootstrap (empty project)
 
