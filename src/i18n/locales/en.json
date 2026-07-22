@@ -650,7 +650,26 @@
       "company": "Company HR",
       "admin": "Admin",
       "owner": "Owner"
-    }
+    },
+    "forgotPasswordTitle": "Reset your password",
+    "forgotPasswordSubtitle": "Enter your email and we will send a secure reset link if the account exists.",
+    "forgotPasswordButton": "Send reset link",
+    "forgotPasswordSending": "Sending...",
+    "forgotPasswordSent": "If an account exists, a recovery link has been sent.",
+    "forgotPasswordFailed": "Could not send reset link",
+    "backToSignIn": "Back to sign in",
+    "devRecoveryLink": "Development recovery link:",
+    "openRecoveryLink": "Open link",
+    "resetPasswordTitle": "Choose a new password",
+    "resetPasswordSubtitle": "Enter and confirm your new password.",
+    "resetPasswordButton": "Update password",
+    "resetPasswordSaving": "Saving...",
+    "resetPasswordSuccess": "Password updated. Redirecting to sign in...",
+    "resetPasswordFailed": "Could not reset password",
+    "resetPasswordExpired": "This reset link is invalid or has expired. Request a new one.",
+    "resetPasswordMismatch": "Passwords do not match",
+    "confirmPassword": "Confirm password",
+    "forgotPasswordLink": "Forgot password?"
   },
   "admin": {
     "superAdmin": "VORA Super Admin",

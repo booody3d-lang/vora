@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/security/jwt";
 import { PROTECTED_ROUTE_PREFIXES } from "@/lib/security/rbac";
+import {
+  getAccessDeniedRedirect,
+  isPageAllowedForUser,
+  resolveRoleFromSupabaseUser,
+} from "@/lib/security/middleware-auth";
 import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -28,6 +33,22 @@ function copyCookies(from: NextResponse, to: NextResponse) {
   });
 }
 
+function finalizeResponse(
+  request: NextRequest,
+  sessionResponse: NextResponse,
+  isLocalePath: boolean,
+  barePath: string
+): NextResponse {
+  if (isLocalePath) {
+    const url = request.nextUrl.clone();
+    url.pathname = barePath;
+    const rewrite = NextResponse.rewrite(url);
+    copyCookies(sessionResponse, rewrite);
+    return rewrite;
+  }
+  return sessionResponse;
+}
+
 /**
  * Supabase session refresh on every matched request + locale rewrite + auth gate.
  */
@@ -52,17 +73,16 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
       }
 
-      const sessionResponse = getResponse();
-
-      if (isLocalePath) {
-        const url = request.nextUrl.clone();
-        url.pathname = barePath;
-        const rewrite = NextResponse.rewrite(url);
-        copyCookies(sessionResponse, rewrite);
-        return rewrite;
+      if (user && needsAuth && !isPageAllowedForUser(barePath, user)) {
+        const role = resolveRoleFromSupabaseUser(user);
+        const deniedUrl = request.nextUrl.clone();
+        deniedUrl.pathname = getAccessDeniedRedirect(barePath, role);
+        deniedUrl.search = "";
+        return NextResponse.redirect(deniedUrl);
       }
 
-      return sessionResponse;
+      const sessionResponse = getResponse();
+      return finalizeResponse(request, sessionResponse, isLocalePath, barePath);
     }
   }
 

@@ -13,8 +13,12 @@ export function validatePassword(password: string): PasswordValidationResult {
 }
 
 export async function hashPassword(password: string): Promise<string> {
+  const pepper = process.env.PASSWORD_PEPPER;
+  if (!pepper && process.env.NODE_ENV === "production") {
+    throw new Error("Missing PASSWORD_PEPPER");
+  }
   const encoder = new TextEncoder();
-  const data = encoder.encode(password + (process.env.PASSWORD_PEPPER ?? "vora-pepper-2026"));
+  const data = encoder.encode(password + (pepper ?? "vora-pepper-2026"));
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))

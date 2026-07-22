@@ -650,7 +650,26 @@
       "company": "شركة",
       "admin": "مسؤول",
       "owner": "مالك"
-    }
+    },
+    "forgotPasswordTitle": "إعادة تعيين كلمة المرور",
+    "forgotPasswordSubtitle": "أدخل بريدك الإلكتروني وسنرسل رابطاً آمناً إذا كان الحساب موجوداً.",
+    "forgotPasswordButton": "إرسال رابط الاستعادة",
+    "forgotPasswordSending": "جاري الإرسال...",
+    "forgotPasswordSent": "إذا كان الحساب موجوداً، تم إرسال رابط الاستعادة.",
+    "forgotPasswordFailed": "تعذر إرسال رابط الاستعادة",
+    "backToSignIn": "العودة لتسجيل الدخول",
+    "devRecoveryLink": "رابط الاستعادة للتطوير:",
+    "openRecoveryLink": "فتح الرابط",
+    "resetPasswordTitle": "اختر كلمة مرور جديدة",
+    "resetPasswordSubtitle": "أدخل كلمة المرور الجديدة وأكّدها.",
+    "resetPasswordButton": "تحديث كلمة المرور",
+    "resetPasswordSaving": "جاري الحفظ...",
+    "resetPasswordSuccess": "تم تحديث كلمة المرور. جاري التحويل لتسجيل الدخول...",
+    "resetPasswordFailed": "تعذر إعادة تعيين كلمة المرور",
+    "resetPasswordExpired": "رابط الاستعادة غير صالح أو منتهٍ. اطلب رابطاً جديداً.",
+    "resetPasswordMismatch": "كلمتا المرور غير متطابقتين",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "forgotPasswordLink": "نسيت كلمة المرور؟"
   },
   "admin": {
     "superAdmin": "VORA المسؤول الأعلى",

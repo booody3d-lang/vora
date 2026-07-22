@@ -4,9 +4,9 @@ import {
   MAX_ADMIN_ACCOUNTS,
   MANUAL_TEST_USER_EMAIL,
   MANUAL_TEST_USER_ID,
-  MANUAL_TEST_USER_PASSWORD,
+  getManualTestUserBootstrapPassword,
+  getPlatformOwnerBootstrapPassword,
   PLATFORM_OWNER_EMAIL,
-  PLATFORM_OWNER_INITIAL_PASSWORD,
   countAdminRoleAccounts,
   isManualTestUserEmail,
   isPlatformOwnerEmail,
@@ -131,13 +131,17 @@ let accountsInitialized = false;
 
 export async function initDemoAccounts(hashFn: (p: string) => Promise<string>) {
   if (accountsInitialized) return;
+  const demoDefaultPassword = process.env.VORA_DEMO_DEFAULT_PASSWORD?.trim() || "Vora@2026!";
+  const ownerPassword = getPlatformOwnerBootstrapPassword() ?? demoDefaultPassword;
+  const manualTestPassword = getManualTestUserBootstrapPassword() ?? demoDefaultPassword;
+
   for (const acc of DEMO_ACCOUNTS) {
     if (isPlatformOwnerEmail(acc.email)) {
-      acc.passwordHash = await hashFn(PLATFORM_OWNER_INITIAL_PASSWORD);
+      acc.passwordHash = await hashFn(ownerPassword);
     } else if (isManualTestUserEmail(acc.email)) {
-      acc.passwordHash = await hashFn(MANUAL_TEST_USER_PASSWORD);
+      acc.passwordHash = await hashFn(manualTestPassword);
     } else {
-      acc.passwordHash = await hashFn("Vora@2026!");
+      acc.passwordHash = await hashFn(demoDefaultPassword);
     }
   }
   accountsInitialized = true;

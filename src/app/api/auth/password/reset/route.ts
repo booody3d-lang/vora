@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { resetSupabasePasswordWithSession } from "@/lib/auth/supabase-password";
 import { resetAccountPassword } from "@/lib/security/account-password";
 import {
   getPasswordResetRequest,
   markPasswordResetUsed,
 } from "@/lib/security/auth-store";
 import { verifyOtp } from "@/lib/security/otp";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   checkRateLimit,
   getClientIp,
@@ -29,9 +31,21 @@ export async function POST(request: Request) {
       newPassword?: string;
     };
 
-    if (!body.token || !body.code || !body.newPassword) {
+    if (!body.newPassword) {
+      return NextResponse.json({ error: "New password is required" }, { status: 400 });
+    }
+
+    if (isSupabaseConfigured() && !body.token) {
+      const result = await resetSupabasePasswordWithSession(body.newPassword);
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (!body.token || !body.code) {
       return NextResponse.json(
-        { error: "Token, code, and new password are required" },
+        { error: "Token, code, and new password are required for legacy reset" },
         { status: 400 }
       );
     }

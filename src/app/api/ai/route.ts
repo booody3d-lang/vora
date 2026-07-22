@@ -11,8 +11,12 @@ import {
   runSkillsPredict,
   isAIConfigured,
 } from "@/lib/ai/engine";
+import { requireAuthenticatedApiUser } from "@/lib/security/require-api-auth";
 
 export async function POST(request: Request) {
+  const authResult = await requireAuthenticatedApiUser();
+  if ("response" in authResult) return authResult.response;
+
   try {
     const body = await request.json() as { action: string; payload: Record<string, unknown> };
 

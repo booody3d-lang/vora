@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import {
+  generateDevRecoveryLink,
+  requestSupabasePasswordReset,
+} from "@/lib/auth/supabase-password";
+import {
   createPasswordResetRequest,
   getRecoveryChannel,
   setRecoveryChannel,
@@ -7,6 +11,7 @@ import {
 } from "@/lib/security/auth-store";
 import { findAccountByEmail, findAccountByPhone } from "@/lib/security/demo-store";
 import { generateOtpCode, hashOtp, normalizeSaudiPhone } from "@/lib/security/otp";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   checkRateLimit,
   getClientIp,
@@ -37,16 +42,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email or phone is required" }, { status: 400 });
     }
 
+    const genericResponse = {
+      ok: true,
+      message: "If an account exists, a recovery link has been sent.",
+    };
+
+    if (isSupabaseConfigured() && identifier.includes("@")) {
+      const result = await requestSupabasePasswordReset(identifier);
+      if (!result.ok) {
+        console.error("[auth/forgot] supabase reset failed:", result.error);
+      }
+
+      const devRecoveryLink = await generateDevRecoveryLink(identifier);
+
+      await serverDispatchNotification(
+        buildTriggerNotification({
+          trigger: "password_reset",
+          title: "Password Reset Request",
+          body: "Use the secure link sent to your email to reset your VORA password.",
+          href: "/auth/forgot-password",
+          channels: ["in_app"],
+        }),
+        { recipientEmail: identifier }
+      );
+
+      return NextResponse.json({
+        ...genericResponse,
+        ...(devRecoveryLink ? { devRecoveryLink } : {}),
+      });
+    }
+
     const normalizedPhone = normalizeSaudiPhone(identifier);
     const account =
       findAccountByEmail(identifier) ??
       (normalizedPhone ? findAccountByPhone(normalizedPhone) : undefined);
-
-    // Always respond generically to avoid account enumeration
-    const genericResponse = {
-      ok: true,
-      message: "If an account exists, a recovery code has been sent.",
-    };
 
     if (!account) {
       return NextResponse.json(genericResponse);
@@ -59,25 +88,22 @@ export async function POST(request: Request) {
 
     const code = generateOtpCode();
     const codeHash = await hashOtp(code);
-    const { token, expiresAt } = createPasswordResetRequest({
+    createPasswordResetRequest({
       accountId: account.id,
       email: account.email,
       channel: preferredChannel,
       codeHash,
     });
 
-    const resetPath = `/auth/reset-password?token=${encodeURIComponent(token)}`;
-    const bodyText =
-      preferredChannel === "sms"
-        ? `Your VORA password reset code is ${code}. It expires in 30 minutes.`
-        : `Your VORA password reset code is ${code}. Use token ${token} or visit ${resetPath} before ${expiresAt}.`;
-
     await serverDispatchNotification(
       buildTriggerNotification({
         trigger: "password_reset",
         title: "Password Reset Request",
-        body: bodyText,
-        href: resetPath,
+        body:
+          preferredChannel === "sms"
+            ? `Your VORA password reset code is ${code}. It expires in 30 minutes.`
+            : "Use the password reset page after verifying your recovery code.",
+        href: "/auth/reset-password",
         channels: preferredChannel === "sms" ? ["in_app"] : ["email", "in_app"],
       }),
       {
@@ -91,9 +117,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ...genericResponse,
-      token,
       channel: preferredChannel,
-      expiresAt,
       ...(process.env.NODE_ENV === "development" ? { devCode: code } : {}),
     });
   } catch {

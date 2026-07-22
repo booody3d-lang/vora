@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { getServerStripe, getPlanStripePriceId, STRIPE_SERVER_CONFIG } from "@/lib/billing/stripe-server";
+import { requireAuthenticatedApiUser } from "@/lib/security/require-api-auth";
 import type { SubscriptionPlan } from "@/types/billing";
 
 export async function POST(request: Request) {
+  const authResult = await requireAuthenticatedApiUser();
+  if ("response" in authResult) return authResult.response;
+
   try {
     const body = await request.json() as {
       plan: SubscriptionPlan;
-      accountId: string;
+      accountId?: string;
       successUrl?: string;
       cancelUrl?: string;
     };
@@ -34,7 +38,7 @@ export async function POST(request: Request) {
       success_url: body.successUrl ?? `${origin}/billing/plans?success=true`,
       cancel_url: body.cancelUrl ?? `${origin}/billing/plans?cancelled=true`,
       metadata: {
-        account_id: body.accountId,
+        account_id: authResult.auth.user.id,
         plan: body.plan,
       },
       payment_method_options: {

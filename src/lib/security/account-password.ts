@@ -14,9 +14,10 @@ import {
   isManualTestUserEmail,
   isPlatformOwnerEmail,
   isStandardRegisteredUser,
-  MANUAL_TEST_USER_PASSWORD,
+  getManualTestUserBootstrapPassword,
+  getPlatformOwnerBootstrapPassword,
+  MANUAL_TEST_USER_EMAIL,
   PLATFORM_OWNER_EMAIL,
-  PLATFORM_OWNER_INITIAL_PASSWORD,
   resolveEffectiveRole,
 } from "@/lib/security/roles";
 import { createProfileForAccount, ensureFreelancerStoreForAccount, getProfileByAccountId } from "@/lib/profile/profile-store";
@@ -76,10 +77,13 @@ export async function resetAccountPassword(
 
 /** Persist platform owner credentials into auth-store on server bootstrap */
 export async function bootstrapOwnerCredentials(): Promise<void> {
+  const bootstrapPassword = getPlatformOwnerBootstrapPassword();
+  if (!bootstrapPassword) return;
+
   for (const account of DEMO_ACCOUNTS) {
     if (!isPlatformOwnerEmail(account.email)) continue;
     if (getStoredPasswordHash(account.id)) continue;
-    await setAccountPasswordHash(account.id, PLATFORM_OWNER_INITIAL_PASSWORD);
+    await setAccountPasswordHash(account.id, bootstrapPassword);
   }
 }
 
@@ -107,8 +111,10 @@ export async function bootstrapManualTestUser(): Promise<void> {
   }
 
   if (!getStoredPasswordHash(account.id)) {
-    await setAccountPasswordHash(account.id, MANUAL_TEST_USER_PASSWORD);
-    syncAccountPasswordHash(account.id, await hashPassword(MANUAL_TEST_USER_PASSWORD));
+    const bootstrapPassword = getManualTestUserBootstrapPassword();
+    if (!bootstrapPassword) return;
+    await setAccountPasswordHash(account.id, bootstrapPassword);
+    syncAccountPasswordHash(account.id, await hashPassword(bootstrapPassword));
   }
 
   if (!getProfileByAccountId(account.id)) {

@@ -6,7 +6,7 @@ import { hashPassword, verifyPassword } from "../src/lib/security/password";
 import {
   MANUAL_TEST_USER_EMAIL,
   MANUAL_TEST_USER_ID,
-  MANUAL_TEST_USER_PASSWORD,
+  getManualTestUserBootstrapPassword,
   PLATFORM_OWNER_EMAIL,
   isPlatformOwnerEmail,
   isStandardRegisteredUser,
@@ -43,7 +43,9 @@ async function main() {
     throw new Error("Test user must not be platform owner");
   }
 
-  const hashOk = await verifyPassword(MANUAL_TEST_USER_PASSWORD, testUser.passwordHash);
+  const bootstrapPassword =
+    getManualTestUserBootstrapPassword() ?? process.env.VORA_DEMO_DEFAULT_PASSWORD ?? "Vora@2026!";
+  const hashOk = await verifyPassword(bootstrapPassword, testUser.passwordHash);
   if (!hashOk) {
     throw new Error("Password hash verification failed for manual test user");
   }

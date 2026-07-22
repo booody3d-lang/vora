@@ -5,7 +5,13 @@ const COOKIE_NAME = "vora_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 2; // 2 hours short-lived
 
 function getSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET ?? "vora-dev-jwt-secret-change-in-production-2026";
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Missing JWT_SECRET");
+    }
+    return new TextEncoder().encode("vora-dev-jwt-secret-change-in-production-2026");
+  }
   return new TextEncoder().encode(secret);
 }
 

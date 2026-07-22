@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { canWithdraw } from "@/lib/billing/engine";
 import { serverDispatchNotification } from "@/lib/notifications/server-dispatch";
 import { withdrawalRequestAlert } from "@/lib/notifications/triggers";
+import { requireAuthenticatedApiUser } from "@/lib/security/require-api-auth";
 
 export async function POST(request: Request) {
+  const authResult = await requireAuthenticatedApiUser();
+  if ("response" in authResult) return authResult.response;
+
   try {
     const body = await request.json() as {
-      accountId: string;
       amount: number;
       iban: string;
       bankName: string;
@@ -23,10 +26,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid Saudi IBAN format" }, { status: 400 });
     }
 
-    // In production: deduct from available_balance, insert withdrawal_requests row
     const withdrawal = {
       id: `wd-${Date.now()}`,
-      accountId: body.accountId,
+      accountId: authResult.auth.user.id,
       amount: body.amount,
       iban: body.iban,
       bankName: body.bankName,

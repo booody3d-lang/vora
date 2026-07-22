@@ -247,6 +247,11 @@ export function LoginForm() {
               )}
             </button>
           </div>
+          <div className="text-end">
+            <Link href="/auth/forgot-password" className="text-xs text-[#93C5FD] hover:underline">
+              {t("auth.forgotPasswordLink")}
+            </Link>
+          </div>
           {requires2FA && (
             <div>
               <label className="text-xs text-slate-400">{t("auth.twoFaCode")}</label>

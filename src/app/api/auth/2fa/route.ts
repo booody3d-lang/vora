@@ -1,13 +1,22 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/security/session";
-import { findAccountById } from "@/lib/security/demo-store";
-import { generateTotpSecret } from "@/lib/security/otp";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+
+const UNAVAILABLE_MESSAGE =
+  "Two-factor authentication is being migrated to Supabase Auth and is temporarily unavailable.";
 
 export async function POST() {
   const session = await getServerSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  if (isSupabaseConfigured()) {
+    return NextResponse.json({ error: UNAVAILABLE_MESSAGE }, { status: 503 });
+  }
+
+  const { findAccountById } = await import("@/lib/security/demo-store");
+  const { generateTotpSecret } = await import("@/lib/security/otp");
 
   const account = findAccountById(session.sub);
   if (!account) {
@@ -30,7 +39,12 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (isSupabaseConfigured()) {
+    return NextResponse.json({ error: UNAVAILABLE_MESSAGE }, { status: 503 });
+  }
+
   const body = await request.json() as { code: string; enable: boolean };
+  const { findAccountById } = await import("@/lib/security/demo-store");
   const account = findAccountById(session.sub);
   if (!account?.totpSecret) {
     return NextResponse.json({ error: "Run setup first" }, { status: 400 });
