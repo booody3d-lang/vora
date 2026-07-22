@@ -246,7 +246,7 @@ export async function deleteSubscriptionTierInSupabase(tierId: string): Promise<
 export async function setAccountAssignmentInSupabase(
   accountId: string,
   assignment: AccountSubscriptionAssignment,
-  tiers: SubscriptionTier[]
+  _tiers: SubscriptionTier[]
 ): Promise<void> {
   const admin = createAdminClient();
   const { error } = await admin.from("account_subscription_assignments").upsert(
@@ -264,15 +264,12 @@ export async function setAccountAssignmentInSupabase(
     { onConflict: "account_id" }
   );
   if (error) throw error;
-
-  const tier = tiers.find((item) => item.id === assignment.tierId) ?? null;
-  await syncProfilePremiumInSupabase(accountId, tierIsPremium(tier));
 }
 
 export async function setManualOverrideInSupabase(
   accountId: string,
   override: ManualSubscriptionOverride,
-  tiers: SubscriptionTier[]
+  _tiers: SubscriptionTier[]
 ): Promise<void> {
   const admin = createAdminClient();
   const { error } = await admin.from("subscription_manual_overrides").upsert(
@@ -287,15 +284,12 @@ export async function setManualOverrideInSupabase(
     { onConflict: "account_id" }
   );
   if (error) throw error;
-
-  const tier = tiers.find((item) => item.id === override.tierId) ?? null;
-  await syncProfilePremiumInSupabase(accountId, tierIsPremium(tier));
 }
 
 export async function removeManualOverrideInSupabase(
   accountId: string,
-  tiers: SubscriptionTier[],
-  assignment: AccountSubscriptionAssignment | null
+  _tiers: SubscriptionTier[],
+  _assignment: AccountSubscriptionAssignment | null
 ): Promise<void> {
   const admin = createAdminClient();
   const { error } = await admin
@@ -303,11 +297,6 @@ export async function removeManualOverrideInSupabase(
     .delete()
     .eq("account_id", accountId);
   if (error) throw error;
-
-  const tier = assignment
-    ? tiers.find((item) => item.id === assignment.tierId) ?? null
-    : tiers.find((item) => item.priceSar === 0 && item.audience === "user") ?? null;
-  await syncProfilePremiumInSupabase(accountId, tierIsPremium(tier));
 }
 
 export async function setStripeCustomerMappingInSupabase(

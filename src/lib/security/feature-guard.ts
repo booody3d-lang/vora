@@ -8,6 +8,10 @@ import {
   getEffectiveSubscription,
 } from "@/lib/subscription/resolve-subscription";
 import { ensureSubscriptionCacheHydrated } from "@/lib/subscription/subscription-store";
+import { getCompanyByAccountId, getCompanySubscriptionForAccount } from "@/lib/company/company-store";
+import { evaluatePublishGuard } from "@/lib/company/permissions";
+import { computeSubscriptionState } from "@/lib/company/mock-data";
+import type { CompanySubscription } from "@/types/company";
 import type { SubscriptionAudience } from "@/types/subscription";
 import type { AuthUser, VoraRole } from "@/types/security";
 import type { ProfileUploadKind } from "@/types/profile";
@@ -219,4 +223,126 @@ export async function getHydratedEffectiveSubscription(
 ) {
   await ensureSubscriptionCacheHydrated();
   return getEffectiveSubscription(accountId, audience);
+}
+
+function isCompanyAccountRole(role: VoraRole): boolean {
+  return role === "company" || role === "admin" || role === "owner";
+}
+
+async function loadCompanySubscription(accountId: string): Promise<CompanySubscription | null> {
+  await ensureSubscriptionCacheHydrated();
+  return getCompanySubscriptionForAccount(accountId);
+}
+
+/** Trial-active companies retain ATS/analytics during trial window */
+function companyTrialIsActive(sub: CompanySubscription | null): boolean {
+  if (!sub) return false;
+  if (sub.status === "active" && sub.subscriptionExpiresAt) {
+    return new Date(sub.subscriptionExpiresAt).getTime() > Date.now();
+  }
+  return sub.status === "trial" && new Date(sub.trialEndsAt).getTime() > Date.now();
+}
+
+export async function getCompanyPublishState(accountId: string) {
+  const subscription = await loadCompanySubscription(accountId);
+  if (!subscription) {
+    return {
+      allowed: false,
+      reason: "Company subscription not found",
+      subscription: null,
+      state: null,
+    };
+  }
+
+  await ensureSubscriptionCacheHydrated();
+
+  if (accountHasFeature(accountId, "unlimited_jobs", "company")) {
+    return {
+      allowed: true,
+      subscription,
+      state: computeSubscriptionState(subscription),
+      source: "paid" as const,
+    };
+  }
+
+  const guard = evaluatePublishGuard(subscription);
+  return {
+    ...guard,
+    subscription,
+    state: computeSubscriptionState(subscription),
+    source: guard.allowed ? ("trial" as const) : ("locked" as const),
+  };
+}
+
+export async function forbidCompanyJobPublish(
+  user: Pick<AuthUser, "id" | "email" | "role">
+): Promise<NextResponse | null> {
+  if (canBypassFeatureChecks(user)) return null;
+
+  const company = await getCompanyByAccountId(user.id);
+  if (!company) {
+    return NextResponse.json({ error: "Company profile required" }, { status: 404 });
+  }
+
+  const publish = await getCompanyPublishState(user.id);
+  if (publish.allowed) return null;
+
+  return featureForbiddenResponse(
+    "unlimited_jobs",
+    publish.reason ?? "Job publishing is locked. Subscribe to continue."
+  );
+}
+
+export async function forbidCompanyAnalytics(
+  user: Pick<AuthUser, "id" | "email" | "role">
+): Promise<NextResponse | null> {
+  if (canBypassFeatureChecks(user)) return null;
+
+  if (!isCompanyAccountRole(user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const company = await getCompanyByAccountId(user.id);
+  if (!company) {
+    return NextResponse.json({ error: "Company profile required" }, { status: 404 });
+  }
+
+  await ensureSubscriptionCacheHydrated();
+
+  if (accountHasFeature(user.id, "company_analytics", "company")) return null;
+
+  const subscription = await loadCompanySubscription(user.id);
+  if (companyTrialIsActive(subscription)) return null;
+
+  return featureForbiddenResponse(
+    "company_analytics",
+    "Company analytics requires an active subscription."
+  );
+}
+
+export async function forbidCompanyAts(
+  user: Pick<AuthUser, "id" | "email" | "role">
+): Promise<NextResponse | null> {
+  if (canBypassFeatureChecks(user)) return null;
+
+  if (!isCompanyAccountRole(user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const company = await getCompanyByAccountId(user.id);
+  if (!company) {
+    return NextResponse.json({ error: "Company profile required" }, { status: 404 });
+  }
+
+  await ensureSubscriptionCacheHydrated();
+
+  if (accountHasFeature(user.id, "ats_full", "company")) return null;
+
+  const subscription = await loadCompanySubscription(user.id);
+  if (companyTrialIsActive(subscription)) return null;
+
+  return featureForbiddenResponse(
+    "ats_full",
+    "ATS pipeline access requires an active company subscription."
+  );
 }

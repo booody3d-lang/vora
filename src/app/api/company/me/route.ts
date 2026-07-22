@@ -5,6 +5,7 @@ import {
   getCompanySubscriptionForAccount,
 } from "@/lib/company/company-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
+import { getCompanyPublishState } from "@/lib/security/feature-guard";
 
 export async function GET() {
   const auth = await getAuthenticatedUser();
@@ -23,6 +24,7 @@ export async function GET() {
   }
 
   const subscription = await getCompanySubscriptionForAccount(auth.user.id);
+  const publishGuard = await getCompanyPublishState(auth.user.id);
 
   return NextResponse.json({
     authenticated: true,
@@ -30,5 +32,11 @@ export async function GET() {
     companySlug,
     company,
     subscription,
+    publishGuard: {
+      allowed: publishGuard.allowed,
+      reason: publishGuard.reason,
+      source: publishGuard.source,
+      state: publishGuard.state,
+    },
   });
 }

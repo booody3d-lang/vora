@@ -23,6 +23,7 @@ import {
   upsertSubscriptionTierInSupabase,
   type SubscriptionSnapshot,
 } from "@/lib/subscription/subscription-supabase";
+import { syncAccountPremiumProfile } from "@/lib/subscription/sync-premium-profile";
 import type {
   AccountSubscriptionAssignment,
   ManualSubscriptionOverride,
@@ -71,7 +72,7 @@ let subscriptionTableAvailable = false;
 let memorySnapshot: SubscriptionDataFile | null = null;
 let hydratePromise: Promise<void> | null = null;
 
-async function isSubscriptionSupabaseReady(): Promise<boolean> {
+export async function isSubscriptionSupabaseReady(): Promise<boolean> {
   if (!isSupabasePersistenceEnabled()) return false;
   if (subscriptionTableProbed) return subscriptionTableAvailable;
 
@@ -342,6 +343,8 @@ export async function setAccountAssignment(
     );
   }
 
+  await syncAccountPremiumProfile(accountId);
+
   return assignment;
 }
 
@@ -364,6 +367,8 @@ export async function setManualOverride(
     );
   }
 
+  await syncAccountPremiumProfile(accountId);
+
   return override;
 }
 
@@ -379,6 +384,8 @@ export async function removeManualOverride(accountId: string): Promise<boolean> 
       removeManualOverrideInSupabase(accountId, data.tiers, data.assignments[accountId] ?? null)
     );
   }
+
+  await syncAccountPremiumProfile(accountId);
 
   return true;
 }
