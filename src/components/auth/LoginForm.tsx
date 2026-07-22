@@ -14,7 +14,7 @@ import {
 import { getLocaleFromPathname, localizePath } from "@/i18n/routing";
 import { DEFAULT_LOCALE } from "@/i18n/config";
 import type { AuthUser, VoraRole } from "@/types/security";
-import type { PhoneInputValue } from "@/types/auth-phone";
+import type { OtpDeliveryChannel, PhoneInputValue } from "@/types/auth-phone";
 
 type AuthMode = "email" | "phone";
 
@@ -41,6 +41,7 @@ export function LoginForm() {
   const [phoneE164, setPhoneE164] = useState<string | null>(null);
   const [phoneValid, setPhoneValid] = useState(false);
   const [otp, setOtp] = useState("");
+  const [otpChannel, setOtpChannel] = useState<OtpDeliveryChannel>("sms");
   const [otpSent, setOtpSent] = useState(false);
   const [totpCode, setTotpCode] = useState("");
   const [requires2FA, setRequires2FA] = useState(false);
@@ -136,7 +137,12 @@ export function LoginForm() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phoneE164, countryCode: phoneCountry, purpose: "login" }),
+        body: JSON.stringify({
+          phone: phoneE164,
+          countryCode: phoneCountry,
+          channel: otpChannel,
+          purpose: "login",
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -306,6 +312,33 @@ export function LoginForm() {
             onValueChange={handlePhoneValueChange}
             disabled={loading || otpSent}
           />
+          {!otpSent && (
+            <div>
+              <p className="mb-2 text-xs text-slate-400">{t("auth.otpChannelLabel")}</p>
+              <div className="flex rounded-xl bg-slate-800/50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setOtpChannel("sms")}
+                  disabled={loading}
+                  className={`flex-1 rounded-lg py-2 text-sm font-medium ${
+                    otpChannel === "sms" ? "bg-[#EA580C] text-white" : "text-slate-400"
+                  }`}
+                >
+                  {t("auth.otpChannelSms")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOtpChannel("whatsapp")}
+                  disabled={loading}
+                  className={`flex-1 rounded-lg py-2 text-sm font-medium ${
+                    otpChannel === "whatsapp" ? "bg-emerald-600 text-white" : "text-slate-400"
+                  }`}
+                >
+                  {t("auth.otpChannelWhatsapp")}
+                </button>
+              </div>
+            </div>
+          )}
           {!otpSent ? (
             <button
               type="button"
@@ -313,7 +346,7 @@ export function LoginForm() {
               disabled={loading || !phoneValid}
               className="w-full rounded-xl bg-[#EA580C] py-3 text-sm font-semibold text-white disabled:opacity-50"
             >
-              {t("auth.sendOtp")}
+              {otpChannel === "whatsapp" ? t("auth.sendOtpWhatsapp") : t("auth.sendOtpSms")}
             </button>
           ) : (
             <>
