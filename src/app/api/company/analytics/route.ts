@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEMO_ANALYTICS } from "@/lib/company/mock-data";
+import { getAnalyticsForAccount } from "@/lib/company/analytics-store";
 import { forbidCompanyAnalytics } from "@/lib/security/feature-guard";
 import { requireAuthenticatedApiUser } from "@/lib/security/require-api-auth";
 
@@ -10,9 +10,7 @@ export async function GET() {
   const denied = await forbidCompanyAnalytics(authResult.auth.user);
   if (denied) return denied;
 
-  return NextResponse.json({
-    analytics: DEMO_ANALYTICS,
-    source: "demo",
-    note: "Live analytics from Supabase lands in Phase 5F",
-  });
+  const { analytics, source } = await getAnalyticsForAccount(authResult.auth.user.id);
+
+  return NextResponse.json({ analytics, source });
 }

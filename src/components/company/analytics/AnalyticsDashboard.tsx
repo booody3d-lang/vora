@@ -7,8 +7,11 @@ interface AnalyticsDashboardProps {
 }
 
 export function AnalyticsDashboard({ data }: AnalyticsDashboardProps) {
-  const maxFollowers = Math.max(...data.followerGrowth.map((d) => d.count));
-  const maxApps = Math.max(...data.applicationsVsHires.map((d) => d.applications));
+  const maxFollowers = Math.max(...data.followerGrowth.map((d) => d.count), 1);
+  const maxApps = Math.max(
+    ...data.applicationsVsHires.map((d) => Math.max(d.applications, d.hires)),
+    1
+  );
 
   return (
     <div className="space-y-6">
@@ -98,7 +101,7 @@ export function AnalyticsDashboard({ data }: AnalyticsDashboardProps) {
       <ChartCard title="Applicant Quality" subtitle="Professional Score distribution">
         <div className="flex h-32 items-end gap-4">
           {data.scoreDistribution.map((bucket) => {
-            const max = Math.max(...data.scoreDistribution.map((b) => b.count));
+            const max = Math.max(...data.scoreDistribution.map((b) => b.count), 1);
             return (
               <div key={bucket.range} className="flex flex-1 flex-col items-center gap-1">
                 <span className="text-xs font-semibold text-[#0F172A]">{bucket.count}</span>
