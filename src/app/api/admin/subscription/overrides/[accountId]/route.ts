@@ -3,6 +3,7 @@ import {
   getManualOverride,
   removeManualOverride,
   setManualOverride,
+  ensureSubscriptionCacheHydrated,
 } from "@/lib/subscription/subscription-store";
 import { getEffectiveSubscription } from "@/lib/subscription/resolve-subscription";
 import { getAuthenticatedUser, requireSubscriptionManagement } from "@/lib/security/session";
@@ -22,6 +23,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  await ensureSubscriptionCacheHydrated();
+
   const effective = getEffectiveSubscription(accountId, "user");
   return NextResponse.json({ effective, override: getManualOverride(accountId) });
 }
@@ -36,13 +39,14 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   try {
     const body = await request.json();
-    const override = setManualOverride(accountId, {
+    const override = await setManualOverride(accountId, {
       tierId: String(body.tierId),
       reason: String(body.reason ?? "Manual admin grant"),
       grantedBy: auth.user.id,
       grantedAt: new Date().toISOString(),
       expiresAt: body.expiresAt || undefined,
     });
+    await ensureSubscriptionCacheHydrated();
     const effective = getEffectiveSubscription(accountId, "user");
     return NextResponse.json({ override, effective });
   } catch {
@@ -57,6 +61,7 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   }
 
   const { accountId } = await params;
-  removeManualOverride(accountId);
+  await removeManualOverride(accountId);
+  await ensureSubscriptionCacheHydrated();
   return NextResponse.json({ effective: getEffectiveSubscription(accountId, "user") });
 }

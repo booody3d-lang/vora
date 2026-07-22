@@ -40,10 +40,10 @@ export async function POST(request: Request) {
       const amountSar = planInfo?.amount ?? (session.amount_total ? session.amount_total / 100 : undefined);
 
       if (accountId && typeof session.customer === "string") {
-        setStripeCustomerMapping(accountId, session.customer);
+        await setStripeCustomerMapping(accountId, session.customer);
       }
 
-      applyStripeCheckoutCompleted({
+      await applyStripeCheckoutCompleted({
         accountId,
         plan,
         stripeEventId: event.id,
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     }
     case "invoice.paid": {
       const invoice = event.data.object as Stripe.Invoice;
-      recordStripePaymentEvent({
+      await recordStripePaymentEvent({
         stripeEventId: event.id,
         type: event.type,
         accountId: invoice.metadata?.account_id,
@@ -79,13 +79,13 @@ export async function POST(request: Request) {
       const subscription = event.data.object as Stripe.Subscription;
       const accountId = subscription.metadata?.account_id ?? "";
       if (accountId) {
-        applyStripeSubscriptionCancelled(accountId, event.id);
+        await applyStripeSubscriptionCancelled(accountId, event.id);
       }
       console.info("Subscription cancelled:", subscription.id);
       break;
     }
     default:
-      recordStripePaymentEvent({
+      await recordStripePaymentEvent({
         stripeEventId: event.id,
         type: event.type,
         status: "received",

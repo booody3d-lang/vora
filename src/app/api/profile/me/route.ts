@@ -25,6 +25,7 @@ import {
 import { resolveAvatarUrl } from "@/lib/profile/avatar";
 import { getOnboardingProgress, isOnboardingComplete } from "@/lib/profile/onboarding";
 import { getEffectiveSubscription } from "@/lib/subscription/resolve-subscription";
+import { ensureSubscriptionCacheHydrated } from "@/lib/subscription/subscription-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { resolveAdminCapabilities } from "@/lib/security/roles";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -68,6 +69,7 @@ export async function GET() {
   }
 
   await ensureSupabaseProfileAndStore(auth.user);
+  await ensureSubscriptionCacheHydrated();
 
   const profile = await loadProfileForAccount(auth.user.id);
   const store = await loadStoreForAccount(auth.user.id);

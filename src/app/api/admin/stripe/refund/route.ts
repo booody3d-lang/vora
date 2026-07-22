@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerStripe } from "@/lib/billing/stripe-server";
-import { listStripePaymentEvents, listStripeRefunds, recordStripeRefund } from "@/lib/subscription/subscription-store";
+import { listStripePaymentEvents, listStripeRefunds, recordStripeRefund, ensureSubscriptionCacheHydrated } from "@/lib/subscription/subscription-store";
 import { forbidFinancialAccess } from "@/lib/security/financial-guard";
 import { getAuthenticatedUser } from "@/lib/security/session";
 
@@ -8,6 +8,8 @@ export async function GET() {
   const auth = await getAuthenticatedUser();
   const denied = forbidFinancialAccess(auth?.user);
   if (denied) return denied;
+
+  await ensureSubscriptionCacheHydrated();
 
   return NextResponse.json({
     payments: listStripePaymentEvents(100),
@@ -37,7 +39,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const refundRecord = recordStripeRefund({
+    const refundRecord = await recordStripeRefund({
       paymentIntentId: body.paymentIntentId,
       amountSar: body.amountSar,
       reason: body.reason,

@@ -1,6 +1,27 @@
 import "server-only";
 
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
+import {
+  isMissingRelationError,
+  markSupabaseDbSyncUnavailable,
+  runOptionalDbSync,
+  runOptionalDbSyncVoid,
+} from "@/lib/supabase/safe-db";
+import {
+  deleteSubscriptionTierInSupabase,
+  loadSubscriptionSnapshotFromSupabase,
+  migrateJsonSubscriptionToSupabase,
+  recordStripePaymentEventInSupabase,
+  recordStripeRefundInSupabase,
+  removeManualOverrideInSupabase,
+  setAccountAssignmentInSupabase,
+  setManualOverrideInSupabase,
+  setStripeCustomerMappingInSupabase,
+  upsertSubscriptionTierInSupabase,
+  type SubscriptionSnapshot,
+} from "@/lib/subscription/subscription-supabase";
 import type {
   AccountSubscriptionAssignment,
   ManualSubscriptionOverride,
@@ -8,8 +29,7 @@ import type {
 } from "@/types/subscription";
 
 const DATA_FILE = "subscription-data.json";
-
-// ─── Stripe payment-ready scaffolding ───────────────────────────────────────
+const MIGRATION_FLAG = "subscription-supabase-migrated.json";
 
 export type StripePaymentEventStatus = "received" | "processed" | "failed" | "refunded";
 
@@ -43,13 +63,34 @@ export interface StripeRefundRecord {
   createdAt: string;
 }
 
-interface SubscriptionDataFile {
-  tiers: SubscriptionTier[];
-  assignments: Record<string, AccountSubscriptionAssignment>;
-  overrides: Record<string, ManualSubscriptionOverride>;
-  stripeCustomers: Record<string, StripeCustomerMapping>;
-  paymentEvents: StripePaymentEvent[];
-  refunds: StripeRefundRecord[];
+interface SubscriptionDataFile extends SubscriptionSnapshot {}
+
+let subscriptionTableProbed = false;
+let subscriptionTableAvailable = false;
+let memorySnapshot: SubscriptionDataFile | null = null;
+let hydratePromise: Promise<void> | null = null;
+
+async function isSubscriptionSupabaseReady(): Promise<boolean> {
+  if (!isSupabasePersistenceEnabled()) return false;
+  if (subscriptionTableProbed) return subscriptionTableAvailable;
+
+  subscriptionTableProbed = true;
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.from("subscription_tiers").select("id").limit(1);
+    if (error) {
+      if (isMissingRelationError(error)) {
+        markSupabaseDbSyncUnavailable("subscription_tiers missing", error);
+      }
+      subscriptionTableAvailable = false;
+      return false;
+    }
+    subscriptionTableAvailable = true;
+    return true;
+  } catch {
+    subscriptionTableAvailable = false;
+    return false;
+  }
 }
 
 function defaultTiers(): SubscriptionTier[] {
@@ -114,7 +155,7 @@ function defaultTiers(): SubscriptionTier[] {
   ];
 }
 
-function readData(): SubscriptionDataFile {
+function readJsonData(): SubscriptionDataFile {
   const data = readJsonStore(DATA_FILE, () => ({
     tiers: defaultTiers(),
     assignments: {} as Record<string, AccountSubscriptionAssignment>,
@@ -132,28 +173,91 @@ function readData(): SubscriptionDataFile {
   return data;
 }
 
-function writeData(data: SubscriptionDataFile) {
+function writeJsonData(data: SubscriptionDataFile) {
   writeJsonStore(DATA_FILE, data);
 }
 
+function getSnapshot(): SubscriptionDataFile {
+  return memorySnapshot ?? readJsonData();
+}
+
+function setSnapshot(data: SubscriptionDataFile) {
+  memorySnapshot = data;
+  writeJsonData(data);
+}
+
+async function maybeMigrateJsonToSupabase(): Promise<void> {
+  if (!(await isSubscriptionSupabaseReady())) return;
+
+  const flag = readJsonStore(MIGRATION_FLAG, () => ({ done: false as boolean }));
+  if (flag.done) return;
+
+  const jsonData = readJsonData();
+  await runOptionalDbSyncVoid("subscription-json-migration", async () => {
+    await migrateJsonSubscriptionToSupabase(jsonData);
+    writeJsonStore(MIGRATION_FLAG, {
+      done: true,
+      migratedAt: new Date().toISOString(),
+      tierCount: jsonData.tiers.length,
+      assignmentCount: Object.keys(jsonData.assignments).length,
+    });
+  });
+
+  if (!readJsonStore(MIGRATION_FLAG, () => ({ done: false as boolean })).done) {
+    writeJsonStore(MIGRATION_FLAG, { done: true, skipped: true });
+  }
+}
+
+export async function ensureSubscriptionCacheHydrated(): Promise<void> {
+  if (hydratePromise) {
+    await hydratePromise;
+    return;
+  }
+
+  hydratePromise = (async () => {
+    if (!(await isSubscriptionSupabaseReady())) {
+      memorySnapshot = readJsonData();
+      return;
+    }
+
+    await maybeMigrateJsonToSupabase();
+
+    const loaded = await runOptionalDbSync(
+      "hydrateSubscriptionCache",
+      () => loadSubscriptionSnapshotFromSupabase(),
+      readJsonData()
+    );
+
+    memorySnapshot = loaded;
+  })();
+
+  try {
+    await hydratePromise;
+  } finally {
+    hydratePromise = null;
+  }
+}
+
+
 export function listSubscriptionTiers(audience?: SubscriptionTier["audience"]): SubscriptionTier[] {
-  const data = readData();
+  const data = getSnapshot();
   return data.tiers
-    .filter((t) => t.isActive || !audience)
-    .filter((t) => !audience || t.audience === audience)
+    .filter((tier) => tier.isActive || !audience)
+    .filter((tier) => !audience || tier.audience === audience)
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export function getSubscriptionTier(tierId: string): SubscriptionTier | null {
-  return readData().tiers.find((t) => t.id === tierId) ?? null;
+  return getSnapshot().tiers.find((tier) => tier.id === tierId) ?? null;
 }
 
-export function createSubscriptionTier(
+export async function createSubscriptionTier(
   input: Omit<SubscriptionTier, "id" | "createdAt" | "updatedAt" | "sortOrder"> & {
     sortOrder?: number;
   }
-): SubscriptionTier {
-  const data = readData();
+): Promise<SubscriptionTier> {
+  await ensureSubscriptionCacheHydrated();
+  const data = getSnapshot();
   const now = new Date().toISOString();
   const tier: SubscriptionTier = {
     ...input,
@@ -162,85 +266,136 @@ export function createSubscriptionTier(
     createdAt: now,
     updatedAt: now,
   };
+
   data.tiers.push(tier);
-  writeData(data);
+  setSnapshot({ ...data });
+
+  if (await isSubscriptionSupabaseReady()) {
+    await runOptionalDbSyncVoid("createSubscriptionTier", () =>
+      upsertSubscriptionTierInSupabase(tier)
+    );
+  }
+
   return tier;
 }
 
-export function updateSubscriptionTier(
+export async function updateSubscriptionTier(
   tierId: string,
   patch: Partial<Omit<SubscriptionTier, "id" | "createdAt">>
-): SubscriptionTier | null {
-  const data = readData();
-  const index = data.tiers.findIndex((t) => t.id === tierId);
+): Promise<SubscriptionTier | null> {
+  await ensureSubscriptionCacheHydrated();
+  const data = getSnapshot();
+  const index = data.tiers.findIndex((tier) => tier.id === tierId);
   if (index < 0) return null;
+
   data.tiers[index] = {
     ...data.tiers[index],
     ...patch,
     updatedAt: new Date().toISOString(),
   };
-  writeData(data);
+  setSnapshot({ ...data });
+
+  if (await isSubscriptionSupabaseReady()) {
+    await runOptionalDbSyncVoid("updateSubscriptionTier", () =>
+      upsertSubscriptionTierInSupabase(data.tiers[index])
+    );
+  }
+
   return data.tiers[index];
 }
 
-export function deleteSubscriptionTier(tierId: string): boolean {
-  const data = readData();
+export async function deleteSubscriptionTier(tierId: string): Promise<boolean> {
+  await ensureSubscriptionCacheHydrated();
+  const data = getSnapshot();
   const before = data.tiers.length;
-  data.tiers = data.tiers.filter((t) => t.id !== tierId);
+  data.tiers = data.tiers.filter((tier) => tier.id !== tierId);
   if (data.tiers.length === before) return false;
-  writeData(data);
+
+  setSnapshot({ ...data });
+
+  if (await isSubscriptionSupabaseReady()) {
+    await runOptionalDbSyncVoid("deleteSubscriptionTier", () =>
+      deleteSubscriptionTierInSupabase(tierId)
+    );
+  }
+
   return true;
 }
 
 export function getAccountAssignment(accountId: string): AccountSubscriptionAssignment | null {
-  return readData().assignments[accountId] ?? null;
+  return getSnapshot().assignments[accountId] ?? null;
 }
 
-export function setAccountAssignment(
+export async function setAccountAssignment(
   accountId: string,
   assignment: AccountSubscriptionAssignment
-): AccountSubscriptionAssignment {
-  const data = readData();
+): Promise<AccountSubscriptionAssignment> {
+  await ensureSubscriptionCacheHydrated();
+  const data = getSnapshot();
   data.assignments[accountId] = assignment;
-  writeData(data);
+  setSnapshot({ ...data });
+
+  if (await isSubscriptionSupabaseReady()) {
+    await runOptionalDbSyncVoid("setAccountAssignment", () =>
+      setAccountAssignmentInSupabase(accountId, assignment, data.tiers)
+    );
+  }
+
   return assignment;
 }
 
 export function getManualOverride(accountId: string): ManualSubscriptionOverride | null {
-  return readData().overrides[accountId] ?? null;
+  return getSnapshot().overrides[accountId] ?? null;
 }
 
-export function setManualOverride(
+export async function setManualOverride(
   accountId: string,
   override: ManualSubscriptionOverride
-): ManualSubscriptionOverride {
-  const data = readData();
+): Promise<ManualSubscriptionOverride> {
+  await ensureSubscriptionCacheHydrated();
+  const data = getSnapshot();
   data.overrides[accountId] = override;
-  writeData(data);
+  setSnapshot({ ...data });
+
+  if (await isSubscriptionSupabaseReady()) {
+    await runOptionalDbSyncVoid("setManualOverride", () =>
+      setManualOverrideInSupabase(accountId, override, data.tiers)
+    );
+  }
+
   return override;
 }
 
-export function removeManualOverride(accountId: string): boolean {
-  const data = readData();
+export async function removeManualOverride(accountId: string): Promise<boolean> {
+  await ensureSubscriptionCacheHydrated();
+  const data = getSnapshot();
   if (!data.overrides[accountId]) return false;
   delete data.overrides[accountId];
-  writeData(data);
+  setSnapshot({ ...data });
+
+  if (await isSubscriptionSupabaseReady()) {
+    await runOptionalDbSyncVoid("removeManualOverride", () =>
+      removeManualOverrideInSupabase(accountId, data.tiers, data.assignments[accountId] ?? null)
+    );
+  }
+
   return true;
 }
 
 export function getAllOverrides(): Record<string, ManualSubscriptionOverride> {
-  return readData().overrides;
+  return getSnapshot().overrides;
 }
 
 export function getStripeCustomerMapping(accountId: string): StripeCustomerMapping | null {
-  return readData().stripeCustomers[accountId] ?? null;
+  return getSnapshot().stripeCustomers[accountId] ?? null;
 }
 
-export function setStripeCustomerMapping(
+export async function setStripeCustomerMapping(
   accountId: string,
   stripeCustomerId: string
-): StripeCustomerMapping {
-  const data = readData();
+): Promise<StripeCustomerMapping> {
+  await ensureSubscriptionCacheHydrated();
+  const data = getSnapshot();
   const now = new Date().toISOString();
   const existing = data.stripeCustomers[accountId];
   const mapping: StripeCustomerMapping = {
@@ -250,11 +405,18 @@ export function setStripeCustomerMapping(
     updatedAt: now,
   };
   data.stripeCustomers[accountId] = mapping;
-  writeData(data);
+  setSnapshot({ ...data });
+
+  if (await isSubscriptionSupabaseReady()) {
+    await runOptionalDbSyncVoid("setStripeCustomerMapping", () =>
+      setStripeCustomerMappingInSupabase(accountId, mapping)
+    );
+  }
+
   return mapping;
 }
 
-export function recordStripePaymentEvent(input: {
+export async function recordStripePaymentEvent(input: {
   stripeEventId: string;
   type: string;
   accountId?: string;
@@ -263,8 +425,9 @@ export function recordStripePaymentEvent(input: {
   currency?: string;
   status?: StripePaymentEventStatus;
   payloadSummary?: Record<string, unknown>;
-}): StripePaymentEvent {
-  const data = readData();
+}): Promise<StripePaymentEvent> {
+  await ensureSubscriptionCacheHydrated();
+  const data = getSnapshot();
   const event: StripePaymentEvent = {
     id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     stripeEventId: input.stripeEventId,
@@ -277,26 +440,35 @@ export function recordStripePaymentEvent(input: {
     payloadSummary: input.payloadSummary,
     createdAt: new Date().toISOString(),
   };
+
   data.paymentEvents.unshift(event);
   if (data.paymentEvents.length > 500) {
     data.paymentEvents = data.paymentEvents.slice(0, 500);
   }
-  writeData(data);
+  setSnapshot({ ...data });
+
+  if (await isSubscriptionSupabaseReady()) {
+    await runOptionalDbSyncVoid("recordStripePaymentEvent", () =>
+      recordStripePaymentEventInSupabase(event)
+    );
+  }
+
   return event;
 }
 
 export function listStripePaymentEvents(limit = 50): StripePaymentEvent[] {
-  return readData().paymentEvents.slice(0, limit);
+  return getSnapshot().paymentEvents.slice(0, limit);
 }
 
-export function recordStripeRefund(input: {
+export async function recordStripeRefund(input: {
   paymentIntentId: string;
   amountSar: number;
   reason?: string;
   requestedBy: string;
   status?: StripeRefundRecord["status"];
-}): StripeRefundRecord {
-  const data = readData();
+}): Promise<StripeRefundRecord> {
+  await ensureSubscriptionCacheHydrated();
+  const data = getSnapshot();
   const refund: StripeRefundRecord = {
     id: `ref-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     paymentIntentId: input.paymentIntentId,
@@ -306,27 +478,34 @@ export function recordStripeRefund(input: {
     requestedBy: input.requestedBy,
     createdAt: new Date().toISOString(),
   };
+
   data.refunds.unshift(refund);
-  writeData(data);
+  setSnapshot({ ...data });
+
+  if (await isSubscriptionSupabaseReady()) {
+    await runOptionalDbSyncVoid("recordStripeRefund", () => recordStripeRefundInSupabase(refund));
+  }
+
   return refund;
 }
 
 export function listStripeRefunds(limit = 50): StripeRefundRecord[] {
-  return readData().refunds.slice(0, limit);
+  return getSnapshot().refunds.slice(0, limit);
 }
 
 const PLAN_TO_TIER: Record<string, string> = {
   premium_monthly: "premium-user",
   premium_yearly: "premium-user",
   company_standard: "company-standard",
+  company_annual: "company-standard",
 };
 
-export function applyStripeCheckoutCompleted(input: {
+export async function applyStripeCheckoutCompleted(input: {
   accountId: string;
   plan?: string;
   stripeEventId: string;
   amountSar?: number;
-}): AccountSubscriptionAssignment | null {
+}): Promise<AccountSubscriptionAssignment | null> {
   const tierId = input.plan ? PLAN_TO_TIER[input.plan] : undefined;
   if (!input.accountId || !tierId) return null;
 
@@ -338,8 +517,8 @@ export function applyStripeCheckoutCompleted(input: {
     source: "billing",
   };
 
-  setAccountAssignment(input.accountId, assignment);
-  recordStripePaymentEvent({
+  await setAccountAssignment(input.accountId, assignment);
+  await recordStripePaymentEvent({
     stripeEventId: input.stripeEventId,
     type: "checkout.session.completed",
     accountId: input.accountId,
@@ -352,19 +531,26 @@ export function applyStripeCheckoutCompleted(input: {
   return assignment;
 }
 
-export function applyStripeSubscriptionCancelled(accountId: string, stripeEventId: string): void {
+export async function applyStripeSubscriptionCancelled(
+  accountId: string,
+  stripeEventId: string
+): Promise<void> {
   const existing = getAccountAssignment(accountId);
   if (!existing) return;
 
-  setAccountAssignment(accountId, {
+  await setAccountAssignment(accountId, {
     ...existing,
     status: "cancelled",
   });
 
-  recordStripePaymentEvent({
+  await recordStripePaymentEvent({
     stripeEventId,
     type: "customer.subscription.deleted",
     accountId,
     status: "processed",
   });
+}
+
+export function isSubscriptionPersistenceActive(): boolean {
+  return subscriptionTableAvailable;
 }

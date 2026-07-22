@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   createSubscriptionTier,
   deleteSubscriptionTier,
+  ensureSubscriptionCacheHydrated,
   listSubscriptionTiers,
   updateSubscriptionTier,
 } from "@/lib/subscription/subscription-store";
@@ -13,6 +14,8 @@ export async function GET(request: Request) {
   if (!auth || !requireSubscriptionManagement(auth.user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  await ensureSubscriptionCacheHydrated();
 
   const { searchParams } = new URL(request.url);
   const audience = searchParams.get("audience") as SubscriptionAudience | null;
@@ -28,7 +31,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const tier = createSubscriptionTier({
+    const tier = await createSubscriptionTier({
       nameEn: String(body.nameEn ?? "New Tier"),
       nameAr: String(body.nameAr ?? "باقة جديدة"),
       audience: body.audience === "company" ? "company" : "user",
@@ -54,7 +57,7 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
-    const tier = updateSubscriptionTier(body.id, body);
+    const tier = await updateSubscriptionTier(body.id, body);
     if (!tier) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({ tier });
   } catch {
@@ -71,7 +74,7 @@ export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  const ok = deleteSubscriptionTier(id);
+  const ok = await deleteSubscriptionTier(id);
   if (!ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
