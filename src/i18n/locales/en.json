@@ -910,13 +910,22 @@
       "ipLocation": "IP / Location",
       "details": "Details",
       "action": "Action",
-      "timestamp": "Timestamp"
+      "timestamp": "Timestamp",
+      "abuseThreshold": "{count} / {threshold} threshold exceeded"
     },
     "analytics": {
       "title": "Strategic Analytics",
+      "subtitle": "Growth velocity · Revenue distribution · Category & industry performance",
       "days30": "30d",
       "days90": "90d",
-      "days120": "120d"
+      "days120": "120d",
+      "growthTitle": "User & Company Growth",
+      "revenueTitle": "Revenue Distribution",
+      "revenueSubtitle": "Subscription vs Commissions",
+      "categoriesTitle": "Top Service Categories",
+      "categoriesSubtitle": "By order volume",
+      "industriesTitle": "Top Hiring Industries",
+      "industriesSubtitle": "Job postings & applications"
     },
     "ai": {
       "title": "Predictive Owner AI",

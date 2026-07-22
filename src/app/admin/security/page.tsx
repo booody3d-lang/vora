@@ -1,19 +1,54 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { ADMIN_ABUSE_SIGNALS, ADMIN_AUDIT_LOG, ADMIN_SECURITY_LOG } from "@/lib/admin/mock-data";
 import { useTranslations } from "@/i18n/use-translations";
-import type { SecurityEventType } from "@/types/admin";
+import type { AbuseSignal, AuditLogEntry, SecurityEventType, SecurityLogEntry } from "@/types/admin";
 
 export default function AdminSecurityPage() {
   const { t } = useTranslations();
+  const [securityLog, setSecurityLog] = useState<SecurityLogEntry[]>(ADMIN_SECURITY_LOG);
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>(ADMIN_AUDIT_LOG);
+  const [abuseSignals, setAbuseSignals] = useState<AbuseSignal[]>(ADMIN_ABUSE_SIGNALS);
+  const [persistence, setPersistence] = useState<"supabase" | "demo">("demo");
+
+  const loadSecurity = useCallback(() => {
+    fetch("/api/admin/security")
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (
+          data: {
+            securityLog?: SecurityLogEntry[];
+            auditLog?: AuditLogEntry[];
+            abuseSignals?: AbuseSignal[];
+            persistence?: "supabase" | "demo";
+          } | null
+        ) => {
+          if (data?.securityLog) setSecurityLog(data.securityLog);
+          if (data?.auditLog) setAuditLog(data.auditLog);
+          if (data?.abuseSignals) setAbuseSignals(data.abuseSignals);
+          if (data?.persistence) setPersistence(data.persistence);
+        }
+      )
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadSecurity();
+  }, [loadSecurity]);
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white">{t("admin.security.title")}</h1>
-        <p className="text-sm text-slate-400">{t("admin.security.subtitle")}</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">{t("admin.security.title")}</h1>
+          <p className="text-sm text-slate-400">{t("admin.security.subtitle")}</p>
+        </div>
+        <span className="rounded-full bg-slate-800 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          {persistence === "supabase" ? "Supabase live" : "Demo fallback"}
+        </span>
       </div>
 
-      {/* Security log */}
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
           {t("admin.security.liveLog")}
@@ -30,7 +65,7 @@ export default function AdminSecurityPage() {
               </tr>
             </thead>
             <tbody>
-              {ADMIN_SECURITY_LOG.map((entry) => (
+              {securityLog.map((entry) => (
                 <tr key={entry.id} className="border-b border-slate-800">
                   <td className="px-5 py-3">
                     <EventTypeBadge type={entry.type} />
@@ -51,13 +86,12 @@ export default function AdminSecurityPage() {
         </div>
       </section>
 
-      {/* Audit trail */}
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
           {t("admin.security.auditTrail")}
         </h2>
         <div className="space-y-2">
-          {ADMIN_AUDIT_LOG.map((entry) => (
+          {auditLog.map((entry) => (
             <div
               key={entry.id}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3"
@@ -73,13 +107,12 @@ export default function AdminSecurityPage() {
         </div>
       </section>
 
-      {/* Abuse signals */}
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
-          Spam & Abuse Signals
+          {t("admin.security.abuseSignals")}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {ADMIN_ABUSE_SIGNALS.map((signal) => (
+          {abuseSignals.map((signal) => (
             <div
               key={signal.id}
               className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4"
@@ -87,7 +120,9 @@ export default function AdminSecurityPage() {
               <p className="font-semibold text-white">{signal.userName}</p>
               <p className="mt-1 text-sm text-amber-400">{signal.signalType}</p>
               <p className="mt-2 text-xs text-slate-400">
-                {signal.count} / {signal.threshold} threshold exceeded
+                {t("admin.security.abuseThreshold")
+                  .replace("{count}", String(signal.count))
+                  .replace("{threshold}", String(signal.threshold))}
               </p>
               <p className="mt-1 text-[10px] text-slate-600">
                 {new Date(signal.timestamp).toLocaleString("en-SA")}

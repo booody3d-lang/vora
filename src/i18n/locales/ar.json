@@ -910,13 +910,22 @@
       "ipLocation": "IP / الموقع",
       "details": "التفاصيل",
       "action": "الإجراء",
-      "timestamp": "الوقت"
+      "timestamp": "الوقت",
+      "abuseThreshold": "{count} / {threshold} تجاوز الحد"
     },
     "analytics": {
       "title": "تحليلات استراتيجية",
+      "subtitle": "وتيرة النمو · توزيع الإيرادات · أداء الفئات والقطاعات",
       "days30": "30 يوم",
       "days90": "90 يوم",
-      "days120": "120 يوم"
+      "days120": "120 يوم",
+      "growthTitle": "نمو المستخدمين والشركات",
+      "revenueTitle": "توزيع الإيرادات",
+      "revenueSubtitle": "الاشتراكات مقابل العمولات",
+      "categoriesTitle": "أفضل فئات الخدمات",
+      "categoriesSubtitle": "حسب حجم الطلبات",
+      "industriesTitle": "أبرز قطاعات التوظيف",
+      "industriesSubtitle": "الوظائف والتقديمات"
     },
     "ai": {
       "title": "AI التنبؤي للمالك",
