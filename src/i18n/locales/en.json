@@ -245,7 +245,15 @@
       "following": "Following",
       "accept": "Accept",
       "message": "Message",
-      "messageWith": "Message {name}"
+      "messageWith": "Message {name}",
+      "subtitle": "Manage your professional network connections",
+      "emptyBody": "You have no connections in this list yet. Discover people to grow your network.",
+      "discover": "Discover people",
+      "tabs": {
+        "followers": "Followers",
+        "following": "Following",
+        "pending": "Pending"
+      }
     },
     "messagingSubtitle": "Connected professionals & company recruiters only",
     "messagingLockedTitle": "Messaging unavailable",

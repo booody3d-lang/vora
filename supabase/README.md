@@ -19,6 +19,7 @@ In the Supabase SQL editor, run the files in order:
 11. `011_storage_bucket.sql`
 12. `012_core_schema_bootstrap_fn.sql`
 13. `013_feed_rls_policies.sql` — feed engagement RLS (requires `002_network_ecosystem.sql` tables)
+14. `014_social_messaging_rls.sql` — conversation insert/update RLS (requires `002_network_ecosystem.sql`)
 
 ## 2. Quick bootstrap (empty project)
 

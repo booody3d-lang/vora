@@ -78,7 +78,7 @@ export async function GET() {
   const onboardingProgress = profile ? getOnboardingProgress(profile) : null;
   const subscription = getEffectiveSubscription(auth.user.id, "user");
   const recoveryChannel = getRecoveryChannel(auth.user.id);
-  const social = getSocialProfileContext(auth.user.id, auth.user.id);
+  const social = await getSocialProfileContext(auth.user.id, auth.user.id);
 
   return NextResponse.json({
     authenticated: true,

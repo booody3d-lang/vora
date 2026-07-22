@@ -31,6 +31,8 @@ export function ProfileHeader({
   const [showContact, setShowContact] = useState(false);
   const { t } = useLocale();
 
+  const targetAccountId = profile.accountId ?? profile.id;
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="relative h-48 bg-gradient-to-r from-[#1E293B] to-[#3B5998] md:h-56">
@@ -125,19 +127,19 @@ export function ProfileHeader({
           {!isOwnProfile && (
             <>
               <ConnectButton
-                targetUserId={profile.id}
+                targetUserId={targetAccountId}
                 targetName={profile.fullName}
                 initialStatus={initiallyAccepted ? "accepted" : undefined}
                 hasIncomingPending={hasIncomingPending}
               />
               <FollowButton
-                targetUserId={profile.id}
+                targetUserId={targetAccountId}
                 initiallyFollowing={initiallyFollowing}
                 initiallyAccepted={initiallyAccepted}
               />
               {profile.canMessage && (
                 <MessageButton
-                  targetAccountId={profile.id}
+                  targetAccountId={targetAccountId}
                   targetName={profile.fullName}
                 />
               )}

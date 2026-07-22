@@ -7,6 +7,7 @@ import { useCurrentProfile } from "@/hooks/use-current-profile";
 import { getProfileUrl } from "@/lib/network/urls";
 import Link from "next/link";
 import { useTranslations } from "@/i18n/use-translations";
+import { networkFieldRoundedClass } from "@/components/network/ui/field-styles";
 import { useGuardedAction } from "@/hooks/useGuardedAction";
 
 interface PostCommentsProps {
@@ -105,7 +106,7 @@ export function PostComments({
               onChange={(e) => setNewComment(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submitComment()}
               placeholder={t("network.feed.comments.placeholder")}
-              className="flex-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-[#3B5998]"
+              className={networkFieldRoundedClass}
             />
             <button
               type="button"

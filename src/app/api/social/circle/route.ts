@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import {
-  acceptFollow,
   getIncomingPendingFollows,
   listFollowersForOwner,
   listFollowingForOwner,
@@ -16,10 +15,16 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const [followers, following, pendingIncoming] = await Promise.all([
+    listFollowersForOwner(auth.user.id),
+    listFollowingForOwner(auth.user.id),
+    getIncomingPendingFollows(auth.user.id),
+  ]);
+
   return NextResponse.json({
-    followers: listFollowersForOwner(auth.user.id),
-    following: listFollowingForOwner(auth.user.id),
-    pendingIncoming: getIncomingPendingFollows(auth.user.id),
+    followers,
+    following,
+    pendingIncoming,
   });
 }
 
@@ -39,7 +44,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "targetId is required" }, { status: 400 });
     }
 
-    const result = requestFollow({
+    const result = await requestFollow({
       followerAccountId: auth.user.id,
       targetId: body.targetId,
       targetType: body.targetType ?? "user",
@@ -76,7 +81,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "targetId is required" }, { status: 400 });
     }
 
-    unfollow({
+    await unfollow({
       followerAccountId: auth.user.id,
       targetId: body.targetId,
       targetType: body.targetType ?? "user",

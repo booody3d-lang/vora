@@ -25,7 +25,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const targetAccountId =
     profile.accountId ?? (await resolveAccountIdForProfileSlug(slug));
   const social = targetAccountId
-    ? getSocialProfileContext(auth?.user.id ?? null, targetAccountId)
+    ? await getSocialProfileContext(auth?.user.id ?? null, targetAccountId)
     : null;
 
   const publicProfile = stripPrivateProfileFields(profile);

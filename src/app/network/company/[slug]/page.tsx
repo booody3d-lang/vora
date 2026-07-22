@@ -18,7 +18,7 @@ export default async function CompanyPublicPage({ params }: CompanyPublicPagePro
   }
 
   const auth = await getAuthenticatedUser();
-  const social = getCompanySocialContext(auth?.user.id ?? null, baseCompany.id);
+  const social = await getCompanySocialContext(auth?.user.id ?? null, baseCompany.id);
 
   const company = {
     ...baseCompany,

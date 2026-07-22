@@ -8,6 +8,6 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const contacts = getMessagingContacts(auth.user.id);
+  const contacts = await getMessagingContacts(auth.user.id);
   return NextResponse.json({ contacts });
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CreatePostInput, FeedPost } from "@/types/network";
+import { networkFieldClass } from "@/components/network/ui/field-styles";
 import { useTranslations } from "@/i18n/use-translations";
 
 interface EditPostModalProps {
@@ -91,7 +92,7 @@ export function EditPostModal({ post, onClose, onSaved }: EditPostModalProps) {
             onChange={(e) => setContent(e.target.value)}
             rows={4}
             placeholder={t("network.feedSharePlaceholder")}
-            className="mt-4 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className={`mt-4 ${networkFieldClass}`}
           />
         )}
 
@@ -100,7 +101,7 @@ export function EditPostModal({ post, onClose, onSaved }: EditPostModalProps) {
             value={articleTitle}
             onChange={(e) => setArticleTitle(e.target.value)}
             placeholder={t("network.feed.articleTitlePlaceholder")}
-            className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className={`mt-3 ${networkFieldClass}`}
           />
         )}
 
@@ -110,7 +111,7 @@ export function EditPostModal({ post, onClose, onSaved }: EditPostModalProps) {
               value={pollQuestion}
               onChange={(e) => setPollQuestion(e.target.value)}
               placeholder={t("network.feedPollPlaceholder")}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              className={networkFieldClass}
             />
             {pollOptions.map((option, index) => (
               <input
@@ -122,7 +123,7 @@ export function EditPostModal({ post, onClose, onSaved }: EditPostModalProps) {
                   setPollOptions(next);
                 }}
                 placeholder={t("network.feed.pollOptionPlaceholder", { number: index + 1 })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                className={networkFieldClass}
               />
             ))}
           </div>

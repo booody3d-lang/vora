@@ -17,7 +17,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 
   const auth = await getAuthenticatedUser();
-  const social = getCompanySocialContext(auth?.user.id ?? null, company.id);
+  const social = await getCompanySocialContext(auth?.user.id ?? null, company.id);
 
   const responseCompany = {
     ...company,

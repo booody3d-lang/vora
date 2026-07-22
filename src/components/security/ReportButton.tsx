@@ -1,5 +1,7 @@
 "use client";
 
+import { networkTextareaClass } from "@/components/network/ui/field-styles";
+
 import { useState } from "react";
 import type { ReportTargetType } from "@/types/security";
 
@@ -66,7 +68,7 @@ export function ReportButton({ targetType, targetId, targetLabel, variant = "ico
                 <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
                   {REASONS.map((r) => <option key={r}>{r}</option>)}
                 </select>
-                <textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={3} placeholder="Additional details (optional)" className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                <textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={3} placeholder="Additional details (optional)" className={networkTextareaClass} />
                 {error && <p className="text-sm text-red-600">{error}</p>}
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl border border-slate-200 py-2 text-sm">Cancel</button>

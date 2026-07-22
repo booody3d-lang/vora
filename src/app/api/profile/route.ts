@@ -21,7 +21,7 @@ export async function GET() {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 
-  const social = getSocialProfileContext(auth.user.id, auth.user.id);
+  const social = await getSocialProfileContext(auth.user.id, auth.user.id);
 
   return NextResponse.json({
     profile: {

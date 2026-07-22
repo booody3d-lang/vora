@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       if (!body.followerAccountId) {
         return NextResponse.json({ error: "followerAccountId is required" }, { status: 400 });
       }
-      const result = acceptFollow({
+      const result = await acceptFollow({
         targetAccountId: auth.user.id,
         followerAccountId: body.followerAccountId,
       });
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "targetId is required" }, { status: 400 });
     }
 
-    const result = requestFollow({
+    const result = await requestFollow({
       followerAccountId: auth.user.id,
       targetId: body.targetId,
       targetType: "user",

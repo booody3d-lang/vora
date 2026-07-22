@@ -9,6 +9,7 @@ import { useCurrentProfile } from "@/hooks/use-current-profile";
 import { useTranslations } from "@/i18n/use-translations";
 import { useGuardedAction } from "@/hooks/useGuardedAction";
 import { uploadMediaFile } from "@/lib/media/upload-client";
+import { networkFieldClass } from "@/components/network/ui/field-styles";
 import { cn } from "@/lib/utils";
 
 const POST_TYPE_KEYS: { type: PostType; labelKey: string; icon: string }[] = [
@@ -170,8 +171,7 @@ export function FeedComposer({ onPublish }: FeedComposerProps) {
     }
   }
 
-  const fieldClass =
-    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#3B5998]";
+  const fieldClass = networkFieldClass;
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

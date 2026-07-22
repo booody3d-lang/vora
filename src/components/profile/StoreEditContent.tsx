@@ -1,5 +1,7 @@
 "use client";
 
+import { networkFieldClass } from "@/components/network/ui/field-styles";
+
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -127,20 +129,20 @@ export function StoreEditContent() {
         >
           <div>
             <label className="text-sm font-medium text-slate-700">{t("storeEdit.storeName")}</label>
-            <input value={storeName} onChange={(e) => setStoreName(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <input value={storeName} onChange={(e) => setStoreName(e.target.value)} className={`mt-1 ${networkFieldClass}`} />
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700">{t("storeEdit.tagline")}</label>
-            <input value={tagline} onChange={(e) => setTagline(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <input value={tagline} onChange={(e) => setTagline(e.target.value)} className={`mt-1 ${networkFieldClass}`} />
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700">{t("storeEdit.description")}</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} className={`mt-1 ${networkFieldClass}`} />
             <p className="mt-1 text-xs text-slate-500">{t("storeEdit.bioHint")}</p>
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700">{t("storeEdit.videoUrl")}</label>
-            <input value={videoIntroUrl} onChange={(e) => setVideoIntroUrl(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <input value={videoIntroUrl} onChange={(e) => setVideoIntroUrl(e.target.value)} className={`mt-1 ${networkFieldClass}`} />
           </div>
           <button type="submit" disabled={saving} className="rounded-lg bg-[#EA580C] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
             {t("common.save")}

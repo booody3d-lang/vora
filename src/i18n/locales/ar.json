@@ -245,7 +245,15 @@
       "following": "متابَع",
       "accept": "قبول",
       "message": "مراسلة",
-      "messageWith": "مراسلة {name}"
+      "messageWith": "مراسلة {name}",
+      "subtitle": "إدارة شبكة علاقاتك المهنية",
+      "emptyBody": "لا توجد اتصالات في هذه القائمة بعد. اكتشف أشخاصاً لتوسيع شبكتك.",
+      "discover": "اكتشف أشخاصاً",
+      "tabs": {
+        "followers": "المتابِعون",
+        "following": "المتابَعون",
+        "pending": "قيد الانتظار"
+      }
     },
     "messagingSubtitle": "للمحترفين المتصلين ومسؤولي التوظيف في الشركات فقط",
     "messagingLockedTitle": "المراسلة غير متاحة",

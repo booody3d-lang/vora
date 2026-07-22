@@ -11,7 +11,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const conversations = getConversationsForAccount(auth.user.id);
+  const conversations = await getConversationsForAccount(auth.user.id);
   return NextResponse.json({ conversations });
 }
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "targetAccountId required" }, { status: 400 });
     }
 
-    const conv = getOrCreateConversation(auth.user.id, body.targetAccountId);
+    const conv = await getOrCreateConversation(auth.user.id, body.targetAccountId);
     if (!conv) {
       return NextResponse.json(
         { error: "Messaging requires an accepted follow connection" },
@@ -35,8 +35,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const conversations = getConversationsForAccount(auth.user.id);
-    const preview = conversations.find((c) => c.id === conv.id);
+    const conversations = await getConversationsForAccount(auth.user.id);
+    const preview = conversations.find((item) => item.id === conv.id);
     return NextResponse.json({ conversation: preview ?? { id: conv.id } });
   } catch {
     return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });

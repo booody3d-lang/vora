@@ -1,6 +1,26 @@
 import "server-only";
 
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
+import {
+  isMissingRelationError,
+  markSupabaseDbSyncUnavailable,
+  runOptionalDbSync,
+} from "@/lib/supabase/safe-db";
+import {
+  acceptFollowInSupabase,
+  canInitiateMessageInSupabase,
+  getFollowerCountFromSupabase,
+  getFollowingUserCountFromSupabase,
+  getIncomingPendingFollowsFromSupabase,
+  getRelationshipFromSupabase,
+  listFollowersForOwnerFromSupabase,
+  listFollowingUsersFromSupabase,
+  migrateJsonSocialToSupabase,
+  requestFollowInSupabase,
+  unfollowInSupabase,
+} from "@/lib/network/social-supabase";
 import { getCompanyById } from "@/lib/company/company-store";
 import { findAccountById } from "@/lib/security/demo-store";
 import {
@@ -9,6 +29,7 @@ import {
 } from "@/lib/profile/profile-store";
 
 const DATA_FILE = "social-data.json";
+const MIGRATION_FLAG = "social-supabase-migrated.json";
 
 export type FollowTargetType = "user" | "company";
 export type FollowStatus = "pending" | "accepted" | "declined";
@@ -46,6 +67,32 @@ interface SocialDataFile {
   follows: FollowRelationship[];
 }
 
+let socialTableProbed = false;
+let socialTableAvailable = false;
+
+async function isSocialSupabaseReady(): Promise<boolean> {
+  if (!isSupabasePersistenceEnabled()) return false;
+  if (socialTableProbed) return socialTableAvailable;
+
+  socialTableProbed = true;
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.from("connections").select("id").limit(1);
+    if (error) {
+      if (isMissingRelationError(error)) {
+        markSupabaseDbSyncUnavailable("connections missing", error);
+      }
+      socialTableAvailable = false;
+      return false;
+    }
+    socialTableAvailable = true;
+    return true;
+  } catch {
+    socialTableAvailable = false;
+    return false;
+  }
+}
+
 function readData(): SocialDataFile {
   const data = readJsonStore(DATA_FILE, () => ({ follows: [] as FollowRelationship[] }));
   if (!data.follows) data.follows = [];
@@ -54,6 +101,10 @@ function readData(): SocialDataFile {
 
 function writeData(data: SocialDataFile) {
   writeJsonStore(DATA_FILE, data);
+}
+
+function companyFollows(data: SocialDataFile): FollowRelationship[] {
+  return data.follows.filter((follow) => follow.targetType === "company");
 }
 
 function edgeId(followerId: string, targetId: string, targetType: FollowTargetType): string {
@@ -68,11 +119,35 @@ export function isKnownCompanyId(companyId: string): boolean {
   return getCompanyById(companyId) !== null;
 }
 
-export function requestFollow(input: {
+async function maybeMigrateJsonToSupabase(): Promise<void> {
+  if (!(await isSocialSupabaseReady())) return;
+
+  const flag = readJsonStore(MIGRATION_FLAG, () => ({ done: false as boolean }));
+  if (flag.done) return;
+
+  const data = readData();
+  const userFollows = data.follows.filter((follow) => follow.targetType === "user");
+
+  await runOptionalDbSync("social-json-migration", async () => {
+    const migrated = await migrateJsonSocialToSupabase(userFollows);
+    writeJsonStore(MIGRATION_FLAG, {
+      done: true,
+      migratedAt: new Date().toISOString(),
+      migratedConnections: migrated,
+    });
+    return migrated;
+  }, 0);
+
+  if (!readJsonStore(MIGRATION_FLAG, () => ({ done: false as boolean })).done) {
+    writeJsonStore(MIGRATION_FLAG, { done: true, skipped: true });
+  }
+}
+
+export async function requestFollow(input: {
   followerAccountId: string;
   targetId: string;
   targetType?: FollowTargetType;
-}): { ok: true; relationship: FollowRelationship } | { ok: false; error: string } {
+}): Promise<{ ok: true; relationship: FollowRelationship } | { ok: false; error: string }> {
   if (input.followerAccountId === input.targetId) {
     return { ok: false, error: "Cannot follow yourself" };
   }
@@ -81,6 +156,33 @@ export function requestFollow(input: {
     return { ok: false, error: "Company accounts cannot follow users" };
   }
 
+  const targetType = input.targetType ?? "user";
+
+  if (targetType === "company") {
+    return requestFollowJson(input);
+  }
+
+  if (!getProfileByAccountId(input.targetId)) {
+    return { ok: false, error: "User not found" };
+  }
+
+  if (await isSocialSupabaseReady()) {
+    await maybeMigrateJsonToSupabase();
+    return runOptionalDbSync(
+      "requestFollow",
+      () => requestFollowInSupabase(input),
+      requestFollowJson(input)
+    );
+  }
+
+  return requestFollowJson(input);
+}
+
+function requestFollowJson(input: {
+  followerAccountId: string;
+  targetId: string;
+  targetType?: FollowTargetType;
+}): { ok: true; relationship: FollowRelationship } | { ok: false; error: string } {
   const targetType = input.targetType ?? "user";
   if (targetType === "user" && !getProfileByAccountId(input.targetId)) {
     return { ok: false, error: "User not found" };
@@ -91,7 +193,7 @@ export function requestFollow(input: {
 
   const data = readData();
   const id = edgeId(input.followerAccountId, input.targetId, targetType);
-  const existing = data.follows.find((f) => f.id === id);
+  const existing = data.follows.find((follow) => follow.id === id);
 
   if (existing) {
     if (existing.status === "declined") {
@@ -118,13 +220,27 @@ export function requestFollow(input: {
   return { ok: true, relationship };
 }
 
-export function acceptFollow(input: {
+export async function acceptFollow(input: {
+  targetAccountId: string;
+  followerAccountId: string;
+}): Promise<{ ok: true; relationship: FollowRelationship } | { ok: false; error: string }> {
+  if (await isSocialSupabaseReady()) {
+    return runOptionalDbSync(
+      "acceptFollow",
+      () => acceptFollowInSupabase(input),
+      acceptFollowJson(input)
+    );
+  }
+  return acceptFollowJson(input);
+}
+
+function acceptFollowJson(input: {
   targetAccountId: string;
   followerAccountId: string;
 }): { ok: true; relationship: FollowRelationship } | { ok: false; error: string } {
   const data = readData();
   const id = edgeId(input.followerAccountId, input.targetAccountId, "user");
-  const relationship = data.follows.find((f) => f.id === id);
+  const relationship = data.follows.find((follow) => follow.id === id);
 
   if (!relationship || relationship.targetType !== "user") {
     return { ok: false, error: "Follow request not found" };
@@ -136,7 +252,29 @@ export function acceptFollow(input: {
   return { ok: true, relationship };
 }
 
-export function unfollow(input: {
+export async function unfollow(input: {
+  followerAccountId: string;
+  targetId: string;
+  targetType?: FollowTargetType;
+}): Promise<boolean> {
+  const targetType = input.targetType ?? "user";
+
+  if (targetType === "company") {
+    return unfollowJson(input);
+  }
+
+  if (await isSocialSupabaseReady()) {
+    return runOptionalDbSync(
+      "unfollow",
+      () => unfollowInSupabase(input),
+      unfollowJson(input)
+    );
+  }
+
+  return unfollowJson(input);
+}
+
+function unfollowJson(input: {
   followerAccountId: string;
   targetId: string;
   targetType?: FollowTargetType;
@@ -145,54 +283,138 @@ export function unfollow(input: {
   const targetType = input.targetType ?? "user";
   const id = edgeId(input.followerAccountId, input.targetId, targetType);
   const before = data.follows.length;
-  data.follows = data.follows.filter((f) => f.id !== id);
+  data.follows = data.follows.filter((follow) => follow.id !== id);
   if (data.follows.length === before) return false;
   writeData(data);
   return true;
 }
 
-export function getFollowerCount(targetId: string, targetType: FollowTargetType = "user"): number {
+export async function getFollowerCount(
+  targetId: string,
+  targetType: FollowTargetType = "user"
+): Promise<number> {
+  if (targetType === "company") {
+    return getFollowerCountJson(targetId, targetType);
+  }
+
+  if (await isSocialSupabaseReady()) {
+    return runOptionalDbSync(
+      "getFollowerCount",
+      () => getFollowerCountFromSupabase(targetId),
+      getFollowerCountJson(targetId, targetType)
+    );
+  }
+
+  return getFollowerCountJson(targetId, targetType);
+}
+
+function getFollowerCountJson(targetId: string, targetType: FollowTargetType = "user"): number {
   const data = readData();
   return data.follows.filter(
-    (f) =>
-      f.targetId === targetId &&
-      f.targetType === targetType &&
-      f.status !== "declined"
+    (follow) =>
+      follow.targetId === targetId &&
+      follow.targetType === targetType &&
+      follow.status !== "declined"
   ).length;
 }
 
-export function getFollowingCount(accountId: string): number {
+export async function getFollowingCount(accountId: string): Promise<number> {
+  const companyCount = readData().follows.filter(
+    (follow) => follow.followerAccountId === accountId && follow.targetType === "company"
+  ).length;
+
+  if (await isSocialSupabaseReady()) {
+    const userCount = await runOptionalDbSync(
+      "getFollowingCount",
+      () => getFollowingUserCountFromSupabase(accountId),
+      readData().follows.filter(
+        (follow) => follow.followerAccountId === accountId && follow.status !== "declined"
+      ).length
+    );
+    return userCount + companyCount;
+  }
+
+  return getFollowingCountJson(accountId);
+}
+
+function getFollowingCountJson(accountId: string): number {
   const data = readData();
   return data.follows.filter(
-    (f) => f.followerAccountId === accountId && f.status !== "declined"
+    (follow) => follow.followerAccountId === accountId && follow.status !== "declined"
   ).length;
 }
 
-export function getRelationship(
+export async function getRelationship(
+  followerAccountId: string,
+  targetId: string,
+  targetType: FollowTargetType = "user"
+): Promise<FollowRelationship | null> {
+  if (targetType === "company") {
+    return getRelationshipJson(followerAccountId, targetId, targetType);
+  }
+
+  if (await isSocialSupabaseReady()) {
+    return runOptionalDbSync(
+      "getRelationship",
+      () => getRelationshipFromSupabase(followerAccountId, targetId),
+      getRelationshipJson(followerAccountId, targetId, targetType)
+    );
+  }
+
+  return getRelationshipJson(followerAccountId, targetId, targetType);
+}
+
+function getRelationshipJson(
   followerAccountId: string,
   targetId: string,
   targetType: FollowTargetType = "user"
 ): FollowRelationship | null {
   const data = readData();
   const id = edgeId(followerAccountId, targetId, targetType);
-  return data.follows.find((f) => f.id === id) ?? null;
+  return data.follows.find((follow) => follow.id === id) ?? null;
 }
 
-export function canInitiateMessage(fromAccountId: string, toAccountId: string): boolean {
+export async function canInitiateMessage(
+  fromAccountId: string,
+  toAccountId: string
+): Promise<boolean> {
   if (fromAccountId === toAccountId) return false;
 
-  const outbound = getRelationship(fromAccountId, toAccountId, "user");
-  const inbound = getRelationship(toAccountId, fromAccountId, "user");
+  if (await isSocialSupabaseReady()) {
+    return runOptionalDbSync(
+      "canInitiateMessage",
+      () => canInitiateMessageInSupabase(fromAccountId, toAccountId),
+      canInitiateMessageJson(fromAccountId, toAccountId)
+    );
+  }
+
+  return canInitiateMessageJson(fromAccountId, toAccountId);
+}
+
+function canInitiateMessageJson(fromAccountId: string, toAccountId: string): boolean {
+  const data = readData();
+  const outbound = data.follows.find(
+    (follow) =>
+      follow.followerAccountId === fromAccountId &&
+      follow.targetId === toAccountId &&
+      follow.targetType === "user"
+  );
+  const inbound = data.follows.find(
+    (follow) =>
+      follow.followerAccountId === toAccountId &&
+      follow.targetId === fromAccountId &&
+      follow.targetType === "user"
+  );
 
   return outbound?.status === "accepted" || inbound?.status === "accepted";
 }
 
-export function getSocialProfileContext(
+export async function getSocialProfileContext(
   viewerAccountId: string | null,
   targetAccountId: string
-): SocialProfileContext {
-  const followerCount = getFollowerCount(targetAccountId, "user");
-  const followingCount = getFollowingCount(targetAccountId);
+): Promise<SocialProfileContext> {
+  const followerCount = await getFollowerCount(targetAccountId, "user");
+  const followingCount = await getFollowingCount(targetAccountId);
 
   if (!viewerAccountId || viewerAccountId === targetAccountId) {
     return {
@@ -206,8 +428,8 @@ export function getSocialProfileContext(
     };
   }
 
-  const outbound = getRelationship(viewerAccountId, targetAccountId, "user");
-  const inbound = getRelationship(targetAccountId, viewerAccountId, "user");
+  const outbound = await getRelationship(viewerAccountId, targetAccountId, "user");
+  const inbound = await getRelationship(targetAccountId, viewerAccountId, "user");
 
   return {
     followerCount,
@@ -216,15 +438,15 @@ export function getSocialProfileContext(
     isFollower: Boolean(inbound && inbound.status !== "declined"),
     isAccepted: outbound?.status === "accepted" || inbound?.status === "accepted",
     followStatus: outbound?.status ?? null,
-    canMessage: canInitiateMessage(viewerAccountId, targetAccountId),
+    canMessage: await canInitiateMessage(viewerAccountId, targetAccountId),
   };
 }
 
-export function getCompanySocialContext(
+export async function getCompanySocialContext(
   viewerAccountId: string | null,
   companyId: string
-): SocialProfileContext {
-  const followerCount = getFollowerCount(companyId, "company");
+): Promise<SocialProfileContext> {
+  const followerCount = await getFollowerCount(companyId, "company");
 
   if (!viewerAccountId) {
     return {
@@ -238,11 +460,11 @@ export function getCompanySocialContext(
     };
   }
 
-  const outbound = getRelationship(viewerAccountId, companyId, "company");
+  const outbound = await getRelationship(viewerAccountId, companyId, "company");
 
   return {
     followerCount,
-    followingCount: getFollowingCount(viewerAccountId),
+    followingCount: await getFollowingCount(viewerAccountId),
     isFollowing: outbound?.status === "accepted",
     isFollower: false,
     isAccepted: outbound?.status === "accepted",
@@ -251,48 +473,88 @@ export function getCompanySocialContext(
   };
 }
 
-export function listFollowersForOwner(ownerAccountId: string): FollowListEntry[] {
+export async function listFollowersForOwner(ownerAccountId: string): Promise<FollowListEntry[]> {
+  if (await isSocialSupabaseReady()) {
+    return runOptionalDbSync(
+      "listFollowersForOwner",
+      () => listFollowersForOwnerFromSupabase(ownerAccountId),
+      listFollowersForOwnerJson(ownerAccountId)
+    );
+  }
+  return listFollowersForOwnerJson(ownerAccountId);
+}
+
+function listFollowersForOwnerJson(ownerAccountId: string): FollowListEntry[] {
   const data = readData();
   return data.follows
     .filter(
-      (f) => f.targetId === ownerAccountId && f.targetType === "user" && f.status !== "declined"
+      (follow) =>
+        follow.targetId === ownerAccountId &&
+        follow.targetType === "user" &&
+        follow.status !== "declined"
     )
-    .map((f) => {
-      const profile = getProfileByAccountId(f.followerAccountId);
+    .map((follow) => {
+      const profile = getProfileByAccountId(follow.followerAccountId);
       return {
-        accountId: f.followerAccountId,
+        accountId: follow.followerAccountId,
         fullName: profile?.fullName ?? "User",
         headline: profile?.headline ?? "",
         profileSlug: profile?.slug,
-        status: f.status,
-        since: f.acceptedAt ?? f.createdAt,
+        status: follow.status,
+        since: follow.acceptedAt ?? follow.createdAt,
       };
     });
 }
 
-export function listFollowingForOwner(ownerAccountId: string): FollowListEntry[] {
+export async function listFollowingForOwner(ownerAccountId: string): Promise<FollowListEntry[]> {
+  const companyEntries = listFollowingCompaniesJson(ownerAccountId);
+
+  if (await isSocialSupabaseReady()) {
+    const userEntries = await runOptionalDbSync(
+      "listFollowingForOwner",
+      () => listFollowingUsersFromSupabase(ownerAccountId),
+      listFollowingUsersJson(ownerAccountId)
+    );
+    return [...userEntries, ...companyEntries];
+  }
+
+  return [...listFollowingUsersJson(ownerAccountId), ...companyEntries];
+}
+
+function listFollowingUsersJson(ownerAccountId: string): FollowListEntry[] {
   const data = readData();
   return data.follows
-    .filter((f) => f.followerAccountId === ownerAccountId && f.status !== "declined")
-    .map((f) => {
-      if (f.targetType === "company") {
-        const company = getCompanyById(f.targetId);
-        return {
-          accountId: f.targetId,
-          fullName: company?.name ?? "Company",
-          headline: company?.tagline ?? "",
-          status: f.status,
-          since: f.acceptedAt ?? f.createdAt,
-        };
-      }
-      const profile = getProfileByAccountId(f.targetId);
+    .filter(
+      (follow) =>
+        follow.followerAccountId === ownerAccountId &&
+        follow.targetType === "user" &&
+        follow.status !== "declined"
+    )
+    .map((follow) => {
+      const profile = getProfileByAccountId(follow.targetId);
       return {
-        accountId: f.targetId,
+        accountId: follow.targetId,
         fullName: profile?.fullName ?? "User",
         headline: profile?.headline ?? "",
         profileSlug: profile?.slug,
-        status: f.status,
-        since: f.acceptedAt ?? f.createdAt,
+        status: follow.status,
+        since: follow.acceptedAt ?? follow.createdAt,
+      };
+    });
+}
+
+function listFollowingCompaniesJson(ownerAccountId: string): FollowListEntry[] {
+  const data = readData();
+  return companyFollows(data)
+    .filter((follow) => follow.followerAccountId === ownerAccountId)
+    .map((follow) => {
+      const company = getCompanyById(follow.targetId);
+      return {
+        accountId: follow.targetId,
+        fullName: company?.name ?? "Company",
+        headline: company?.tagline ?? "",
+        status: follow.status,
+        since: follow.acceptedAt ?? follow.createdAt,
       };
     });
 }
@@ -301,24 +563,37 @@ export function getAccountIdForProfileSlug(slug: string): string | null {
   return getAccountIdByProfileSlug(slug);
 }
 
-export function getIncomingPendingFollows(targetAccountId: string): FollowListEntry[] {
+export async function getIncomingPendingFollows(
+  targetAccountId: string
+): Promise<FollowListEntry[]> {
+  if (await isSocialSupabaseReady()) {
+    return runOptionalDbSync(
+      "getIncomingPendingFollows",
+      () => getIncomingPendingFollowsFromSupabase(targetAccountId),
+      getIncomingPendingFollowsJson(targetAccountId)
+    );
+  }
+  return getIncomingPendingFollowsJson(targetAccountId);
+}
+
+function getIncomingPendingFollowsJson(targetAccountId: string): FollowListEntry[] {
   const data = readData();
   return data.follows
     .filter(
-      (f) =>
-        f.targetId === targetAccountId &&
-        f.targetType === "user" &&
-        f.status === "pending"
+      (follow) =>
+        follow.targetId === targetAccountId &&
+        follow.targetType === "user" &&
+        follow.status === "pending"
     )
-    .map((f) => {
-      const profile = getProfileByAccountId(f.followerAccountId);
+    .map((follow) => {
+      const profile = getProfileByAccountId(follow.followerAccountId);
       return {
-        accountId: f.followerAccountId,
+        accountId: follow.followerAccountId,
         fullName: profile?.fullName ?? "User",
         headline: profile?.headline ?? "",
         profileSlug: profile?.slug,
-        status: f.status,
-        since: f.createdAt,
+        status: follow.status,
+        since: follow.createdAt,
       };
     });
 }

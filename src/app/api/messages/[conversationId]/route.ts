@@ -6,6 +6,7 @@ import {
 } from "@/lib/network/messaging-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import type { MessageAttachment } from "@/types/network";
+
 interface RouteParams {
   params: Promise<{ conversationId: string }>;
 }
@@ -17,12 +18,12 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 
   const { conversationId } = await params;
-  const conversation = getConversationForViewer(conversationId, auth.user.id);
+  const conversation = await getConversationForViewer(conversationId, auth.user.id);
   if (!conversation) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const messages = getMessages(conversationId, auth.user.id);
+  const messages = await getMessages(conversationId, auth.user.id);
   return NextResponse.json({ conversation, messages });
 }
 
@@ -40,7 +41,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       file?: MessageAttachment;
     };
 
-    const message = sendMessage(
+    const message = await sendMessage(
       auth.user.id,
       conversationId,
       body.content?.trim() ?? "",

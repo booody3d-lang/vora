@@ -60,10 +60,10 @@ export function NewConversationPanel({
             <li key={contact.id}>
               <button
                 type="button"
-                disabled={creating === contact.id}
+                disabled={creating === (contact.accountId ?? contact.id)}
                 onClick={() => {
-                  setCreating(contact.id);
-                  void onSelect(contact.id).finally(() => setCreating(null));
+                  setCreating(contact.accountId ?? contact.id);
+                  void onSelect(contact.accountId ?? contact.id).finally(() => setCreating(null));
                 }}
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-start transition-colors hover:bg-white disabled:opacity-50"
               >

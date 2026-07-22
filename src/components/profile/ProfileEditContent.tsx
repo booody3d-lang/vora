@@ -1,5 +1,7 @@
 "use client";
 
+import { networkFieldClass } from "@/components/network/ui/field-styles";
+
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -393,7 +395,7 @@ export function ProfileEditContent({ mode = "edit" }: ProfileEditContentProps) {
 }
 
 function fieldClassName() {
-  return "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#3B5998] focus:outline-none";
+  return `mt-1 ${networkFieldClass} focus:outline-none`;
 }
 
 function AboutEditor({

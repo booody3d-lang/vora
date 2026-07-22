@@ -30,13 +30,14 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   const isOwnProfile = auth ? isProfileOwner(auth.user.id, slug) : false;
   const targetAccountId =
     rawProfile.accountId ?? (await resolveAccountIdForProfileSlug(slug)) ?? rawProfile.id;
-  const social = getSocialProfileContext(auth?.user.id ?? null, targetAccountId);
+  const social = await getSocialProfileContext(auth?.user.id ?? null, targetAccountId);
   const inbound = auth
-    ? getRelationship(targetAccountId, auth.user.id, "user")
+    ? await getRelationship(targetAccountId, auth.user.id, "user")
     : null;
 
   const profile = {
     ...stripPrivateProfileFields(rawProfile),
+    accountId: targetAccountId,
     followerCount: social.followerCount,
     isFollowing: social.isFollowing,
     isAccepted: social.isAccepted,
