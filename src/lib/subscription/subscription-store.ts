@@ -63,7 +63,7 @@ export interface StripeRefundRecord {
   createdAt: string;
 }
 
-interface SubscriptionDataFile extends SubscriptionSnapshot {}
+type SubscriptionDataFile = SubscriptionSnapshot;
 
 let subscriptionTableProbed = false;
 let subscriptionTableAvailable = false;
