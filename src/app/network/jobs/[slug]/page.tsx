@@ -12,14 +12,14 @@ interface JobPageProps {
 
 export async function generateMetadata({ params }: JobPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const job = getPublicJobBySlug(slug);
+  const job = await getPublicJobBySlug(slug);
   if (!job) return {};
   return buildJobMetadata(job);
 }
 
 export default async function JobDetailPage({ params }: JobPageProps) {
   const { slug } = await params;
-  const job = getPublicJobBySlug(slug);
+  const job = await getPublicJobBySlug(slug);
   if (!job) notFound();
 
   const jsonLd = jobPostingJsonLd({

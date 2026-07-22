@@ -385,3 +385,26 @@ export async function expireCompanySubscriptionInSupabase(
   if (!data) return null;
   return mapSubscriptionRow(data as DbSubscriptionRow);
 }
+
+export async function incrementJobsPublishedCountInSupabase(
+  companyId: string
+): Promise<CompanySubscription> {
+  const admin = createAdminClient();
+  const existing = await getCompanySubscriptionFromSupabase(companyId);
+  if (!existing) {
+    throw new Error("Company subscription not found");
+  }
+
+  const { data, error } = await admin
+    .from("company_subscriptions")
+    .update({
+      jobs_published_count: existing.jobsPublishedCount + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("company_id", companyId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return mapSubscriptionRow(data as DbSubscriptionRow);
+}

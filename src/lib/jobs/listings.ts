@@ -1,5 +1,7 @@
 import "server-only";
 
+import { listActivePublicJobListings } from "@/lib/company/jobs-store";
+
 export interface PublicJobListing {
   id: string;
   slug: string;
@@ -11,14 +13,16 @@ export interface PublicJobListing {
   description: string;
 }
 
-export function listActivePublicJobs(): PublicJobListing[] {
-  return [];
+export async function listActivePublicJobs(): Promise<PublicJobListing[]> {
+  return listActivePublicJobListings();
 }
 
-export function listPublicJobSummaries() {
-  return listActivePublicJobs().map(({ description: _description, ...job }) => job);
+export async function listPublicJobSummaries() {
+  const jobs = await listActivePublicJobs();
+  return jobs.map(({ description: _description, ...job }) => job);
 }
 
-export function getPublicJobBySlug(slug: string): PublicJobListing | null {
-  return listActivePublicJobs().find((job) => job.slug === slug) ?? null;
+export async function getPublicJobBySlug(slug: string): Promise<PublicJobListing | null> {
+  const jobs = await listActivePublicJobs();
+  return jobs.find((job) => job.slug === slug) ?? null;
 }

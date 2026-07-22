@@ -19,6 +19,7 @@ import {
   getCompanyByOwnerFromSupabase,
   getCompanyBySlugFromSupabase,
   getCompanySubscriptionFromSupabase,
+  incrementJobsPublishedCountInSupabase,
   migrateJsonCompanyToSupabase,
   upsertCompanyInSupabase,
   type CreateCompanyInput,
@@ -287,6 +288,31 @@ export async function expireCompanySubscriptionForAccount(
     "expireCompanySubscriptionForAccount",
     () => expireCompanySubscriptionInSupabase(company.id),
     expired
+  );
+}
+
+export async function incrementJobsPublishedCountForAccount(
+  accountId: string
+): Promise<CompanySubscription | null> {
+  const company = await getCompanyByAccountId(accountId);
+  if (!company) return null;
+
+  const existing = (await getCompanySubscriptionForAccount(accountId)) ?? DEMO_SUBSCRIPTION;
+  const updated: CompanySubscription = {
+    ...existing,
+    jobsPublishedCount: existing.jobsPublishedCount + 1,
+  };
+
+  saveSubscriptionToJson(accountId, updated);
+
+  if (!(await isCompanySupabaseReady())) {
+    return updated;
+  }
+
+  return runOptionalDbSync(
+    "incrementJobsPublishedCountForAccount",
+    () => incrementJobsPublishedCountInSupabase(company.id),
+    updated
   );
 }
 

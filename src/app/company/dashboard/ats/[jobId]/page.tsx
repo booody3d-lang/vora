@@ -1,5 +1,7 @@
 import { KanbanBoard } from "@/components/company/ats/KanbanBoard";
-import { DEMO_APPLICANTS, DEMO_JOBS } from "@/lib/company/mock-data";
+import { DEMO_APPLICANTS } from "@/lib/company/mock-data";
+import { getJobByIdForAccount } from "@/lib/company/jobs-store";
+import { getAuthenticatedUser } from "@/lib/security/session";
 import { notFound } from "next/navigation";
 
 interface AtsPageProps {
@@ -8,11 +10,11 @@ interface AtsPageProps {
 
 export default async function AtsPage({ params }: AtsPageProps) {
   const { jobId } = await params;
-  const job = DEMO_JOBS.find((j) => j.id === jobId);
+  const auth = await getAuthenticatedUser();
+  if (!auth) notFound();
 
-  if (!job) {
-    notFound();
-  }
+  const job = await getJobByIdForAccount(auth.user.id, jobId);
+  if (!job) notFound();
 
   return (
     <div className="mx-auto max-w-[100%] overflow-x-auto px-4 py-6 md:px-6">

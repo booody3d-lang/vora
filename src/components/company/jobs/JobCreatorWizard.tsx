@@ -38,11 +38,13 @@ interface JobCreatorWizardProps {
 
 export function JobCreatorWizard({ onComplete }: JobCreatorWizardProps) {
   const router = useRouter();
-  const { publishGuard, loading } = useCurrentCompany();
+  const { publishGuard, loading, refresh } = useCurrentCompany();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<JobPostingForm>(INITIAL);
   const [skillInput, setSkillInput] = useState("");
   const [showPaywall, setShowPaywall] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const guard = publishGuard ?? { allowed: false, reason: "Loading subscription…" };
 
@@ -58,14 +60,43 @@ export function JobCreatorWizard({ onComplete }: JobCreatorWizardProps) {
     }
   }
 
-  function handlePublish() {
-    if (loading) return;
+  async function handlePublish() {
+    if (loading || publishing) return;
     if (!guard.allowed) {
       setShowPaywall(true);
       return;
     }
-    onComplete?.(form);
-    router.push("/company/dashboard/jobs");
+
+    setPublishing(true);
+    setPublishError(null);
+
+    try {
+      const res = await fetch("/api/company/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+
+      if (res.status === 403) {
+        setShowPaywall(true);
+        return;
+      }
+
+      if (!res.ok) {
+        setPublishError(data.error ?? "Failed to publish job");
+        return;
+      }
+
+      onComplete?.(form);
+      await refresh();
+      router.push("/company/dashboard/jobs");
+    } catch {
+      setPublishError("Failed to publish job");
+    } finally {
+      setPublishing(false);
+    }
   }
 
   return (
@@ -253,6 +284,10 @@ export function JobCreatorWizard({ onComplete }: JobCreatorWizardProps) {
           </div>
         )}
 
+        {publishError && (
+          <p className="mt-4 text-sm text-red-600">{publishError}</p>
+        )}
+
         <div className="mt-6 flex justify-between">
           <button
             type="button"
@@ -273,10 +308,11 @@ export function JobCreatorWizard({ onComplete }: JobCreatorWizardProps) {
           ) : (
             <button
               type="button"
-              onClick={handlePublish}
-              className="rounded-lg bg-[#3B5998] px-5 py-2 text-sm font-semibold text-white hover:opacity-90"
+              onClick={() => void handlePublish()}
+              disabled={publishing}
+              className="rounded-lg bg-[#3B5998] px-5 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
             >
-              Publish Job
+              {publishing ? "Publishing…" : "Publish Job"}
             </button>
           )}
         </div>

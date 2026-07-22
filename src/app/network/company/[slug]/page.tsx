@@ -1,5 +1,6 @@
 import { CompanyPageView } from "@/components/company/page/CompanyPageView";
 import { getCompanyBySlug } from "@/lib/company/company-store";
+import { listActiveJobsForCompany } from "@/lib/company/jobs-store";
 import { listCurrentEmployeesForCompany } from "@/lib/company/employees";
 import { getCompanySocialContext } from "@/lib/network/social-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
@@ -26,12 +27,14 @@ export default async function CompanyPublicPage({ params }: CompanyPublicPagePro
     currentEmployees: auth ? listCurrentEmployeesForCompany(baseCompany.id) : undefined,
   };
 
+  const jobs = await listActiveJobsForCompany(baseCompany.id);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC]" data-platform="network">
       <CompanyPageView
         company={company}
         posts={[]}
-        jobs={[]}
+        jobs={jobs}
         initiallyFollowing={social.isFollowing}
       />
     </div>

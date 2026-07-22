@@ -1,5 +1,7 @@
 import { VideoReviewPanel } from "@/components/company/ats/VideoReviewPanel";
-import { DEMO_APPLICANTS, DEMO_JOBS, DEMO_NOTES } from "@/lib/company/mock-data";
+import { DEMO_APPLICANTS, DEMO_NOTES } from "@/lib/company/mock-data";
+import { getJobByIdForAccount } from "@/lib/company/jobs-store";
+import { getAuthenticatedUser } from "@/lib/security/session";
 import { notFound } from "next/navigation";
 
 interface ReviewPageProps {
@@ -8,7 +10,10 @@ interface ReviewPageProps {
 
 export default async function ApplicantReviewPage({ params }: ReviewPageProps) {
   const { jobId, applicantId } = await params;
-  const job = DEMO_JOBS.find((j) => j.id === jobId);
+  const auth = await getAuthenticatedUser();
+  if (!auth) notFound();
+
+  const job = await getJobByIdForAccount(auth.user.id, jobId);
   const applicant = DEMO_APPLICANTS.find((a) => a.id === applicantId);
 
   if (!job || !applicant) {

@@ -1,13 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { DEMO_JOBS, computeSubscriptionState, getAtsUrl } from "@/lib/company/mock-data";
+import { useEffect, useState } from "react";
+import { computeSubscriptionState, getAtsUrl } from "@/lib/company/mock-data";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { useLocale } from "@/providers/LocaleProvider";
+import type { JobPosting } from "@/types/company";
 
 export function CompanyDashboardOverview() {
   const { t } = useLocale();
   const { company, subscription } = useCurrentCompany();
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch("/api/company/jobs", { credentials: "include" });
+        const data = await res.json();
+        if (!cancelled && res.ok) {
+          setJobs((data.jobs ?? []) as JobPosting[]);
+        }
+      } catch {
+        // keep empty list
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const companyName = company?.name ?? "TechCorp Global";
   const followerCount = company?.followerCount ?? 12400;
   const subState = subscription
@@ -19,6 +44,7 @@ export function CompanyDashboardOverview() {
         freeJobsRemaining: 0,
         message: "No subscription data",
       };
+  const activeJobsCount = jobs.filter((job) => job.status === "active").length;
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6 md:px-6">
@@ -32,7 +58,7 @@ export function CompanyDashboardOverview() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label={t("company.dashboard.activeJobs")}
-          value={String(DEMO_JOBS.filter((j) => j.status === "active").length)}
+          value={String(activeJobsCount)}
         />
         <StatCard label={t("company.dashboard.totalApplications")} value="42" />
         <StatCard
