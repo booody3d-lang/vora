@@ -49,6 +49,10 @@ export interface BillingPaymentConfigValidation {
     webhooks: BillingReadinessCheck;
     portal: BillingReadinessCheck;
   };
+  webhooks: {
+    endpoint: string;
+    localTestingCommand: string;
+  };
   warnings: string[];
 }
 
@@ -108,8 +112,16 @@ function assessStripeCheckoutReadiness(
 
 function assessStripeWebhookReadiness(
   stripeConfigured: boolean,
-  webhookPresent: boolean
+  webhookPresent: boolean,
+  simulationMode: boolean
 ): BillingReadinessCheck {
+  if (simulationMode) {
+    return {
+      ready: false,
+      reasons: ["Stripe webhooks are inactive while billing runs in simulation mode"],
+    };
+  }
+
   const reasons: string[] = [];
   if (!stripeConfigured) {
     reasons.push("Stripe secret and publishable keys are required");
@@ -198,7 +210,11 @@ export async function validateBillingPaymentConfig(): Promise<BillingPaymentConf
   }
 
   const stripeCheckout = assessStripeCheckoutReadiness(stripeConfigured, missingPricePlans);
-  const stripeWebhooks = assessStripeWebhookReadiness(stripeConfigured, keyPresence.webhook);
+  const stripeWebhooks = assessStripeWebhookReadiness(
+    stripeConfigured,
+    keyPresence.webhook,
+    simulationMode
+  );
   const stripePortal = assessStripePortalReadiness(stripeConfigured);
 
   let readiness: BillingPaymentConfigValidation["readiness"];
@@ -206,10 +222,7 @@ export async function validateBillingPaymentConfig(): Promise<BillingPaymentConf
   if (simulationMode) {
     readiness = {
       checkout: { ready: true, reasons: [] },
-      webhooks: {
-        ready: false,
-        reasons: ["Stripe webhooks are inactive while billing runs in simulation mode"],
-      },
+      webhooks: stripeWebhooks,
       portal: { ready: true, reasons: [] },
     };
   } else if (activeProvider === "stripe") {
@@ -238,6 +251,10 @@ export async function validateBillingPaymentConfig(): Promise<BillingPaymentConf
       keySources,
     },
     readiness,
+    webhooks: {
+      endpoint: "/api/billing/webhook",
+      localTestingCommand: "stripe listen --forward-to localhost:3000/api/billing/webhook",
+    },
     warnings,
   };
 }

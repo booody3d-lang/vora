@@ -657,6 +657,8 @@ export async function applyStripeSubscriptionUpdated(input: {
   status: "active" | "cancelled" | "past_due" | "expired";
   currentPeriodEnd?: string;
   stripeSubscriptionId?: string;
+  plan?: string;
+  tierId?: string;
 }): Promise<AccountSubscriptionAssignment | null> {
   if (isStripeEventProcessed(input.stripeEventId)) {
     return getAccountAssignment(input.accountId);
@@ -665,11 +667,14 @@ export async function applyStripeSubscriptionUpdated(input: {
   const existing = getAccountAssignment(input.accountId);
   if (!existing) return null;
 
+  const tierId = input.tierId ?? resolveTierIdForPlan(input.plan) ?? existing.tierId;
   const assignment: AccountSubscriptionAssignment = {
     ...existing,
+    tierId,
     status: input.status === "past_due" ? "active" : input.status,
     expiresAt: input.currentPeriodEnd ?? existing.expiresAt,
     stripeSubscriptionId: input.stripeSubscriptionId ?? existing.stripeSubscriptionId,
+    checkoutPlanId: input.plan ?? existing.checkoutPlanId,
   };
 
   await setAccountAssignment(input.accountId, assignment);
@@ -693,12 +698,45 @@ export async function applyStripeSubscriptionUpdated(input: {
     stripeEventId: input.stripeEventId,
     type: "customer.subscription.updated",
     accountId: input.accountId,
-    tierId: existing.tierId,
+    tierId,
     status: "processed",
-    payloadSummary: { subscriptionStatus: input.status },
+    payloadSummary: {
+      subscriptionStatus: input.status,
+      plan: input.plan,
+    },
   });
 
   return assignment;
+}
+
+export async function applyStripeInvoicePaymentFailed(input: {
+  accountId: string;
+  stripeEventId: string;
+  invoiceId?: string;
+  amountSar?: number;
+  subscriptionId?: string;
+  plan?: string;
+  tierId?: string;
+}): Promise<void> {
+  if (isStripeEventProcessed(input.stripeEventId)) return;
+
+  const existing = getAccountAssignment(input.accountId);
+  const tierId = input.tierId ?? resolveTierIdForPlan(input.plan) ?? existing?.tierId;
+
+  await recordStripePaymentEvent({
+    stripeEventId: input.stripeEventId,
+    type: "invoice.payment_failed",
+    accountId: input.accountId,
+    tierId,
+    amountSar: input.amountSar,
+    status: "failed",
+    payloadSummary: {
+      invoiceId: input.invoiceId,
+      subscriptionId: input.subscriptionId,
+      billingStatus: "past_due",
+      plan: input.plan,
+    },
+  });
 }
 
 export async function applyStripeSubscriptionCancelled(
