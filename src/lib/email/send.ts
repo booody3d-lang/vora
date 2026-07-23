@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  assertEmailProviderReady,
   getEmailProviderLabel,
   isEmailConsoleMode,
   resolveActiveEmailProvider,
@@ -8,10 +9,37 @@ import {
 import { persistEmailDeliveryLog } from "@/lib/email/email-log-supabase";
 import { sendViaResend } from "@/lib/email/resend-client";
 import { isValidEmailAddress, resolveResendReplyTo } from "@/lib/email/config";
+import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
+import { writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import type { SendEmailInput, SendEmailResult } from "@/lib/email/types";
 
 function createLogId(): string {
   return `eml-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function recordDeliveryFailure(
+  input: SendEmailInput,
+  provider: SendEmailResult["provider"],
+  error: string
+): Promise<void> {
+  console.error("[email] delivery failed", {
+    to: input.to,
+    subject: input.subject,
+    trigger: input.trigger,
+    provider,
+    error,
+  });
+
+  await writeSecurityAuditEvent({
+    accountId: null,
+    action: "notification.email.failed",
+    severity: "warn",
+    metadata: {
+      trigger: input.trigger,
+      provider,
+      error,
+    },
+  });
 }
 
 async function recordDelivery(
@@ -36,7 +64,7 @@ async function recordDelivery(
 }
 
 /**
- * Unified email transport — Resend when configured, otherwise safe console fallback.
+ * Unified email transport — Resend when configured, otherwise safe console fallback in non-production.
  */
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   const to = input.to?.trim();
@@ -50,6 +78,16 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     };
     await recordDelivery({ ...input, to: to ?? "" }, result);
     return result;
+  }
+
+  try {
+    assertEmailProviderReady();
+  } catch (error) {
+    if (error instanceof NotificationProviderNotReadyError) {
+      await recordDeliveryFailure(input, "console", error.message);
+      throw error;
+    }
+    throw error;
   }
 
   if (isEmailConsoleMode()) {
@@ -77,12 +115,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   });
 
   if (!resendResult.ok) {
-    console.error("[email] Resend failed", {
-      to,
-      subject: input.subject,
-      trigger: input.trigger,
-      error: resendResult.error,
-    });
+    await recordDeliveryFailure(input, "resend", resendResult.error);
 
     const result: SendEmailResult = {
       queued: false,

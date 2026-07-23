@@ -2,7 +2,8 @@ import "server-only";
 
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getConfiguredOtpProvider } from "@/lib/auth/otp-provider";
+import { getConfiguredOtpProvider, assertOtpProviderReady } from "@/lib/auth/otp-provider";
+import { writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import {
   getActiveOtpFromSupabase,
   incrementOtpAttemptsInSupabase,
@@ -177,14 +178,39 @@ export async function sendOtpDelivery(input: {
   const channel = input.channel ?? "sms";
   const code = generateOtpCode();
   const codeHash = await hashOtp(code);
+
+  assertOtpProviderReady(channel);
   const provider = getConfiguredOtpProvider();
 
-  const delivery = await provider.send({
-    phoneE164: input.phone,
-    code,
-    channel,
-    purpose: input.purpose,
-  });
+  let delivery;
+  try {
+    delivery = await provider.send({
+      phoneE164: input.phone,
+      code,
+      channel,
+      purpose: input.purpose,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "OTP delivery failed";
+    console.error("[otp] delivery failed", {
+      channel,
+      purpose: input.purpose,
+      provider: provider.name,
+      error: message,
+    });
+    await writeSecurityAuditEvent({
+      accountId: null,
+      action: "notification.otp.failed",
+      severity: "warn",
+      metadata: {
+        channel,
+        purpose: input.purpose,
+        provider: provider.name,
+        error: message,
+      },
+    });
+    throw error;
+  }
 
   await persistOtpRecord({
     phone: input.phone,

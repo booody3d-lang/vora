@@ -11,7 +11,7 @@ const PRODUCTION_REQUIRED = [
 const DEV_JWT_MARKER = "vora-dev-jwt-secret";
 const DEV_PEPPER = "vora-pepper-2026";
 
-function isStrictProduction(): boolean {
+export function isStrictProduction(): boolean {
   return process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
 }
 

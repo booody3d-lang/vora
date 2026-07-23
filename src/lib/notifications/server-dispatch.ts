@@ -2,6 +2,7 @@ import type { NotificationPayload } from "@/types/notifications";
 import { buildEmailHtml } from "@/lib/notifications/email-templates";
 import { sendEmail } from "@/lib/email/send";
 import { resolveEmailLocale } from "@/lib/email/email-i18n";
+import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
 import { emitNotification, resolveChannels } from "@/lib/notifications/engine";
 import { getNotificationPreferences } from "@/lib/notifications/notification-preferences-store";
 import { persistInAppNotification } from "@/lib/notifications/notifications-store";
@@ -67,14 +68,25 @@ export async function serverDispatchNotification(
     });
 
     if (recipient.to) {
-      await sendEmail({
-        to: recipient.to,
-        subject: locale === "ar" && enriched.titleAr ? enriched.titleAr : enriched.title,
-        html,
-        text: locale === "ar" && enriched.bodyAr ? enriched.bodyAr : enriched.body,
-        trigger: enriched.trigger,
-        locale,
-      });
+      try {
+        await sendEmail({
+          to: recipient.to,
+          subject: locale === "ar" && enriched.titleAr ? enriched.titleAr : enriched.title,
+          html,
+          text: locale === "ar" && enriched.bodyAr ? enriched.bodyAr : enriched.body,
+          trigger: enriched.trigger,
+          locale,
+        });
+      } catch (error) {
+        if (error instanceof NotificationProviderNotReadyError) {
+          console.error("[email] notification dispatch blocked", {
+            trigger: enriched.trigger,
+            reason: error.message,
+          });
+        } else {
+          throw error;
+        }
+      }
     } else {
       console.warn("[email] skipped notification email", {
         trigger: enriched.trigger,

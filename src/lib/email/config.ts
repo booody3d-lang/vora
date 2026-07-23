@@ -6,6 +6,10 @@ export function resolveResendApiKey(): string | undefined {
   return process.env.RESEND_API_KEY?.trim() || undefined;
 }
 
+export function isResendConfigured(): boolean {
+  return Boolean(resolveResendApiKey());
+}
+
 export function resolveResendFromEmail(): string {
   return (
     process.env.RESEND_FROM_EMAIL?.trim() ||

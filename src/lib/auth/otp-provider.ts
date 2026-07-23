@@ -1,6 +1,10 @@
 import "server-only";
 
+import { isStrictProduction } from "@/lib/env/validate";
+import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
 import type { OtpDeliveryChannel, OtpPurpose } from "@/types/auth-phone";
+
+export type OtpProviderId = "console" | "twilio";
 
 export interface OtpDeliveryRequest {
   phoneE164: string;
@@ -16,9 +20,14 @@ export interface OtpDeliveryResult {
 }
 
 export interface OtpProvider {
-  readonly name: string;
+  readonly name: OtpProviderId;
   send(request: OtpDeliveryRequest): Promise<OtpDeliveryResult>;
 }
+
+const OTP_PROVIDER_LABELS: Record<OtpProviderId, string> = {
+  console: "Console (simulation)",
+  twilio: "Twilio",
+};
 
 function buildOtpMessage(request: OtpDeliveryRequest): string {
   const purposeLabel =
@@ -37,10 +46,90 @@ function buildOtpMessage(request: OtpDeliveryRequest): string {
   return `VORA ${purposeLabel} code: ${request.code}. Valid for 5 minutes.`;
 }
 
+export function readOtpProviderMode(): OtpProviderId | "auto" {
+  const raw = process.env.OTP_PROVIDER?.trim().toLowerCase();
+  if (!raw || raw === "auto") return "auto";
+  if (raw === "console" || raw === "log") return "console";
+  if (raw === "twilio") return "twilio";
+  return "auto";
+}
+
+export function isTwilioOtpConfigured(): boolean {
+  return Boolean(
+    process.env.TWILIO_ACCOUNT_SID?.trim() &&
+      process.env.TWILIO_AUTH_TOKEN?.trim() &&
+      process.env.TWILIO_SMS_FROM?.trim()
+  );
+}
+
+export function isTwilioWhatsappConfigured(): boolean {
+  return Boolean(isTwilioOtpConfigured() && process.env.TWILIO_WHATSAPP_FROM?.trim());
+}
+
+/** Resolve which OTP backend should handle delivery today. */
+export function resolveActiveOtpProviderId(): OtpProviderId {
+  const forced = readOtpProviderMode();
+  if (forced === "console") return "console";
+  if (forced === "twilio" && isTwilioOtpConfigured()) return "twilio";
+  if (isTwilioOtpConfigured()) return "twilio";
+  return "console";
+}
+
+export function isOtpConsoleMode(): boolean {
+  return resolveActiveOtpProviderId() === "console";
+}
+
+export function getOtpProviderLabel(provider: OtpProviderId = resolveActiveOtpProviderId()): string {
+  return OTP_PROVIDER_LABELS[provider];
+}
+
+function collectOtpReadinessReasons(channel: OtpDeliveryChannel = "sms"): string[] {
+  const reasons: string[] = [];
+  const activeProvider = resolveActiveOtpProviderId();
+
+  if (activeProvider === "console") {
+    if (isStrictProduction()) {
+      reasons.push("Console OTP fallback is disabled in production");
+    }
+    return reasons;
+  }
+
+  if (!process.env.TWILIO_ACCOUNT_SID?.trim() || !process.env.TWILIO_AUTH_TOKEN?.trim()) {
+    reasons.push("Twilio credentials are incomplete");
+  }
+  if (channel === "sms" && !process.env.TWILIO_SMS_FROM?.trim()) {
+    reasons.push("TWILIO_SMS_FROM is required for SMS OTP delivery");
+  }
+  if (channel === "whatsapp" && !process.env.TWILIO_WHATSAPP_FROM?.trim()) {
+    reasons.push("TWILIO_WHATSAPP_FROM is required for WhatsApp OTP delivery");
+  }
+
+  return reasons;
+}
+
+export function assertOtpProviderReady(channel: OtpDeliveryChannel = "sms"): void {
+  if (!isStrictProduction()) return;
+
+  const activeProvider = resolveActiveOtpProviderId();
+  if (activeProvider !== "console") {
+    const reasons = collectOtpReadinessReasons(channel);
+    if (reasons.length > 0) {
+      throw new NotificationProviderNotReadyError("otp", reasons);
+    }
+    return;
+  }
+
+  throw new NotificationProviderNotReadyError("otp", collectOtpReadinessReasons(channel));
+}
+
 export class ConsoleOtpProvider implements OtpProvider {
   readonly name = "console";
 
   async send(request: OtpDeliveryRequest): Promise<OtpDeliveryResult> {
+    if (isStrictProduction()) {
+      throw new NotificationProviderNotReadyError("otp", collectOtpReadinessReasons(request.channel));
+    }
+
     const message = buildOtpMessage(request);
     console.info(
       `[VORA OTP:${request.channel}] ${request.phoneE164} → ${request.code} (${request.purpose}) :: ${message}`
@@ -48,7 +137,7 @@ export class ConsoleOtpProvider implements OtpProvider {
 
     return {
       channel: request.channel,
-      demoCode: process.env.NODE_ENV === "production" ? undefined : request.code,
+      demoCode: request.code,
       providerRef: `console-${Date.now()}`,
     };
   }
@@ -58,10 +147,10 @@ export class TwilioOtpProvider implements OtpProvider {
   readonly name = "twilio";
 
   async send(request: OtpDeliveryRequest): Promise<OtpDeliveryResult> {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const smsFrom = process.env.TWILIO_SMS_FROM;
-    const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+    const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+    const smsFrom = process.env.TWILIO_SMS_FROM?.trim();
+    const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM?.trim();
 
     if (!accountSid || !authToken) {
       throw new Error("Twilio credentials are not configured");
@@ -105,6 +194,12 @@ export class TwilioOtpProvider implements OtpProvider {
 
     const payload = (await response.json()) as { sid?: string; message?: string };
     if (!response.ok) {
+      console.error("[otp] Twilio delivery failed", {
+        channel: request.channel,
+        purpose: request.purpose,
+        status: response.status,
+        error: payload.message ?? "Twilio OTP delivery failed",
+      });
       throw new Error(payload.message ?? "Twilio OTP delivery failed");
     }
 
@@ -116,15 +211,15 @@ export class TwilioOtpProvider implements OtpProvider {
 }
 
 export function getConfiguredOtpProvider(): OtpProvider {
-  const provider = (process.env.OTP_PROVIDER ?? "console").toLowerCase();
+  const provider = resolveActiveOtpProviderId();
 
   if (provider === "twilio") {
     return new TwilioOtpProvider();
   }
 
-  return new ConsoleOtpProvider();
-}
+  if (isStrictProduction()) {
+    throw new NotificationProviderNotReadyError("otp", collectOtpReadinessReasons("sms"));
+  }
 
-export function isTwilioOtpConfigured(): boolean {
-  return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
+  return new ConsoleOtpProvider();
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendOtpDelivery } from "@/lib/auth/otp-store";
 import { normalizePhoneFromRequest } from "@/lib/auth/phone/detect-country";
+import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
 import type { OtpDeliveryChannel, OtpPurpose } from "@/types/auth-phone";
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitHeaders } from "@/lib/security/rate-limit";
 
@@ -67,6 +68,12 @@ export async function POST(request: NextRequest) {
       ...(result.demoCode ? { demoCode: result.demoCode, devCode: result.demoCode } : {}),
     });
   } catch (error) {
+    if (error instanceof NotificationProviderNotReadyError) {
+      return NextResponse.json(
+        { error: error.message, reasons: error.reasons },
+        { status: 503 }
+      );
+    }
     const message = error instanceof Error ? error.message : "Failed to send OTP";
     return NextResponse.json({ error: message }, { status: 502 });
   }

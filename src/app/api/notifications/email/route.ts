@@ -4,6 +4,7 @@ import { sendEmail } from "@/lib/email/send";
 import { resolveEmailLocale } from "@/lib/email/email-i18n";
 import { isValidEmailAddress } from "@/lib/email/config";
 import { resolveActiveEmailProvider, getEmailProviderLabel } from "@/lib/email/email-provider";
+import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
 import { requireAuthenticatedApiUser } from "@/lib/security/require-api-auth";
 
 export async function GET() {
@@ -71,7 +72,13 @@ export async function POST(request: Request) {
       skipped: result.skipped,
       error: result.error,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof NotificationProviderNotReadyError) {
+      return NextResponse.json(
+        { error: error.message, reasons: error.reasons },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: "Email dispatch failed" }, { status: 500 });
   }
 }

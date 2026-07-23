@@ -3,6 +3,7 @@ import {
   generateDevRecoveryLink,
   requestSupabasePasswordReset,
 } from "@/lib/auth/supabase-password";
+import { assertOtpProviderReady, getConfiguredOtpProvider } from "@/lib/auth/otp-provider";
 import {
   createPasswordResetRequest,
   getRecoveryChannel,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/security/rate-limit";
 import { buildTriggerNotification } from "@/lib/notifications/triggers";
 import { serverDispatchNotification } from "@/lib/notifications/server-dispatch";
+import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
@@ -120,7 +122,25 @@ export async function POST(request: Request) {
     );
 
     if (preferredChannel === "sms" && account.phone) {
-      console.info(`[VORA SMS] To: ${account.phone} | Password reset code: ${code}`);
+      try {
+        assertOtpProviderReady("sms");
+        const provider = getConfiguredOtpProvider();
+        await provider.send({
+          phoneE164: account.phone,
+          code,
+          channel: "sms",
+          purpose: "password_reset",
+        });
+      } catch (error) {
+        if (error instanceof NotificationProviderNotReadyError) {
+          return NextResponse.json(
+            { error: error.message, reasons: error.reasons },
+            { status: 503 }
+          );
+        }
+        console.error("[auth/forgot] SMS delivery failed:", error instanceof Error ? error.message : error);
+        return NextResponse.json({ error: "Failed to send recovery SMS" }, { status: 502 });
+      }
     }
 
     return NextResponse.json({

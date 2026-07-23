@@ -4,6 +4,7 @@ import {
   requestSupabasePasswordReset,
   resetSupabasePasswordWithSession,
 } from "@/lib/auth/supabase-password";
+import { assertOtpProviderReady, getConfiguredOtpProvider } from "@/lib/auth/otp-provider";
 import { changeAccountPassword, resetAccountPassword } from "@/lib/security/account-password";
 import {
   createPasswordResetRequest,
@@ -28,6 +29,7 @@ import { getEffectiveSubscription } from "@/lib/subscription/resolve-subscriptio
 import { ensureSubscriptionCacheHydrated } from "@/lib/subscription/subscription-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { getRequestAuditContext, writeSecurityAuditEvent } from "@/lib/security/audit-store";
+import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
 import { resolveAdminCapabilities } from "@/lib/security/roles";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { stripPrivateProfileFields } from "@/lib/profile/private-fields";
@@ -241,6 +243,31 @@ export async function PATCH(request: Request) {
             accountId: account.id,
           }
         );
+
+        if (channel === "sms" && account.phone) {
+          try {
+            assertOtpProviderReady("sms");
+            const provider = getConfiguredOtpProvider();
+            await provider.send({
+              phoneE164: account.phone,
+              code,
+              channel: "sms",
+              purpose: "password_reset",
+            });
+          } catch (error) {
+            if (error instanceof NotificationProviderNotReadyError) {
+              return NextResponse.json(
+                { error: error.message, reasons: error.reasons },
+                { status: 503 }
+              );
+            }
+            console.error(
+              "[profile/me] SMS delivery failed:",
+              error instanceof Error ? error.message : error
+            );
+            return NextResponse.json({ error: "Failed to send recovery SMS" }, { status: 502 });
+          }
+        }
 
         return NextResponse.json({
           ok: true,
