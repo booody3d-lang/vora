@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { upsertAccountRow } from "@/lib/auth/supabase-account";
+import { getRequestAuditContext, writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import {
   clearTotpForAccount,
   disableTotpForAccount,
@@ -12,7 +13,7 @@ import { getAuthenticatedUser } from "@/lib/security/session";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
-export async function POST() {
+export async function POST(_request: Request) {
   const auth = await getAuthenticatedUser();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -29,6 +30,7 @@ export async function POST() {
     account.totpSecret = secret;
     return NextResponse.json({
       uri,
+      secret,
       message: "Scan with Google Authenticator or any TOTP app",
     });
   }
@@ -43,6 +45,7 @@ export async function POST() {
 
   return NextResponse.json({
     uri,
+    secret,
     message: "Scan with Google Authenticator or any TOTP app",
   });
 }
@@ -74,10 +77,18 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Invalid verification code" }, { status: 401 });
     }
     account.totpEnabled = body.enable !== false;
+    const { ip, userAgent } = getRequestAuditContext(request);
+    await writeSecurityAuditEvent({
+      accountId: auth.user.id,
+      action: account.totpEnabled ? "security.2fa.enabled" : "security.2fa.disabled",
+      ip,
+      userAgent,
+    });
     return NextResponse.json({ totpEnabled: account.totpEnabled });
   }
 
   const enable = body.enable !== false;
+  const { ip, userAgent } = getRequestAuditContext(request);
 
   if (enable) {
     if (!body.code?.trim()) {
@@ -98,6 +109,12 @@ export async function PUT(request: Request) {
     }
 
     await upsertAccountRow({ ...auth.user, totpEnabled: true });
+    await writeSecurityAuditEvent({
+      accountId: auth.user.id,
+      action: "security.2fa.enabled",
+      ip,
+      userAgent,
+    });
     return NextResponse.json({ totpEnabled: true });
   }
 
@@ -122,5 +139,12 @@ export async function PUT(request: Request) {
   }
 
   await upsertAccountRow({ ...auth.user, totpEnabled: false });
+  await writeSecurityAuditEvent({
+    accountId: auth.user.id,
+    action: "security.2fa.disabled",
+    ip,
+    userAgent,
+    metadata: { method: body.password ? "password" : "totp" },
+  });
   return NextResponse.json({ totpEnabled: false });
 }

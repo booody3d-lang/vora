@@ -274,21 +274,57 @@
     "settings": {
       "security": {
         "pageTitle": "أمان الحساب",
+        "passwordTitle": "كلمة المرور",
+        "passwordSubtitle": "تحديث كلمة مرور حسابك",
+        "currentPassword": "كلمة المرور الحالية",
+        "newPassword": "كلمة المرور الجديدة",
+        "confirmPassword": "تأكيد كلمة المرور الجديدة",
+        "changePassword": "تغيير كلمة المرور",
+        "passwordChanged": "تم تغيير كلمة المرور بنجاح",
+        "passwordChangeFailed": "تعذر تغيير كلمة المرور",
+        "passwordMismatch": "كلمتا المرور الجديدتان غير متطابقتين",
+        "passwordTooShort": "يجب أن تتكون كلمة المرور من 8 أحرف على الأقل",
         "twoFaTitle": "المصادقة الثنائية",
         "twoFaSubtitle": "Google Authenticator أو رموز SMS الاحتياطية",
         "twoFaActive": "✓ المصادقة الثنائية مفعّلة على حسابك",
         "twoFaSetup": "إعداد تطبيق المصادقة",
-        "twoFaScanHint": "مسح الرابط",
+        "twoFaScanHint": "امسح مفتاح الإعداد في تطبيق المصادقة، ثم أدخل الرمز المكوّن من 6 أرقام",
+        "twoFaManualKey": "مفتاح الإعداد اليدوي",
         "twoFaCodePlaceholder": "أدخل الرمز المكوّن من 6 أرقام",
         "twoFaVerifyEnable": "تحقق وتفعيل",
         "twoFaEnabledSuccess": "تم تفعيل المصادقة الثنائية بنجاح",
         "twoFaEnableFailed": "تعذر تفعيل المصادقة الثنائية",
+        "twoFaDisable": "إيقاف المصادقة الثنائية",
+        "twoFaDisableHint": "أدخل رمز تطبيق المصادقة أو كلمة مرور الحساب لإيقاف المصادقة الثنائية",
+        "twoFaDisablePassword": "كلمة مرور الحساب (بديل)",
+        "twoFaConfirmDisable": "تأكيد الإيقاف",
+        "twoFaDisabledSuccess": "تم إيقاف المصادقة الثنائية",
+        "twoFaDisableFailed": "تعذر إيقاف المصادقة الثنائية",
+        "phoneTitle": "رقم الهاتف",
+        "phoneSubtitle": "اربط هاتفًا موثّقًا للاسترداد عبر SMS/WhatsApp",
+        "phoneRequired": "أدخل رقم هاتف صالحًا",
+        "phoneLinked": "هاتف موثّق",
+        "phoneLinkedSuccess": "تم ربط رقم الهاتف بنجاح",
+        "phoneLinkFailed": "تعذر ربط رقم الهاتف",
+        "sendOtp": "إرسال رمز التحقق",
+        "otpSent": "تم إرسال رمز التحقق",
+        "otpSendFailed": "تعذر إرسال رمز التحقق",
+        "otpPlaceholder": "أدخل الرمز المكوّن من 6 أرقام",
+        "verifyPhone": "تحقق واربط الهاتف",
+        "channel": {
+          "sms": "SMS",
+          "whatsapp": "WhatsApp"
+        },
         "sessionsTitle": "الجلسات والأجهزة النشطة",
         "sessionsEmpty": "سجّل الدخول لعرض الجلسات النشطة",
         "currentDevice": "الحالي",
+        "lastActive": "آخر نشاط",
         "revoke": "إلغاء",
         "revokeOthers": "إلغاء الأجهزة الأخرى",
-        "logoutAll": "تسجيل الخروج من كل الأجهزة"
+        "logoutAll": "تسجيل الخروج من كل الأجهزة",
+        "activityTitle": "نشاط الأمان الأخير",
+        "activitySubtitle": "أحداث أمان حسابك خلال آخر 30 يومًا",
+        "activityEmpty": "لا يوجد نشاط أمني مسجّل بعد"
       }
     }
   },
@@ -297,6 +333,22 @@
     "noResults": "لا توجد نتائج",
     "viewAll": "عرض كل النتائج",
     "resultsTitle": "نتائج البحث"
+  },
+  "security": {
+    "audit": {
+      "ip": "عنوان IP",
+      "actions": {
+        "security_2fa_enabled": "تم تفعيل المصادقة الثنائية",
+        "security_2fa_disabled": "تم إيقاف المصادقة الثنائية",
+        "security_phone_linked": "تم ربط رقم الهاتف",
+        "security_session_revoked": "تم إلغاء جلسة",
+        "security_sessions_revoke_others": "تم إلغاء الجلسات الأخرى",
+        "security_password_changed": "تم تغيير كلمة المرور",
+        "security_login_failed": "محاولة تسجيل دخول فاشلة",
+        "security_login_failed_2fa": "فشل التحقق بالمصادقة الثنائية",
+        "security_logout_all_devices": "تسجيل الخروج من كل الأجهزة"
+      }
+    }
   },
   "ai": {
     "common": {

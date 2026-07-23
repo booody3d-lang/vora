@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearLegacySessionCookie } from "@/lib/auth/legacy-cookie";
+import { getRequestAuditContext, writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { COOKIE_NAME } from "@/lib/security/jwt";
@@ -19,6 +20,13 @@ export async function POST(request: Request) {
         await revokeOtherUserSessions(session.sub, currentTokenHash);
       }
       revokeAllSessions(session.sub, session.sessionId);
+      const { ip, userAgent } = getRequestAuditContext(request);
+      await writeSecurityAuditEvent({
+        accountId: session.sub,
+        action: "security.logout.all_devices",
+        ip,
+        userAgent,
+      });
     } else if (currentTokenHash) {
       const sessions = await import("@/lib/auth/sessions-store").then((m) =>
         m.listUserSessions(session.sub, currentTokenHash)

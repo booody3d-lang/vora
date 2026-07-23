@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { changeSupabasePassword } from "@/lib/auth/supabase-password";
 import { changeAccountPassword } from "@/lib/security/account-password";
+import { getRequestAuditContext, writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -29,6 +30,13 @@ export async function POST(request: Request) {
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
+      const { ip, userAgent } = getRequestAuditContext(request);
+      await writeSecurityAuditEvent({
+        accountId: auth.user.id,
+        action: "security.password.changed",
+        ip,
+        userAgent,
+      });
       return NextResponse.json({ ok: true });
     }
 
@@ -41,6 +49,14 @@ export async function POST(request: Request) {
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
+
+    const { ip, userAgent } = getRequestAuditContext(request);
+    await writeSecurityAuditEvent({
+      accountId: auth.user.id,
+      action: "security.password.changed",
+      ip,
+      userAgent,
+    });
 
     return NextResponse.json({ ok: true });
   } catch {

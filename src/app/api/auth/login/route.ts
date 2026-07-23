@@ -14,6 +14,7 @@ import {
   RATE_LIMITS,
   rateLimitHeaders,
 } from "@/lib/security/rate-limit";
+import { maskEmail, writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import { buildTriggerNotification } from "@/lib/notifications/triggers";
 import { serverDispatchNotification } from "@/lib/notifications/server-dispatch";
 
@@ -82,6 +83,14 @@ export async function POST(request: Request) {
         }),
         { ownerEmail: true }
       );
+      await writeSecurityAuditEvent({
+        accountId: null,
+        action: "security.login.failed",
+        ip,
+        userAgent: request.headers.get("user-agent") ?? "unknown",
+        metadata: { email: maskEmail(email) },
+        severity: "warn",
+      });
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
@@ -123,6 +132,14 @@ export async function POST(request: Request) {
           }),
           { ownerEmail: true }
         );
+        await writeSecurityAuditEvent({
+          accountId: authUser.id,
+          action: "security.login.failed_2fa",
+          ip,
+          userAgent: request.headers.get("user-agent") ?? "unknown",
+          metadata: { email: maskEmail(email) },
+          severity: "warn",
+        });
         return NextResponse.json({ error: "Invalid verification code", requires2FA: true }, { status: 401 });
       }
     }

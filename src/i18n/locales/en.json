@@ -274,21 +274,57 @@
     "settings": {
       "security": {
         "pageTitle": "Account Security",
+        "passwordTitle": "Password",
+        "passwordSubtitle": "Update your account password",
+        "currentPassword": "Current password",
+        "newPassword": "New password",
+        "confirmPassword": "Confirm new password",
+        "changePassword": "Change Password",
+        "passwordChanged": "Password changed successfully",
+        "passwordChangeFailed": "Failed to change password",
+        "passwordMismatch": "New passwords do not match",
+        "passwordTooShort": "Password must be at least 8 characters",
         "twoFaTitle": "Two-Factor Authentication",
         "twoFaSubtitle": "Google Authenticator or SMS backup codes",
         "twoFaActive": "✓ 2FA is active on your account",
         "twoFaSetup": "Set Up Authenticator App",
-        "twoFaScanHint": "Scan URI",
+        "twoFaScanHint": "Scan the setup key in your authenticator app, then enter the 6-digit code",
+        "twoFaManualKey": "Manual setup key",
         "twoFaCodePlaceholder": "Enter 6-digit code",
         "twoFaVerifyEnable": "Verify & Enable",
         "twoFaEnabledSuccess": "2FA enabled successfully",
         "twoFaEnableFailed": "Failed to enable 2FA",
+        "twoFaDisable": "Disable two-factor authentication",
+        "twoFaDisableHint": "Enter your authenticator code or account password to disable 2FA",
+        "twoFaDisablePassword": "Account password (alternative)",
+        "twoFaConfirmDisable": "Confirm Disable",
+        "twoFaDisabledSuccess": "Two-factor authentication disabled",
+        "twoFaDisableFailed": "Failed to disable 2FA",
+        "phoneTitle": "Phone Number",
+        "phoneSubtitle": "Link a verified phone for SMS/WhatsApp recovery",
+        "phoneRequired": "Enter a valid phone number",
+        "phoneLinked": "Verified phone",
+        "phoneLinkedSuccess": "Phone number linked successfully",
+        "phoneLinkFailed": "Failed to link phone number",
+        "sendOtp": "Send Verification Code",
+        "otpSent": "Verification code sent",
+        "otpSendFailed": "Failed to send verification code",
+        "otpPlaceholder": "Enter 6-digit code",
+        "verifyPhone": "Verify & Link Phone",
+        "channel": {
+          "sms": "SMS",
+          "whatsapp": "WhatsApp"
+        },
         "sessionsTitle": "Active Sessions & Devices",
         "sessionsEmpty": "Sign in to view active sessions",
         "currentDevice": "current",
+        "lastActive": "Last active",
         "revoke": "Revoke",
         "revokeOthers": "Revoke other devices",
-        "logoutAll": "Log Out All Devices"
+        "logoutAll": "Log Out All Devices",
+        "activityTitle": "Recent Security Activity",
+        "activitySubtitle": "Your account security events from the last 30 days",
+        "activityEmpty": "No security activity recorded yet"
       }
     }
   },
@@ -297,6 +333,22 @@
     "noResults": "No results found",
     "viewAll": "View all results",
     "resultsTitle": "Search results"
+  },
+  "security": {
+    "audit": {
+      "ip": "IP address",
+      "actions": {
+        "security_2fa_enabled": "Two-factor authentication enabled",
+        "security_2fa_disabled": "Two-factor authentication disabled",
+        "security_phone_linked": "Phone number linked",
+        "security_session_revoked": "Session revoked",
+        "security_sessions_revoke_others": "Other sessions revoked",
+        "security_password_changed": "Password changed",
+        "security_login_failed": "Failed login attempt",
+        "security_login_failed_2fa": "Failed 2FA verification",
+        "security_logout_all_devices": "Logged out from all devices"
+      }
+    }
   },
   "ai": {
     "common": {

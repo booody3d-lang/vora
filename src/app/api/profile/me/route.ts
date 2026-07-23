@@ -27,6 +27,7 @@ import { getOnboardingProgress, isOnboardingComplete } from "@/lib/profile/onboa
 import { getEffectiveSubscription } from "@/lib/subscription/resolve-subscription";
 import { ensureSubscriptionCacheHydrated } from "@/lib/subscription/subscription-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
+import { getRequestAuditContext, writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import { resolveAdminCapabilities } from "@/lib/security/roles";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { stripPrivateProfileFields } from "@/lib/profile/private-fields";
@@ -156,6 +157,13 @@ export async function PATCH(request: Request) {
           if (!result.ok) {
             return NextResponse.json({ error: result.error }, { status: 400 });
           }
+          const { ip, userAgent } = getRequestAuditContext(request);
+          await writeSecurityAuditEvent({
+            accountId: auth.user.id,
+            action: "security.password.changed",
+            ip,
+            userAgent,
+          });
           return NextResponse.json({ ok: true, action: "changePassword" });
         }
         const result = await changeAccountPassword(
@@ -166,6 +174,13 @@ export async function PATCH(request: Request) {
         if (!result.ok) {
           return NextResponse.json({ error: result.error }, { status: 400 });
         }
+        const { ip, userAgent } = getRequestAuditContext(request);
+        await writeSecurityAuditEvent({
+          accountId: auth.user.id,
+          action: "security.password.changed",
+          ip,
+          userAgent,
+        });
         return NextResponse.json({ ok: true, action: "changePassword" });
       }
 

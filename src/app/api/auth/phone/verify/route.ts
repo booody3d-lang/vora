@@ -6,6 +6,7 @@ import { normalizePhoneFromRequest } from "@/lib/auth/phone/detect-country";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitHeaders } from "@/lib/security/rate-limit";
+import { getRequestAuditContext, maskPhone, writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import type { OtpDeliveryChannel } from "@/types/auth-phone";
 
 export async function POST(request: NextRequest) {
@@ -80,6 +81,18 @@ export async function POST(request: NextRequest) {
     if (!linkResult.ok) {
       return NextResponse.json({ error: linkResult.error }, { status: linkResult.status });
     }
+
+    const { userAgent } = getRequestAuditContext(request);
+    await writeSecurityAuditEvent({
+      accountId: auth.user.id,
+      action: "security.phone.linked",
+      ip,
+      userAgent,
+      metadata: {
+        phone: maskPhone(normalized.e164),
+        channel: channel ?? "sms",
+      },
+    });
 
     return NextResponse.json({
       ok: true,

@@ -39,6 +39,27 @@ export interface UserSession {
   lastActiveAt: string;
 }
 
+export type SecurityAuditAction =
+  | "security.2fa.enabled"
+  | "security.2fa.disabled"
+  | "security.phone.linked"
+  | "security.session.revoked"
+  | "security.sessions.revoke_others"
+  | "security.password.changed"
+  | "security.login.failed"
+  | "security.login.failed_2fa"
+  | "security.logout.all_devices";
+
+export interface SecurityAuditEvent {
+  id: string;
+  action: string;
+  ipAddress?: string;
+  userAgent?: string;
+  metadata: Record<string, unknown>;
+  severity: string;
+  createdAt: string;
+}
+
 export interface PrivacySettings {
   profileVisibility: ProfileVisibility;
   hideEmail: boolean;

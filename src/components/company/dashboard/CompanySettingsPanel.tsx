@@ -218,6 +218,17 @@ export function CompanySettingsPanel() {
             </button>
           </form>
         </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-6">
+          <h2 className="text-lg font-bold text-[#0F172A]">{t("network.settings.security.pageTitle")}</h2>
+          <p className="mt-1 text-sm text-slate-500">{t("network.settings.security.passwordSubtitle")}</p>
+          <Link
+            href="/network/settings/security"
+            className="mt-4 inline-flex rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-[#3B5998] hover:bg-slate-50"
+          >
+            {t("network.settings.security.pageTitle")} →
+          </Link>
+        </section>
       </div>
     </div>
   );
