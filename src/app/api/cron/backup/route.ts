@@ -1,25 +1,25 @@
-import { NextResponse } from "next/server";
+import { runBackupJob } from "@/lib/cron/backup-service";
+import { validateCronAuth } from "@/lib/cron/cron-auth";
+import { executeCronJob } from "@/lib/cron/execute-cron-job";
 
-/**
- * Daily encrypted backup snapshot endpoint (Vercel Cron).
- * Production: connect to Supabase backup API + Saudi cloud storage (STC Cloud / Oracle Jeddah).
- */
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const denied = validateCronAuth(request);
+  if (denied) return denied;
 
-  const snapshot = {
-    timestamp: new Date().toISOString(),
-    status: "queued",
-    targets: ["supabase_db", "financial_ledger", "audit_log"],
-    storage: process.env.BACKUP_STORAGE_URL ?? "saudi-cloud-pending",
-    encryption: "AES-256-GCM",
-    retentionDays: 90,
-  };
+  return executeCronJob("backup", async () => {
+    const result = await runBackupJob();
+    const includedFiles = result.snapshot.files.filter((file) => file.included && !file.error).length;
 
-  console.info("[VORA Backup]", JSON.stringify(snapshot));
-
-  return NextResponse.json({ success: true, snapshot });
+    return {
+      status: result.status,
+      summary: {
+        includedFiles,
+        totalFiles: result.snapshot.files.length,
+        supabasePersistence: result.snapshot.supabasePersistence,
+        storage: result.storage,
+        localManifestPath: result.localManifestPath,
+        createdAt: result.snapshot.createdAt,
+      },
+    };
+  });
 }

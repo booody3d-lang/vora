@@ -770,3 +770,39 @@ export async function applyStripeSubscriptionCancelled(
 export function isSubscriptionPersistenceActive(): boolean {
   return subscriptionTableAvailable;
 }
+
+export function getSubscriptionSnapshotStats(): {
+  tierCount: number;
+  assignmentCount: number;
+  overrideCount: number;
+  stripeCustomerCount: number;
+  paymentEventCount: number;
+  expiredActive: string[];
+  stripeCustomersWithoutAssignment: string[];
+} {
+  const data = getSnapshot();
+  const now = Date.now();
+
+  const expiredActive = Object.entries(data.assignments)
+    .filter(
+      ([, assignment]) =>
+        assignment.status === "active" &&
+        assignment.expiresAt &&
+        new Date(assignment.expiresAt).getTime() < now
+    )
+    .map(([accountId]) => accountId);
+
+  const stripeCustomersWithoutAssignment = Object.keys(data.stripeCustomers).filter(
+    (accountId) => !data.assignments[accountId]
+  );
+
+  return {
+    tierCount: data.tiers.length,
+    assignmentCount: Object.keys(data.assignments).length,
+    overrideCount: Object.keys(data.overrides).length,
+    stripeCustomerCount: Object.keys(data.stripeCustomers).length,
+    paymentEventCount: data.paymentEvents.length,
+    expiredActive,
+    stripeCustomersWithoutAssignment,
+  };
+}
