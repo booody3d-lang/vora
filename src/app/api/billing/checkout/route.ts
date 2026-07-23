@@ -5,6 +5,7 @@ import {
   resolveActivePaymentProvider,
 } from "@/lib/billing/payment-provider";
 import { simulateSubscriptionCheckout } from "@/lib/billing/simulate-subscription";
+import { validateBillingPaymentConfig } from "@/lib/billing/stripe-config-validation";
 import {
   getPlanStripePriceId,
   getServerStripe,
@@ -12,8 +13,30 @@ import {
 } from "@/lib/billing/stripe-server";
 import { planIdToTierId } from "@/lib/billing/resolve-plans";
 import { getStripeCustomerMapping } from "@/lib/subscription/subscription-store";
+import { SITE_URL } from "@/i18n/config";
 import { requireAuthenticatedApiUser } from "@/lib/security/require-api-auth";
 import type { SubscriptionPlan } from "@/types/billing";
+
+function resolveSiteBaseUrl(): string {
+  return SITE_URL.replace(/\/$/, "");
+}
+
+function resolveCheckoutUrl(path: string, override?: string): string {
+  if (override) {
+    try {
+      const candidate = new URL(override, resolveSiteBaseUrl());
+      const siteOrigin = new URL(resolveSiteBaseUrl()).origin;
+      if (candidate.origin === siteOrigin) {
+        return candidate.toString();
+      }
+    } catch {
+      // Fall back to site URL defaults below.
+    }
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${resolveSiteBaseUrl()}${normalizedPath}`;
+}
 
 export async function POST(request: Request) {
   const authResult = await requireAuthenticatedApiUser();
@@ -35,9 +58,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unknown plan" }, { status: 400 });
     }
 
-    const origin = request.headers.get("origin") ?? "http://localhost:3000";
     const accountId = authResult.auth.user.id;
-    const successUrl = body.successUrl ?? `${origin}/billing/plans?success=true`;
+    const successUrl = resolveCheckoutUrl("/billing/plans?success=true", body.successUrl);
+    const cancelUrl = resolveCheckoutUrl("/billing/plans?cancelled=true", body.cancelUrl);
 
     if (isBillingSimulationMode()) {
       const result = await simulateSubscriptionCheckout({
@@ -50,6 +73,27 @@ export async function POST(request: Request) {
         simulated: true,
         provider: resolveActivePaymentProvider(),
       });
+    }
+
+    const provider = resolveActivePaymentProvider();
+    if (provider !== "stripe") {
+      return NextResponse.json(
+        { error: `Payment provider "${provider}" is not available for checkout` },
+        { status: 503 }
+      );
+    }
+
+    const billingConfig = await validateBillingPaymentConfig();
+    if (!billingConfig.readiness.checkout.ready) {
+      return NextResponse.json(
+        {
+          error: "Billing checkout is not ready",
+          code: "checkout_not_ready",
+          reasons: billingConfig.readiness.checkout.reasons,
+          warnings: billingConfig.warnings,
+        },
+        { status: 503 }
+      );
     }
 
     const stripe = getServerStripe();
@@ -71,7 +115,7 @@ export async function POST(request: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       currency: STRIPE_SERVER_CONFIG.currency,
       success_url: successUrl,
-      cancel_url: body.cancelUrl ?? `${origin}/billing/plans?cancelled=true`,
+      cancel_url: cancelUrl,
       ...(existingCustomer
         ? { customer: existingCustomer.stripeCustomerId }
         : { customer_email: authResult.auth.user.email }),
@@ -98,6 +142,7 @@ export async function POST(request: Request) {
       sessionId: session.id,
       url: session.url,
       provider: "stripe",
+      warnings: billingConfig.warnings.length > 0 ? billingConfig.warnings : undefined,
     });
   } catch (error) {
     console.error("Checkout error:", error);
