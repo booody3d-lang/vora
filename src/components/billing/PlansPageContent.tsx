@@ -71,7 +71,7 @@ export function PlansPageContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({}),
+        body: JSON.stringify({ returnUrl: `${window.location.origin}/billing` }),
       });
       const data = await res.json();
 
