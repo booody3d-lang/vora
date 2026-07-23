@@ -102,6 +102,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Account suspended" }, { status: 403 });
     }
 
+    if (authUser.totpEnabled) {
+      const totpCode = body.totpCode?.trim();
+      if (!totpCode) {
+        await supabase.auth.signOut();
+        return NextResponse.json({ requires2FA: true });
+      }
+
+      const { verifyTotpForLogin } = await import("@/lib/auth/totp-store");
+      const totpValid = await verifyTotpForLogin(authUser.id, totpCode);
+      if (!totpValid) {
+        await supabase.auth.signOut();
+        await serverDispatchNotification(
+          buildTriggerNotification({
+            trigger: "failed_login",
+            title: "Failed 2FA Verification",
+            body: `Failed 2FA for ${email} from ${ip}`,
+            isCritical: true,
+            href: "/admin/security",
+          }),
+          { ownerEmail: true }
+        );
+        return NextResponse.json({ error: "Invalid verification code", requires2FA: true }, { status: 401 });
+      }
+    }
+
     console.info("[auth/login] success", {
       email,
       userId: data.user.id,

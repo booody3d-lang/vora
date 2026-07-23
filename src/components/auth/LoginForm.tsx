@@ -78,7 +78,7 @@ export function LoginForm() {
     window.location.assign(dest);
   }
 
-  async function loginWithEmail(loginEmail: string, loginPassword: string) {
+  async function loginWithEmail(loginEmail: string, loginPassword: string, mfaCode?: string) {
     setLoading(true);
     setError("");
     try {
@@ -86,7 +86,11 @@ export function LoginForm() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        body: JSON.stringify({
+          email: loginEmail,
+          password: loginPassword,
+          ...(mfaCode ? { totpCode: mfaCode } : {}),
+        }),
       });
       const data = (await res.json()) as {
         user?: AuthUser;
@@ -94,13 +98,16 @@ export function LoginForm() {
         requires2FA?: boolean;
       };
 
-      if (data.requires2FA) {
+      if (data.requires2FA && !mfaCode) {
         setRequires2FA(true);
         setEmail(loginEmail);
         return;
       }
       if (!res.ok) {
-        setError(data.error ?? t("auth.loginFailed"));
+        setError(data.error ?? (data.requires2FA ? t("auth.twoFaInvalid") : t("auth.loginFailed")));
+        if (data.requires2FA) {
+          setRequires2FA(true);
+        }
         return;
       }
       if (!data.user) {
@@ -117,7 +124,7 @@ export function LoginForm() {
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
-    await loginWithEmail(email, password);
+    await loginWithEmail(email, password, requires2FA ? totpCode : undefined);
   }
 
   function selectPlatformAccount(accountEmail: string) {
@@ -284,11 +291,14 @@ export function LoginForm() {
           {requires2FA && (
             <div>
               <label className="text-xs text-slate-400">{t("auth.twoFaCode")}</label>
+              <p className="mt-1 text-[11px] text-slate-500">{t("auth.twoFaRequired")}</p>
               <input
                 type="text"
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value)}
                 maxLength={6}
+                required
+                autoComplete="one-time-code"
                 className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none"
                 placeholder="000000"
               />
@@ -299,7 +309,11 @@ export function LoginForm() {
             disabled={loading}
             className="w-full rounded-xl bg-[#3B5998] py-3 text-sm font-semibold text-white hover:bg-[#2d4373] disabled:opacity-50"
           >
-            {loading ? t("auth.signingIn") : t("auth.signInButton")}
+            {loading
+              ? t("auth.signingIn")
+              : requires2FA
+                ? t("auth.verifyTwoFaButton")
+                : t("auth.signInButton")}
           </button>
         </form>
       ) : (
