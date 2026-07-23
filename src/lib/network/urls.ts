@@ -1,19 +1,19 @@
 export const CURRENT_USER_PROFILE_PATH = "/profile/me";
 
-
-
-export function getCurrentUserProfileUrl() {
-
-  return CURRENT_USER_PROFILE_PATH;
-
+/** Canonical public profile route under the Network section. */
+export function getProfileUrl(slug: string) {
+  return `/network/profile/${slug}`;
 }
 
-
-
-export function getProfileUrl(slug: string) {
-
-  return `/network/profile/${slug}`;
-
+/**
+ * Resolve the current user's profile page. Prefer the slug route so navigation
+ * stays inside /network and avoids /profile/me RBAC + redirect hops.
+ */
+export function getCurrentUserProfileUrl(profileSlug?: string | null) {
+  if (profileSlug) {
+    return getProfileUrl(profileSlug);
+  }
+  return CURRENT_USER_PROFILE_PATH;
 }
 
 

@@ -55,5 +55,5 @@ export function filterNavigationLinks(
       labelEn: link.labelEn,
       labelAr: link.labelAr,
     }))
-    .filter((link) => !link.href.includes("{storeSlug}"));
+    .filter((link) => !link.href.includes("{storeSlug}") && !link.href.includes("{profileSlug}"));
 }

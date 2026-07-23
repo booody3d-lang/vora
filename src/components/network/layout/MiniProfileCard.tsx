@@ -72,7 +72,7 @@ export function MiniProfileCard() {
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <Link href={getCurrentUserProfileUrl()}>
+      <Link href={getCurrentUserProfileUrl(profileSlug)}>
         <div className="h-14 bg-cover bg-center" style={coverStyle} />
         <div className="relative px-4 pb-4">
           <UserAvatar

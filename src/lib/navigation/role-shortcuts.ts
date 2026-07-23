@@ -155,7 +155,9 @@ export function appendRoleShortcuts(
   if (ctx.platform === "network" && ctx.isAuthenticated) {
     for (const link of links) {
       if (isProfileNavLink(link)) {
-        link.href = "/profile/me";
+        link.href = ctx.profileSlug
+          ? `/network/profile/${ctx.profileSlug}`
+          : "/profile/me";
       }
     }
   }

@@ -23,7 +23,7 @@ export const FALLBACK_NAVIGATION_LINKS: NavigationLinkRecord[] = [
     labelKey: "nav.profile",
     labelEn: "Profile",
     labelAr: "الملف الشخصي",
-    href: "/profile/me",
+    href: "/network/profile/{profileSlug}",
     icon: "👤",
     sortOrder: 20,
     requiresAuth: false,

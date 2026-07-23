@@ -34,7 +34,7 @@ export function SidebarProfileCard({ mode, onNavigate }: SidebarProfileCardProps
 
   return (
     <Link
-      href={getCurrentUserProfileUrl()}
+      href={getCurrentUserProfileUrl(profileSlug)}
       onClick={onNavigate}
       className={cn(
         "mx-3 mb-2 block overflow-hidden rounded-xl transition-colors",

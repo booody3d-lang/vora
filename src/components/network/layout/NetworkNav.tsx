@@ -25,7 +25,7 @@ export function NetworkNav() {
   const { t } = useTranslations();
   const { profileSlug, avatarUrl, gender, profile, fullName, profilePhotoUrl, subscriptionBadge } =
     useCurrentProfile();
-  const profileHref = profileSlug ? getCurrentUserProfileUrl() : getCurrentUserProfileUrl();
+  const profileHref = getCurrentUserProfileUrl(profileSlug);
 
   const navItems = [
     NAV_KEYS[0],
@@ -43,6 +43,8 @@ export function NetworkNav() {
               const href = item.href;
               const active =
                 pathname === href ||
+                (item.labelKey === "nav.profile" &&
+                  (pathname.startsWith("/network/profile/") || pathname === "/profile/me")) ||
                 (item.matchPrefix && href !== "/network" && pathname.startsWith(href));
               return (
                 <Link

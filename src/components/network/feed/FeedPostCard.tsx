@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { FeedComment, FeedPost, ReactionType } from "@/types/network";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
-import { getProfileUrl } from "@/lib/network/urls";
+import { getCurrentUserProfileUrl, getProfileUrl } from "@/lib/network/urls";
 import { PostReactions } from "@/components/network/feed/PostReactions";
 import { PostComments } from "@/components/network/feed/PostComments";
 import { FeedPostMedia } from "@/components/network/feed/FeedPostMedia";
@@ -28,7 +28,7 @@ interface FeedPostCardProps {
 export function FeedPostCard({ post: initialPost, onUpdate, onDelete }: FeedPostCardProps) {
   const { t } = useTranslations();
   const { user } = usePermissions();
-  const { profile, fullName, avatarUrl, profilePhotoUrl, gender, subscriptionBadge } =
+  const { profile, fullName, avatarUrl, profilePhotoUrl, gender, subscriptionBadge, profileSlug } =
     useCurrentProfile();
   const commentInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -56,8 +56,13 @@ export function FeedPostCard({ post: initialPost, onUpdate, onDelete }: FeedPost
         headline: profile?.headline ?? post.author.headline,
         profilePhotoUrl: profilePhotoUrl || avatarUrl || post.author.profilePhotoUrl,
         subscriptionBadge: subscriptionBadge ?? post.author.subscriptionBadge,
+        slug: profileSlug ?? profile?.slug ?? post.author.slug,
       }
     : post.author;
+
+  const authorProfileHref = isOwnPost
+    ? getCurrentUserProfileUrl(profileSlug ?? profile?.slug ?? author.slug)
+    : getProfileUrl(author.slug);
 
   function syncPost(next: Partial<FeedPost>) {
     setPost((current) => {
@@ -178,7 +183,7 @@ export function FeedPostCard({ post: initialPost, onUpdate, onDelete }: FeedPost
       <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="p-4">
           <div className="flex items-start gap-3">
-            <Link href={getProfileUrl(author.slug)}>
+            <Link href={authorProfileHref}>
               <UserAvatar
                 photoUrl={author.profilePhotoUrl}
                 gender={isOwnPost ? gender : undefined}
@@ -189,7 +194,7 @@ export function FeedPostCard({ post: initialPost, onUpdate, onDelete }: FeedPost
             </Link>
             <div className="min-w-0 flex-1">
               <Link
-                href={getProfileUrl(author.slug)}
+                href={authorProfileHref}
                 className="font-semibold text-[#0F172A] hover:underline"
               >
                 {author.fullName}

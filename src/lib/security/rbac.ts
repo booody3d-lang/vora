@@ -100,6 +100,7 @@ export const ROLE_ROUTE_ACCESS: Record<VoraRole, RegExp[]> = {
     /^\/auth\//,
     /^\/freelance(\/|$)/,
     /^\/network(\/|$)/,
+    /^\/profile(\/|$)/,
     /^\/billing(\/|$)/,
   ],
   company: [

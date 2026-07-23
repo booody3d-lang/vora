@@ -99,8 +99,8 @@ export function MarketplaceSearch() {
 
 export function FreelanceNav() {
   const { t } = useTranslations();
-  const { fullName, avatarUrl, profilePhotoUrl, gender } = useCurrentProfile();
-  const profileHref = getCurrentUserProfileUrl();
+  const { fullName, avatarUrl, profilePhotoUrl, gender, profileSlug } = useCurrentProfile();
+  const profileHref = getCurrentUserProfileUrl(profileSlug);
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#EA580C]/10 bg-white shadow-sm">
