@@ -5,6 +5,8 @@ import {
   ENV_STRIPE_PRICE_FALLBACKS,
   PLAN_TO_TIER,
   billingPlanSpec,
+  checkoutPlansForTier,
+  type BillingPlanSpec,
 } from "@/lib/billing/plan-catalog";
 import type { PlanDefinition, SubscriptionPlan } from "@/types/billing";
 import type { SubscriptionTier } from "@/types/subscription";
@@ -38,6 +40,16 @@ function planIntervalToBillingCycle(
   return "none";
 }
 
+/** Tiers like premium-user map to multiple checkout plans — keep catalog metadata for alternates. */
+function shouldUseCatalogMetadata(
+  spec: BillingPlanSpec,
+  tier: SubscriptionTier | undefined
+): boolean {
+  if (spec.id === "free" || !tier) return true;
+  if (checkoutPlansForTier(spec.tierId).length <= 1) return false;
+  return planIntervalToBillingCycle(spec.interval) !== tier.billingCycle;
+}
+
 export function resolvePlanStripePriceId(
   planId: SubscriptionPlan,
   tiers: SubscriptionTier[]
@@ -50,23 +62,31 @@ export function resolvePlanStripePriceId(
 export function resolveBillingPlans(tiers: SubscriptionTier[]): PlanDefinition[] {
   return BILLING_PLAN_SPECS.map((spec) => {
     const tier = tierById(tiers, spec.tierId);
-    const priceSar = tier && spec.id !== "free" ? tier.priceSar : spec.priceSar;
+    const useCatalog = shouldUseCatalogMetadata(spec, tier);
+
+    const priceSar = spec.id === "free" || useCatalog || !tier ? spec.priceSar : tier.priceSar;
+    const nameEn =
+      spec.id === "free" || useCatalog || !tier?.nameEn ? spec.nameEn : tier.nameEn;
+    const nameAr =
+      spec.id === "free" || useCatalog || !tier?.nameAr ? spec.nameAr : tier.nameAr;
+    const features =
+      spec.id === "free" || useCatalog || !tier || tier.features.length === 0
+        ? spec.features
+        : tier.features.map((feature) => feature.labelEn);
+    const featuresAr =
+      spec.id === "free" || useCatalog || !tier || tier.features.length === 0
+        ? spec.featuresAr
+        : tier.features.map((feature) => feature.labelAr);
 
     return {
       id: spec.id,
-      nameEn: tier?.nameEn && spec.id !== "free" ? tier.nameEn : spec.nameEn,
-      nameAr: tier?.nameAr && spec.id !== "free" ? tier.nameAr : spec.nameAr,
+      nameEn,
+      nameAr,
       priceSar,
       interval: spec.interval,
       target: spec.target,
-      features:
-        tier && tier.features.length > 0 && spec.id !== "free"
-          ? tier.features.map((feature) => feature.labelEn)
-          : spec.features,
-      featuresAr:
-        tier && tier.features.length > 0 && spec.id !== "free"
-          ? tier.features.map((feature) => feature.labelAr)
-          : spec.featuresAr,
+      features,
+      featuresAr,
       stripePriceId: resolvePlanStripePriceId(spec.id, tiers),
       tierId: spec.tierId,
     };
