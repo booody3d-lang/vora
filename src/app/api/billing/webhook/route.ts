@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isBillingSimulationMode } from "@/lib/billing/payment-provider";
 import { validateBillingPaymentConfig } from "@/lib/billing/stripe-config-validation";
+import { logDomainError } from "@/lib/monitoring/log";
 import { getServerStripe } from "@/lib/billing/stripe-server";
 import {
   handleStripeWebhookEvent,
@@ -64,7 +65,10 @@ export async function POST(request: Request) {
   try {
     await handleStripeWebhookEvent(stripe, verified.event);
   } catch (error) {
-    console.error("Stripe webhook handler error:", verified.event.type, error);
+    logDomainError("billing", "Stripe webhook handler failed", error, {
+      eventType: verified.event.type,
+      eventId: verified.event.id,
+    });
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 

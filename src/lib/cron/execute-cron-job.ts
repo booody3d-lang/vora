@@ -6,6 +6,7 @@ import {
   type CronJobId,
   type CronRunStatus,
 } from "@/lib/cron/cron-runs-store";
+import { logDomainError } from "@/lib/monitoring/log";
 import { writeSecurityAuditEvent } from "@/lib/security/audit-store";
 
 export async function executeCronJob(
@@ -68,7 +69,7 @@ export async function executeCronJob(
       metadata: { job, durationMs, error: message },
     });
 
-    console.error(`[VORA Cron] ${job} failed:`, error);
+    logDomainError("cron", `Cron job ${job} failed`, error, { job, durationMs });
 
     return NextResponse.json(
       { ok: false, job, status: "failed", durationMs, error: message },
