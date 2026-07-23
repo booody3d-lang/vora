@@ -28,6 +28,11 @@ In the Supabase SQL editor, run the files in order:
 20. `020_billing_escrow_withdrawals_phase4e1.sql` — escrow payment RPC + withdrawal review workflow
 21. `021_company_rls_phase5.sql` — company posts/followers/analytics RLS + subscription bootstrap trigger + ATS update policy
 22. `022_freelance_rls_phase6a.sql` — freelance schema reconciliation (services/reviews columns), order indexes, order-number generator, store analytics bootstrap, and RLS for orders/messages/disputes/addons/chat/inquiries
+23. `023_auth_otp_phase8b.sql` — OTP delivery channel and provider metadata on `otp_codes`
+24. `024_auth_phone_phase8c.sql` — phone auth metadata (`phone_country`, `preferred_otp_channel`) on accounts
+25. `025_auth_totp_phase8d.sql` — TOTP 2FA persistence (`totp_enabled_at`) and column documentation
+26. `026_user_sessions_phase8e.sql` — user sessions indexes and per-user RLS policies
+27. `027_security_audit_phase8f.sql` — security audit log indexes and user read RLS
 
 ## 2. Quick bootstrap (empty project)
 

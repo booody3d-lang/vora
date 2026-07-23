@@ -44,6 +44,10 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Production operations (Phase 9)
+
+Phase 9 adds production-ready billing (simulation mode valid for soft launch), Twilio/Resend delivery, Vercel cron jobs, Sentry monitoring, Redis caching, and consolidated launch diagnostics. Before deploying, follow the [Production Launch Checklist](docs/PRODUCTION_LAUNCH_CHECKLIST.md). Owner-only readiness: `GET /api/admin/launch/readiness`.
+
 ## Permission Matrix
 
 | Action | Visitor | Basic | Professional |

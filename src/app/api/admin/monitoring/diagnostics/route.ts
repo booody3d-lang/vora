@@ -26,6 +26,7 @@ export async function GET() {
     endpoints: {
       health: "/api/health",
       cacheDiagnostics: "/api/admin/cache/diagnostics",
+      launchReadiness: "/api/admin/launch/readiness",
     },
   });
 }
