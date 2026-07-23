@@ -270,7 +270,27 @@
     "messagingAttachTitle": "Attach image, video (15s max), or document",
     "messagingUnsupportedFile": "Supported: images, short videos (15s), PDF, and Word documents",
     "messagingDockSubtitle": "Quick access to your conversations",
-    "messagingVideoLimit": "Videos must be 15 seconds or less"
+    "messagingVideoLimit": "Videos must be 15 seconds or less",
+    "settings": {
+      "security": {
+        "pageTitle": "Account Security",
+        "twoFaTitle": "Two-Factor Authentication",
+        "twoFaSubtitle": "Google Authenticator or SMS backup codes",
+        "twoFaActive": "✓ 2FA is active on your account",
+        "twoFaSetup": "Set Up Authenticator App",
+        "twoFaScanHint": "Scan URI",
+        "twoFaCodePlaceholder": "Enter 6-digit code",
+        "twoFaVerifyEnable": "Verify & Enable",
+        "twoFaEnabledSuccess": "2FA enabled successfully",
+        "twoFaEnableFailed": "Failed to enable 2FA",
+        "sessionsTitle": "Active Sessions & Devices",
+        "sessionsEmpty": "Sign in to view active sessions",
+        "currentDevice": "current",
+        "revoke": "Revoke",
+        "revokeOthers": "Revoke other devices",
+        "logoutAll": "Log Out All Devices"
+      }
+    }
   },
   "search": {
     "globalPlaceholder": "Search jobs, companies, people...",

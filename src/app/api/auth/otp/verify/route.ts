@@ -4,7 +4,8 @@ import { resolvePhoneLoginSession } from "@/lib/auth/phone-auth-supabase";
 import { verifyOtpDelivery } from "@/lib/auth/otp-store";
 import { normalizePhoneFromRequest } from "@/lib/auth/phone/detect-country";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { persistSession } from "@/lib/security/auth-store";
+import { persistLoginSession } from "@/lib/auth/persist-login-session";
+import { recordUserSession } from "@/lib/auth/sessions-store";
 import {
   COOKIE_NAME,
   sessionCookieOptions,
@@ -87,6 +88,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      await persistLoginSession(request, sessionResult.authUser.id);
+
       const response = NextResponse.json({
         ok: true,
         verified: true,
@@ -114,15 +117,12 @@ export async function POST(request: NextRequest) {
 
     const ua = request.headers.get("user-agent") ?? "unknown";
     const effectiveRole = resolveEffectiveRole(account);
-    const { sessionId, session } = createSession(account.id, { userAgent: ua, ip });
-    persistSession({
-      sessionId,
+    const { sessionId } = createSession(account.id, { userAgent: ua, ip });
+    await recordUserSession({
       accountId: account.id,
+      sessionToken: sessionId,
       userAgent: ua,
       ip,
-      deviceLabel: session.deviceLabel,
-      createdAt: session.createdAt,
-      lastActiveAt: session.lastActiveAt,
     });
     const token = await signSessionToken({
       sub: account.id,

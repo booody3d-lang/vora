@@ -270,7 +270,27 @@
     "messagingAttachTitle": "إرفاق صورة أو فيديو (15 ثانية كحد أقصى) أو مستند",
     "messagingUnsupportedFile": "المدعوم: صور، فيديوهات قصيرة (15 ثانية)، PDF، وWord",
     "messagingDockSubtitle": "وصول سريع إلى محادثاتك",
-    "messagingVideoLimit": "يجب ألا يتجاوز الفيديو 15 ثانية"
+    "messagingVideoLimit": "يجب ألا يتجاوز الفيديو 15 ثانية",
+    "settings": {
+      "security": {
+        "pageTitle": "أمان الحساب",
+        "twoFaTitle": "المصادقة الثنائية",
+        "twoFaSubtitle": "Google Authenticator أو رموز SMS الاحتياطية",
+        "twoFaActive": "✓ المصادقة الثنائية مفعّلة على حسابك",
+        "twoFaSetup": "إعداد تطبيق المصادقة",
+        "twoFaScanHint": "مسح الرابط",
+        "twoFaCodePlaceholder": "أدخل الرمز المكوّن من 6 أرقام",
+        "twoFaVerifyEnable": "تحقق وتفعيل",
+        "twoFaEnabledSuccess": "تم تفعيل المصادقة الثنائية بنجاح",
+        "twoFaEnableFailed": "تعذر تفعيل المصادقة الثنائية",
+        "sessionsTitle": "الجلسات والأجهزة النشطة",
+        "sessionsEmpty": "سجّل الدخول لعرض الجلسات النشطة",
+        "currentDevice": "الحالي",
+        "revoke": "إلغاء",
+        "revokeOthers": "إلغاء الأجهزة الأخرى",
+        "logoutAll": "تسجيل الخروج من كل الأجهزة"
+      }
+    }
   },
   "search": {
     "globalPlaceholder": "ابحث عن وظائف، شركات، أشخاص...",

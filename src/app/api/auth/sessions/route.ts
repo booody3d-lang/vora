@@ -1,65 +1,50 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "@/lib/security/session";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
-
-const UNAVAILABLE_MESSAGE =
-  "Session management is being migrated to Supabase Auth and is temporarily unavailable.";
+import { getAuthenticatedUser } from "@/lib/security/session";
+import { resolveCurrentTokenHash } from "@/lib/auth/persist-login-session";
+import { listUserSessions } from "@/lib/auth/sessions-store";
 
 export async function GET() {
-  const session = await getServerSession();
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (isSupabaseConfigured()) {
-    return NextResponse.json({
-      sessions: [
-        {
-          id: session.sessionId,
-          deviceLabel: "Current browser",
-          isCurrent: true,
-          createdAt: new Date().toISOString(),
-          lastActiveAt: new Date().toISOString(),
-        },
-      ],
-      note: UNAVAILABLE_MESSAGE,
-    });
-  }
+  const currentTokenHash = await resolveCurrentTokenHash();
+  const sessions = await listUserSessions(auth.user.id, currentTokenHash ?? undefined);
 
-  const { getSessionsForAccount } = await import("@/lib/security/demo-store");
-  const sessions = getSessionsForAccount(session.sub).map((s) => ({
-    ...s,
-    isCurrent: s.id === session.sessionId,
-  }));
   return NextResponse.json({ sessions });
 }
 
 export async function DELETE(request: Request) {
-  const session = await getServerSession();
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (isSupabaseConfigured()) {
-    return NextResponse.json({ error: UNAVAILABLE_MESSAGE }, { status: 503 });
-  }
+  const body = (await request.json().catch(() => ({}))) as {
+    sessionId?: string;
+    all?: boolean;
+  };
 
-  const body = await request.json().catch(() => ({})) as { sessionId?: string; all?: boolean };
-  const { revokeAllSessions, revokeSession } = await import("@/lib/security/demo-store");
-  const { revokeAllPersistedSessions, revokePersistedSession } = await import(
-    "@/lib/security/auth-store"
+  const { revokeUserSession, revokeOtherUserSessions } = await import(
+    "@/lib/auth/sessions-store"
   );
+  const { revokeSession, revokeAllSessions } = await import("@/lib/security/demo-store");
 
   if (body.all) {
-    const count = revokeAllSessions(session.sub, session.sessionId);
-    revokeAllPersistedSessions(session.sub, session.sessionId);
-    return NextResponse.json({ revoked: count });
+    const currentTokenHash = await resolveCurrentTokenHash();
+    let revoked = 0;
+    if (currentTokenHash) {
+      revoked = await revokeOtherUserSessions(auth.user.id, currentTokenHash);
+    }
+    revoked += revokeAllSessions(auth.user.id, auth.session.sessionId);
+    return NextResponse.json({ revoked });
   }
 
   if (body.sessionId) {
+    const revoked = await revokeUserSession(auth.user.id, body.sessionId);
     revokeSession(body.sessionId);
-    revokePersistedSession(body.sessionId);
-    return NextResponse.json({ revoked: 1 });
+    return NextResponse.json({ revoked: revoked ? 1 : 0 });
   }
 
   return NextResponse.json({ error: "Specify sessionId or all:true" }, { status: 400 });

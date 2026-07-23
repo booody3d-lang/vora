@@ -133,6 +133,9 @@ export async function POST(request: Request) {
       role: authUser.role,
     });
 
+    const { persistLoginSession } = await import("@/lib/auth/persist-login-session");
+    await persistLoginSession(request, authUser.id, data.session?.access_token);
+
     const response = NextResponse.json({ user: enrichAuthUser(authUser) });
     clearLegacySessionCookie(response);
     return response;
