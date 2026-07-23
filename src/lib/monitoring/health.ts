@@ -1,5 +1,6 @@
 import "server-only";
 
+import { validateRedisConfig } from "@/lib/cache/redis-config-validation";
 import { validateBillingPaymentConfig } from "@/lib/billing/stripe-config-validation";
 import { validateCronDiagnostics } from "@/lib/cron/cron-diagnostics";
 import { isStrictProduction } from "@/lib/env/validate";
@@ -20,6 +21,7 @@ export interface HealthReport {
     otp: HealthCheck;
     email: HealthCheck;
     cron: HealthCheck;
+    redis: HealthCheck;
   };
 }
 
@@ -61,7 +63,12 @@ export async function buildHealthReport(): Promise<HealthReport> {
     cronDiag.readiness.cronAuth.reasons[0]
   );
 
-  const checks = { supabase, stripe, otp, email, cron };
+  const redisDiag = await validateRedisConfig();
+  const redis = redisDiag.configured
+    ? checkWithDetail(redisDiag.connectivity.ok, redisDiag.connectivity.detail)
+    : { ok: true as const, detail: "not configured (optional)" };
+
+  const checks = { supabase, stripe, otp, email, cron, redis };
   const allOk = Object.values(checks).every((check) => check.ok);
 
   return {

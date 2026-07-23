@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ip = getClientIp(request);
-    const rateLimit = checkRateLimit(`otp-verify:${ip}`, RATE_LIMITS.auth);
+    const rateLimit = await checkRateLimit(`otp-verify:${ip}`, RATE_LIMITS.auth);
     if (!rateLimit.allowed) {
       const retryAfterSec = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000));
       return NextResponse.json(

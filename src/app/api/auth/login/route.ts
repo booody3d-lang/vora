@@ -20,7 +20,7 @@ import { serverDispatchNotification } from "@/lib/notifications/server-dispatch"
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
-  const rl = checkRateLimit(`auth:login:${ip}`, RATE_LIMITS.auth);
+  const rl = await checkRateLimit(`auth:login:${ip}`, RATE_LIMITS.auth);
   if (!rl.allowed) {
     await serverDispatchNotification(
       buildTriggerNotification({

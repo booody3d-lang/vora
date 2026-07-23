@@ -1,5 +1,6 @@
 import "server-only";
 
+import { CACHE_KEYS, cacheGet, cacheSet } from "@/lib/cache/redis";
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { listAllCompanies } from "@/lib/admin/admin-companies-store";
 import { listActivePublicJobListings } from "@/lib/company/jobs-store";
@@ -197,6 +198,10 @@ export async function rebuildSearchIndex(): Promise<SearchIndexFile> {
     builtAt: new Date().toISOString(),
   };
   writeJsonStore(INDEX_FILE, index);
+  await cacheSet(CACHE_KEYS.searchIndexMeta, {
+    builtAt: index.builtAt,
+    entryCount: index.entries.length,
+  });
   return index;
 }
 
@@ -215,11 +220,16 @@ export async function searchIndex(
   query: string,
   options?: { type?: SearchResultType; limit?: number }
 ): Promise<SearchIndexEntry[]> {
-  const index = await readIndex();
   const limit = options?.limit ?? 12;
   const trimmed = query.trim().toLowerCase();
 
   if (!trimmed) return [];
+
+  const cacheKey = CACHE_KEYS.searchResults(trimmed, options?.type, limit);
+  const cached = await cacheGet<SearchIndexEntry[]>(cacheKey);
+  if (cached) return cached;
+
+  const index = await readIndex();
 
   const queryTokens = tokenize(trimmed);
   const scoreMap = new Map<string, number>();
@@ -257,5 +267,7 @@ export async function searchIndex(
     if (options?.type) results = results.filter((entry) => entry.type === options.type);
   }
 
-  return results.slice(0, limit);
+  const finalResults = results.slice(0, limit);
+  await cacheSet(cacheKey, finalResults, { ttlSeconds: 60 });
+  return finalResults;
 }

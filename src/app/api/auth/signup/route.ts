@@ -57,7 +57,7 @@ async function bootstrapProfileAfterSignup(input: {
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
-  const rl = checkRateLimit(`auth:signup:${ip}`, RATE_LIMITS.auth);
+  const rl = await checkRateLimit(`auth:signup:${ip}`, RATE_LIMITS.auth);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many signup attempts. Try again later." },

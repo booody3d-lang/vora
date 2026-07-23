@@ -16,7 +16,7 @@ import {
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
-  const rl = checkRateLimit(`auth:reset:${ip}`, RATE_LIMITS.auth);
+  const rl = await checkRateLimit(`auth:reset:${ip}`, RATE_LIMITS.auth);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many reset attempts. Try again later." },

@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ip = getClientIp(request);
-    const rateLimit = checkRateLimit(`phone-link:${ip}`, RATE_LIMITS.auth);
+    const rateLimit = await checkRateLimit(`phone-link:${ip}`, RATE_LIMITS.auth);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: "Too many phone link attempts." },

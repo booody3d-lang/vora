@@ -25,7 +25,7 @@ import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
-  const rl = checkRateLimit(`auth:forgot:${ip}`, RATE_LIMITS.auth);
+  const rl = await checkRateLimit(`auth:forgot:${ip}`, RATE_LIMITS.auth);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many reset requests. Try again later." },

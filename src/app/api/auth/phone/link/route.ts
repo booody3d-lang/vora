@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ip = getClientIp(request);
-    const rateLimit = checkRateLimit(`phone-link-check:${ip}`, RATE_LIMITS.standard);
+    const rateLimit = await checkRateLimit(`phone-link-check:${ip}`, RATE_LIMITS.standard);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Try again later." },
