@@ -1,10 +1,11 @@
 import "server-only";
 
+import { isResendConfigured } from "@/lib/email/config";
 import { isStrictProduction } from "@/lib/env/validate";
 import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
 import type { OtpDeliveryChannel, OtpPurpose } from "@/types/auth-phone";
 
-export type OtpProviderId = "console" | "twilio";
+export type OtpProviderId = "console" | "twilio" | "resend";
 
 export interface OtpDeliveryRequest {
   phoneE164: string;
@@ -27,6 +28,7 @@ export interface OtpProvider {
 const OTP_PROVIDER_LABELS: Record<OtpProviderId, string> = {
   console: "Console (simulation)",
   twilio: "Twilio",
+  resend: "Resend",
 };
 
 function buildOtpMessage(request: OtpDeliveryRequest): string {
@@ -51,6 +53,7 @@ export function readOtpProviderMode(): OtpProviderId | "auto" {
   if (!raw || raw === "auto") return "auto";
   if (raw === "console" || raw === "log") return "console";
   if (raw === "twilio") return "twilio";
+  if (raw === "resend") return "resend";
   return "auto";
 }
 
@@ -70,8 +73,10 @@ export function isTwilioWhatsappConfigured(): boolean {
 export function resolveActiveOtpProviderId(): OtpProviderId {
   const forced = readOtpProviderMode();
   if (forced === "console") return "console";
+  if (forced === "resend") return "resend";
   if (forced === "twilio" && isTwilioOtpConfigured()) return "twilio";
   if (isTwilioOtpConfigured()) return "twilio";
+  if (isResendConfigured()) return "resend";
   return "console";
 }
 
@@ -94,6 +99,10 @@ function collectOtpReadinessReasons(channel: OtpDeliveryChannel = "sms"): string
     return reasons;
   }
 
+  if (activeProvider === "resend") {
+    return reasons;
+  }
+
   if (!process.env.TWILIO_ACCOUNT_SID?.trim() || !process.env.TWILIO_AUTH_TOKEN?.trim()) {
     reasons.push("Twilio credentials are incomplete");
   }
@@ -111,6 +120,10 @@ export function assertOtpProviderReady(channel: OtpDeliveryChannel = "sms"): voi
   if (!isStrictProduction()) return;
 
   const activeProvider = resolveActiveOtpProviderId();
+  if (activeProvider === "resend") {
+    return;
+  }
+
   if (activeProvider !== "console") {
     const reasons = collectOtpReadinessReasons(channel);
     if (reasons.length > 0) {
@@ -140,6 +153,16 @@ export class ConsoleOtpProvider implements OtpProvider {
       demoCode: request.code,
       providerRef: `console-${Date.now()}`,
     };
+  }
+}
+
+export class ResendOtpProvider implements OtpProvider {
+  readonly name = "resend";
+
+  async send(request: OtpDeliveryRequest): Promise<OtpDeliveryResult> {
+    throw new Error(
+      "OTP_PROVIDER=resend does not deliver phone/SMS OTP; use email verification flows or set OTP_PROVIDER=twilio for SMS"
+    );
   }
 }
 
@@ -212,6 +235,10 @@ export class TwilioOtpProvider implements OtpProvider {
 
 export function getConfiguredOtpProvider(): OtpProvider {
   const provider = resolveActiveOtpProviderId();
+
+  if (provider === "resend") {
+    return new ResendOtpProvider();
+  }
 
   if (provider === "twilio") {
     return new TwilioOtpProvider();

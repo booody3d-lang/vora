@@ -119,6 +119,10 @@ function assessOtpChannelReadiness(
     return { ready: reasons.length === 0, reasons };
   }
 
+  if (activeProvider === "resend") {
+    return { ready: true, reasons: [] };
+  }
+
   if (!twilioConfigured) {
     reasons.push("Twilio credentials are incomplete");
     return { ready: false, reasons };
@@ -191,6 +195,12 @@ export function validateNotificationProviderConfig(): NotificationProviderConfig
     );
   }
 
+  if (forcedOtpMode === "resend" && !resendConfigured) {
+    warnings.push(
+      "OTP_PROVIDER=resend but RESEND_API_KEY is missing; phone OTP routes are unavailable — configure Resend for email verification"
+    );
+  }
+
   if (forcedEmailMode === "resend" && !resendConfigured) {
     warnings.push(
       "EMAIL_TRANSPORT_MODE=resend but RESEND_API_KEY is missing; email falls back to console in non-production"
@@ -198,7 +208,7 @@ export function validateNotificationProviderConfig(): NotificationProviderConfig
   }
 
   if (strictProduction && isOtpConsoleMode()) {
-    warnings.push("Production is running with console OTP fallback — configure Twilio before launch");
+    warnings.push("Production is running with console OTP fallback — configure Twilio or set OTP_PROVIDER=resend before launch");
   }
 
   if (strictProduction && isEmailConsoleMode()) {
