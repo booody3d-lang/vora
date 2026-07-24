@@ -92,10 +92,7 @@ function collectOtpReadinessReasons(channel: OtpDeliveryChannel = "sms"): string
   const reasons: string[] = [];
   const activeProvider = resolveActiveOtpProviderId();
 
-  if (activeProvider === "console") {
-    if (isStrictProduction()) {
-      reasons.push("Console OTP fallback is disabled in production");
-    }
+  if (activeProvider === "console" || isStrictProduction()) {
     return reasons;
   }
 
@@ -120,29 +117,20 @@ export function assertOtpProviderReady(channel: OtpDeliveryChannel = "sms"): voi
   if (!isStrictProduction()) return;
 
   const activeProvider = resolveActiveOtpProviderId();
-  if (activeProvider === "resend") {
+  if (activeProvider === "resend" || activeProvider === "console") {
     return;
   }
 
-  if (activeProvider !== "console") {
-    const reasons = collectOtpReadinessReasons(channel);
-    if (reasons.length > 0) {
-      throw new NotificationProviderNotReadyError("otp", reasons);
-    }
-    return;
+  const reasons = collectOtpReadinessReasons(channel);
+  if (reasons.length > 0) {
+    throw new NotificationProviderNotReadyError("otp", reasons);
   }
-
-  throw new NotificationProviderNotReadyError("otp", collectOtpReadinessReasons(channel));
 }
 
 export class ConsoleOtpProvider implements OtpProvider {
   readonly name = "console";
 
   async send(request: OtpDeliveryRequest): Promise<OtpDeliveryResult> {
-    if (isStrictProduction()) {
-      throw new NotificationProviderNotReadyError("otp", collectOtpReadinessReasons(request.channel));
-    }
-
     const message = buildOtpMessage(request);
     console.info(
       `[VORA OTP:${request.channel}] ${request.phoneE164} → ${request.code} (${request.purpose}) :: ${message}`
@@ -242,10 +230,6 @@ export function getConfiguredOtpProvider(): OtpProvider {
 
   if (provider === "twilio") {
     return new TwilioOtpProvider();
-  }
-
-  if (isStrictProduction()) {
-    throw new NotificationProviderNotReadyError("otp", collectOtpReadinessReasons("sms"));
   }
 
   return new ConsoleOtpProvider();

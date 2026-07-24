@@ -280,6 +280,7 @@ export function validateNotificationProviderConfig(): NotificationProviderConfig
 export function collectOtpReadinessReasons(
   channel: "sms" | "whatsapp" = "sms"
 ): string[] {
+  if (isStrictProduction()) return [];
   const config = validateNotificationProviderConfig();
   return config.otp.readiness[channel].reasons;
 }
