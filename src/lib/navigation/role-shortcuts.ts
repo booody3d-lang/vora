@@ -1,3 +1,4 @@
+import { getCurrentUserProfileUrl } from "@/lib/network/urls";
 import type { ResolvedNavigationLink } from "@/types/navigation";
 import type { PlatformContext } from "@/types/vora";
 import type { VoraRole } from "@/types/security";
@@ -11,11 +12,7 @@ interface RoleShortcutContext {
 }
 
 function isProfileNavLink(link: ResolvedNavigationLink): boolean {
-  return (
-    link.labelKey === "nav.profile" ||
-    link.href.includes("/profile/") ||
-    link.href === "/profile/me"
-  );
+  return link.labelKey === "nav.profile";
 }
 
 /** Role-specific shortcuts appended after base platform links */
@@ -155,9 +152,7 @@ export function appendRoleShortcuts(
   if (ctx.platform === "network" && ctx.isAuthenticated) {
     for (const link of links) {
       if (isProfileNavLink(link)) {
-        link.href = ctx.profileSlug
-          ? `/network/profile/${ctx.profileSlug}`
-          : "/profile/me";
+        link.href = getCurrentUserProfileUrl(ctx.profileSlug);
       }
     }
   }

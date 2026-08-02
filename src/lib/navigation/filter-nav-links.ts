@@ -1,3 +1,4 @@
+import { resolveProfileNavHref } from "@/lib/network/urls";
 import type { NavigationLinkRecord, ResolvedNavigationLink } from "@/types/navigation";
 import type { PlatformContext } from "@/types/vora";
 import type { VoraRole } from "@/types/security";
@@ -20,10 +21,7 @@ export function personalizeNavHref(
   href: string,
   context?: { profileSlug?: string | null; storeSlug?: string | null }
 ): string {
-  let result = href;
-  if (context?.profileSlug) {
-    result = result.replace("{profileSlug}", context.profileSlug);
-  }
+  let result = resolveProfileNavHref(href, context?.profileSlug);
   if (context?.storeSlug) {
     result = result.replace("{storeSlug}", context.storeSlug);
   }
@@ -55,5 +53,5 @@ export function filterNavigationLinks(
       labelEn: link.labelEn,
       labelAr: link.labelAr,
     }))
-    .filter((link) => !link.href.includes("{storeSlug}") && !link.href.includes("{profileSlug}"));
+    .filter((link) => !link.href.includes("{storeSlug}"));
 }
