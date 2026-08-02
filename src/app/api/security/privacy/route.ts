@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/security/session";
-import { getPrivacySettings, setPrivacySettings } from "@/lib/security/demo-store";
+import {
+  ensurePrivacySettingsInSupabase,
+  queueDataDeletionRequest,
+  upsertPrivacySettingsInSupabase,
+} from "@/lib/security/privacy-supabase";
 import type { PrivacySettings } from "@/types/security";
 
 export async function GET() {
@@ -8,7 +12,14 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return NextResponse.json({ settings: getPrivacySettings(session.sub) });
+
+  try {
+    const settings = await ensurePrivacySettingsInSupabase(session.sub);
+    return NextResponse.json({ settings });
+  } catch (error) {
+    console.error("[privacy] GET failed", error);
+    return NextResponse.json({ error: "Failed to load privacy settings" }, { status: 500 });
+  }
 }
 
 export async function PUT(request: Request) {
@@ -17,12 +28,16 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json() as Partial<PrivacySettings>;
-  const current = getPrivacySettings(session.sub);
-  const updated: PrivacySettings = { ...current, ...body };
-  setPrivacySettings(session.sub, updated);
-
-  return NextResponse.json({ settings: updated });
+  try {
+    const body = (await request.json()) as Partial<PrivacySettings>;
+    const current = await ensurePrivacySettingsInSupabase(session.sub);
+    const updated: PrivacySettings = { ...current, ...body };
+    await upsertPrivacySettingsInSupabase(session.sub, updated);
+    return NextResponse.json({ settings: updated });
+  } catch (error) {
+    console.error("[privacy] PUT failed", error);
+    return NextResponse.json({ error: "Failed to update privacy settings" }, { status: 500 });
+  }
 }
 
 export async function DELETE() {
@@ -31,10 +46,15 @@ export async function DELETE() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // GDPR / PDPL right to erasure — queue deletion request
-  return NextResponse.json({
-    success: true,
-    message: "Data deletion request queued. Account will be purged within 30 days per PDPL/GDPR.",
-    scheduledAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-  });
+  try {
+    const { scheduledAt } = await queueDataDeletionRequest(session.sub);
+    return NextResponse.json({
+      success: true,
+      message: "Data deletion request queued. Account will be purged within 30 days per PDPL/GDPR.",
+      scheduledAt,
+    });
+  } catch (error) {
+    console.error("[privacy] DELETE failed", error);
+    return NextResponse.json({ error: "Failed to queue deletion request" }, { status: 500 });
+  }
 }
