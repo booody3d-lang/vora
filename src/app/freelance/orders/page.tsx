@@ -7,7 +7,7 @@ import { getAuthenticatedUser } from "@/lib/security/session";
 export default async function FreelanceOrdersPage() {
   const auth = await getAuthenticatedUser();
   if (!auth) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const orders = await listOrdersForAccount(auth.user.id);

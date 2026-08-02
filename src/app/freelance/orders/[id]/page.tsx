@@ -12,7 +12,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
   const auth = await getAuthenticatedUser();
 
   if (!auth && id !== "ord-1") {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   const result = await getOrderForParticipant(id, auth?.user.id ?? null);
