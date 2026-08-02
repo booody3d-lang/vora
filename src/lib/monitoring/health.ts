@@ -4,7 +4,7 @@ import { validateRedisConfig } from "@/lib/cache/redis-config-validation";
 import { validateBillingPaymentConfig } from "@/lib/billing/stripe-config-validation";
 import { validateCronDiagnostics } from "@/lib/cron/cron-diagnostics";
 import { isStrictProduction } from "@/lib/env/validate";
-import { validateNotificationProviderConfig } from "@/lib/notifications/provider-config-validation";
+import { validateNotificationProviderConfig, resolveProductionOtpReadiness } from "@/lib/notifications/provider-config-validation";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export interface HealthCheck {
@@ -48,10 +48,8 @@ export async function buildHealthReport(): Promise<HealthReport> {
       );
 
   const notifications = validateNotificationProviderConfig();
-  const otp = checkWithDetail(
-    notifications.otp.readiness.sms.ready,
-    notifications.otp.readiness.sms.reasons[0]
-  );
+  const otpReadiness = resolveProductionOtpReadiness(notifications);
+  const otp = checkWithDetail(otpReadiness.ready, otpReadiness.reasons[0]);
   const email = checkWithDetail(
     notifications.email.readiness.transactional.ready,
     notifications.email.readiness.transactional.reasons[0]

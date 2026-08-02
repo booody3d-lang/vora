@@ -47,6 +47,7 @@ export interface NotificationProviderConfigValidation {
     readiness: {
       sms: ProviderReadinessCheck;
       whatsapp: ProviderReadinessCheck;
+      email: ProviderReadinessCheck;
     };
   };
   email: {
@@ -70,6 +71,7 @@ export interface NotificationProviderConfigValidation {
   };
   routes: {
     otpSend: string;
+    otpEmailSend: string;
     notificationEmail: string;
   };
   warnings: string[];
@@ -159,6 +161,37 @@ function assessEmailReadiness(
   return { ready: reasons.length === 0, reasons };
 }
 
+function assessEmailOtpReadiness(
+  activeProvider: ReturnType<typeof resolveActiveOtpProviderId>,
+  resendConfigured: boolean,
+  strictProduction: boolean
+): ProviderReadinessCheck {
+  const reasons: string[] = [];
+
+  if (activeProvider !== "resend") {
+    if (strictProduction) {
+      reasons.push("Set OTP_PROVIDER=resend for production email OTP");
+    }
+    return { ready: reasons.length === 0, reasons };
+  }
+
+  if (!resendConfigured) {
+    reasons.push("RESEND_API_KEY is required for email OTP delivery");
+  }
+
+  return { ready: reasons.length === 0, reasons };
+}
+
+/** Primary OTP readiness for health/launch — email when Resend, SMS otherwise. */
+export function resolveProductionOtpReadiness(
+  config: NotificationProviderConfigValidation = validateNotificationProviderConfig()
+): ProviderReadinessCheck {
+  if (config.otp.activeProvider === "resend") {
+    return config.otp.readiness.email;
+  }
+  return config.otp.readiness.sms;
+}
+
 /** Server-only OTP/email provider validation for diagnostics and production guards. */
 export function validateNotificationProviderConfig(): NotificationProviderConfigValidation {
   const strictProduction = isStrictProduction();
@@ -229,6 +262,7 @@ export function validateNotificationProviderConfig(): NotificationProviderConfig
     twilioKeyPresence,
     strictProduction
   );
+  const otpEmail = assessEmailOtpReadiness(activeOtpProvider, resendConfigured, strictProduction);
   const emailTransactional = assessEmailReadiness(activeEmailProvider, resendConfigured, strictProduction);
   const emailNotifications = assessEmailReadiness(activeEmailProvider, resendConfigured, strictProduction);
 
@@ -250,6 +284,7 @@ export function validateNotificationProviderConfig(): NotificationProviderConfig
       readiness: {
         sms: otpSms,
         whatsapp: otpWhatsapp,
+        email: otpEmail,
       },
     },
     email: {
@@ -270,6 +305,7 @@ export function validateNotificationProviderConfig(): NotificationProviderConfig
     },
     routes: {
       otpSend: "/api/auth/otp/send",
+      otpEmailSend: "/api/auth/otp/email/send",
       notificationEmail: "/api/notifications/email",
     },
     warnings,

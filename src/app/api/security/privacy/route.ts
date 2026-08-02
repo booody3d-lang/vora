@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
+import { clearLegacySessionCookie } from "@/lib/auth/legacy-cookie";
 import { getServerSession } from "@/lib/security/session";
 import {
   ensurePrivacySettingsInSupabase,
+  executeAccountDataDeletion,
   queueDataDeletionRequest,
   upsertPrivacySettingsInSupabase,
 } from "@/lib/security/privacy-supabase";
+import { COOKIE_NAME } from "@/lib/security/jwt";
+import { writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import type { PrivacySettings } from "@/types/security";
 
 export async function GET() {
@@ -48,13 +52,25 @@ export async function DELETE() {
 
   try {
     const { scheduledAt } = await queueDataDeletionRequest(session.sub);
-    return NextResponse.json({
-      success: true,
-      message: "Data deletion request queued. Account will be purged within 30 days per PDPL/GDPR.",
-      scheduledAt,
+    await executeAccountDataDeletion(session.sub);
+
+    await writeSecurityAuditEvent({
+      accountId: session.sub,
+      action: "privacy.account_deleted",
+      severity: "info",
+      metadata: { scheduledAt },
     });
+
+    const response = NextResponse.json({
+      success: true,
+      message: "Your account and associated data have been permanently deleted per GDPR/PDPL.",
+      deletedAt: new Date().toISOString(),
+    });
+    clearLegacySessionCookie(response);
+    response.cookies.set(COOKIE_NAME, "", { httpOnly: true, path: "/", maxAge: 0 });
+    return response;
   } catch (error) {
     console.error("[privacy] DELETE failed", error);
-    return NextResponse.json({ error: "Failed to queue deletion request" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete account data" }, { status: 500 });
   }
 }

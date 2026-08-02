@@ -84,15 +84,48 @@ export async function ensurePrivacySettingsInSupabase(
 export async function queueDataDeletionRequest(
   accountId: string,
   reason?: string
-): Promise<{ scheduledAt: string }> {
+): Promise<{ scheduledAt: string; requestId?: string }> {
   const scheduledAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   const admin = createAdminClient();
-  const { error } = await admin.from("data_deletion_requests").insert({
-    account_id: accountId,
-    reason: reason ?? null,
-    status: "pending",
-    scheduled_deletion_at: scheduledAt,
-  });
+  const { data, error } = await admin
+    .from("data_deletion_requests")
+    .insert({
+      account_id: accountId,
+      reason: reason ?? null,
+      status: "pending",
+      scheduled_deletion_at: scheduledAt,
+    })
+    .select("id")
+    .single();
   if (error) throw error;
-  return { scheduledAt };
+  return { scheduledAt, requestId: data?.id as string | undefined };
+}
+
+/** Purge all user data from Supabase (GDPR/PDPL right to erasure). */
+export async function executeAccountDataDeletion(accountId: string): Promise<void> {
+  const admin = createAdminClient();
+
+  await admin
+    .from("data_deletion_requests")
+    .update({ status: "processing" })
+    .eq("account_id", accountId)
+    .in("status", ["pending", "processing"]);
+
+  const { error: authDeleteError } = await admin.auth.admin.deleteUser(accountId);
+  if (authDeleteError) {
+    console.error("[privacy] auth user delete failed", authDeleteError.message);
+    throw authDeleteError;
+  }
+
+  const { error: accountDeleteError } = await admin.from("accounts").delete().eq("id", accountId);
+  if (accountDeleteError) {
+    console.error("[privacy] account row delete failed", accountDeleteError.message);
+    throw accountDeleteError;
+  }
+
+  const completedAt = new Date().toISOString();
+  await admin
+    .from("data_deletion_requests")
+    .update({ status: "completed", completed_at: completedAt })
+    .eq("account_id", accountId);
 }

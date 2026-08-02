@@ -1,5 +1,6 @@
 import "server-only";
 
+import { sendEmail } from "@/lib/email/send";
 import { isResendConfigured } from "@/lib/email/config";
 import { isStrictProduction } from "@/lib/env/validate";
 import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
@@ -9,6 +10,7 @@ export type OtpProviderId = "console" | "twilio" | "resend";
 
 export interface OtpDeliveryRequest {
   phoneE164: string;
+  email?: string;
   code: string;
   channel: OtpDeliveryChannel;
   purpose: OtpPurpose;
@@ -28,20 +30,24 @@ export interface OtpProvider {
 const OTP_PROVIDER_LABELS: Record<OtpProviderId, string> = {
   console: "Console (simulation)",
   twilio: "Twilio",
-  resend: "Resend",
+  resend: "Resend (email)",
 };
 
+function buildOtpPurposeLabel(purpose: OtpPurpose): string {
+  if (purpose === "login") return "sign-in";
+  if (purpose === "signup") return "registration";
+  if (purpose === "password_reset") return "password reset";
+  return "verification";
+}
+
 function buildOtpMessage(request: OtpDeliveryRequest): string {
-  const purposeLabel =
-    request.purpose === "login"
-      ? "sign-in"
-      : request.purpose === "signup"
-        ? "registration"
-        : request.purpose === "password_reset"
-          ? "password reset"
-          : "verification";
+  const purposeLabel = buildOtpPurposeLabel(request.purpose);
 
   if (request.channel === "whatsapp") {
+    return `Your VORA ${purposeLabel} code is ${request.code}. It expires in 5 minutes.`;
+  }
+
+  if (request.channel === "email") {
     return `Your VORA ${purposeLabel} code is ${request.code}. It expires in 5 minutes.`;
   }
 
@@ -100,6 +106,9 @@ function collectOtpReadinessReasons(channel: OtpDeliveryChannel = "sms"): string
   }
 
   if (activeProvider === "resend") {
+    if (channel === "email" && !isResendConfigured()) {
+      reasons.push("RESEND_API_KEY is required for email OTP delivery");
+    }
     return reasons;
   }
 
@@ -120,7 +129,14 @@ export function assertOtpProviderReady(channel: OtpDeliveryChannel = "sms"): voi
   if (!isStrictProduction()) return;
 
   const activeProvider = resolveActiveOtpProviderId();
+
   if (activeProvider === "resend") {
+    if (channel === "email") {
+      const reasons = collectOtpReadinessReasons("email");
+      if (reasons.length > 0) {
+        throw new NotificationProviderNotReadyError("otp", reasons);
+      }
+    }
     return;
   }
 
@@ -140,8 +156,9 @@ export class ConsoleOtpProvider implements OtpProvider {
 
   async send(request: OtpDeliveryRequest): Promise<OtpDeliveryResult> {
     const message = buildOtpMessage(request);
+    const target = request.channel === "email" ? request.email : request.phoneE164;
     console.info(
-      `[VORA OTP:${request.channel}] ${request.phoneE164} → ${request.code} (${request.purpose}) :: ${message}`
+      `[VORA OTP:${request.channel}] ${target} → ${request.code} (${request.purpose}) :: ${message}`
     );
 
     return {
@@ -156,9 +173,36 @@ export class ResendOtpProvider implements OtpProvider {
   readonly name = "resend";
 
   async send(request: OtpDeliveryRequest): Promise<OtpDeliveryResult> {
-    throw new Error(
-      "OTP_PROVIDER=resend does not deliver phone/SMS OTP; use email verification flows or set OTP_PROVIDER=twilio for SMS"
-    );
+    const email = request.email?.trim().toLowerCase();
+    if (request.channel !== "email" || !email) {
+      throw new Error(
+        "OTP_PROVIDER=resend delivers OTP via email only. Provide email with channel=email, or set OTP_PROVIDER=twilio for SMS."
+      );
+    }
+
+    const purposeLabel = buildOtpPurposeLabel(request.purpose);
+    const message = buildOtpMessage(request);
+    const subject =
+      request.purpose === "password_reset"
+        ? "VORA password reset code"
+        : `VORA ${purposeLabel} verification code`;
+
+    const result = await sendEmail({
+      to: email,
+      subject,
+      html: `<p style="font-family:sans-serif;font-size:16px;line-height:1.5">${message}</p>`,
+      text: message,
+      trigger: `otp_${request.purpose}`,
+    });
+
+    if (!result.sent && !result.queued) {
+      throw new Error(result.error ?? "Failed to send OTP email");
+    }
+
+    return {
+      channel: "email",
+      providerRef: result.messageId ?? `resend-${Date.now()}`,
+    };
   }
 }
 

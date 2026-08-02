@@ -1,25 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveActiveOtpProviderId } from "@/lib/auth/otp-provider";
-import { sendOtpDelivery } from "@/lib/auth/otp-store";
-import { normalizePhoneFromRequest } from "@/lib/auth/phone/detect-country";
+import { sendEmailOtpDelivery } from "@/lib/auth/otp-store";
+import { isValidEmailAddress } from "@/lib/email/config";
+import { isStrictProduction } from "@/lib/env/validate";
 import { NotificationProviderNotReadyError } from "@/lib/notifications/provider-errors";
-import type { OtpDeliveryChannel, OtpPurpose } from "@/types/auth-phone";
+import type { OtpPurpose } from "@/types/auth-phone";
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitHeaders } from "@/lib/security/rate-limit";
 
 const OTP_PURPOSES = new Set<OtpPurpose>(["login", "signup", "2fa", "password_reset"]);
-const OTP_CHANNELS = new Set<OtpDeliveryChannel>(["sms", "whatsapp"]);
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
-      phone?: string;
-      countryCode?: string;
-      channel?: string;
+      email?: string;
       purpose?: string;
     };
 
-    if (!body.phone?.trim() || body.phone.trim().length < 6) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    const email = body.email?.trim().toLowerCase();
+    if (!email || !isValidEmailAddress(email)) {
+      return NextResponse.json({ error: "A valid email address is required" }, { status: 400 });
     }
 
     const purpose = (body.purpose ?? "login") as OtpPurpose;
@@ -27,23 +26,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const channel = (body.channel ?? "sms") as OtpDeliveryChannel;
-    if (!OTP_CHANNELS.has(channel)) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-    }
-
-    if (resolveActiveOtpProviderId() === "resend") {
-      return NextResponse.json(
-        {
-          error: "SMS OTP is unavailable. Use POST /api/auth/otp/email/send with your email address.",
-          emailOtpRoute: "/api/auth/otp/email/send",
-        },
-        { status: 503 }
-      );
-    }
-
     const ip = getClientIp(request);
-    const rateLimit = await checkRateLimit(`otp-send:${ip}`, RATE_LIMITS.otp);
+    const rateLimit = await checkRateLimit(`otp-email-send:${ip}`, RATE_LIMITS.otp);
     if (!rateLimit.allowed) {
       const retryAfterSec = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000));
       return NextResponse.json(
@@ -58,21 +42,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalized = normalizePhoneFromRequest(body.phone, request, body.countryCode);
-    if (!normalized) {
-      return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
+    if (isStrictProduction() && resolveActiveOtpProviderId() !== "resend") {
+      return NextResponse.json(
+        { error: "Email OTP requires OTP_PROVIDER=resend in production" },
+        { status: 503 }
+      );
     }
 
-    const result = await sendOtpDelivery({
-      phone: normalized.e164,
+    const result = await sendEmailOtpDelivery({
+      email,
       purpose,
-      channel,
       ipAddress: ip,
     });
 
     return NextResponse.json({
       ok: true,
-      message: "OTP sent",
+      message: "Verification code sent to your email",
       channel: result.channel,
       provider: result.provider,
       expiresIn: 300,

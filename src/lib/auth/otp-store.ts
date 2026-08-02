@@ -168,6 +168,68 @@ export interface SendOtpResult {
   persistence: "supabase" | "json";
 }
 
+export async function sendEmailOtpDelivery(input: {
+  email: string;
+  purpose: OtpPurpose;
+  ip?: string;
+  ipAddress?: string;
+}): Promise<SendOtpResult> {
+  const email = input.email.trim().toLowerCase();
+  const code = generateOtpCode();
+  const codeHash = await hashOtp(code);
+
+  assertOtpProviderReady("email");
+  const provider = getConfiguredOtpProvider();
+
+  let delivery;
+  try {
+    delivery = await provider.send({
+      phoneE164: "",
+      email,
+      code,
+      channel: "email",
+      purpose: input.purpose,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "OTP delivery failed";
+    console.error("[otp] email delivery failed", {
+      purpose: input.purpose,
+      provider: provider.name,
+      error: message,
+    });
+    await writeSecurityAuditEvent({
+      accountId: null,
+      action: "notification.otp.failed",
+      severity: "warn",
+      metadata: {
+        channel: "email",
+        purpose: input.purpose,
+        provider: provider.name,
+        error: message,
+      },
+    });
+    throw error;
+  }
+
+  await persistOtpRecord({
+    phone: email,
+    codeHash,
+    purpose: input.purpose,
+    channel: "email",
+    ip: input.ip ?? input.ipAddress,
+    providerRef: delivery.providerRef,
+  });
+
+  return {
+    phone: email,
+    purpose: input.purpose,
+    channel: "email",
+    provider: provider.name,
+    demoCode: delivery.demoCode,
+    persistence: (await isOtpSupabaseReady()) ? "supabase" : "json",
+  };
+}
+
 export async function sendOtpDelivery(input: {
   phone: string;
   purpose: OtpPurpose;

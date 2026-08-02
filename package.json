@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "verify:features": "node scripts/verify-latest-features.mjs"
+    "verify:features": "node scripts/verify-latest-features.mjs",
+    "smoke:production": "node scripts/smoke-production.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.67.0",

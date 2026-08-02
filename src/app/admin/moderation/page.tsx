@@ -7,6 +7,7 @@ import {
   ADMIN_MODERATION_SERVICES,
   ADMIN_MODERATION_STORES,
 } from "@/lib/admin/mock-data";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { useTranslations } from "@/i18n/use-translations";
 import { formatSar } from "@/lib/billing/engine";
 import type { ModerationCompany, ModerationService, ModerationStore } from "@/types/admin";
@@ -16,10 +17,18 @@ type Tab = "stores" | "services" | "companies";
 export default function AdminModerationPage() {
   const { t } = useTranslations();
   const [tab, setTab] = useState<Tab>("stores");
-  const [stores, setStores] = useState(ADMIN_MODERATION_STORES);
-  const [services, setServices] = useState(ADMIN_MODERATION_SERVICES);
-  const [companies, setCompanies] = useState(ADMIN_MODERATION_COMPANIES);
-  const [persistence, setPersistence] = useState<"supabase" | "demo" | "json" | "mixed">("demo");
+  const [stores, setStores] = useState<ModerationStore[]>(
+    isDemoDataEnabled() ? ADMIN_MODERATION_STORES : []
+  );
+  const [services, setServices] = useState<ModerationService[]>(
+    isDemoDataEnabled() ? ADMIN_MODERATION_SERVICES : []
+  );
+  const [companies, setCompanies] = useState<ModerationCompany[]>(
+    isDemoDataEnabled() ? ADMIN_MODERATION_COMPANIES : []
+  );
+  const [persistence, setPersistence] = useState<"supabase" | "demo" | "json" | "mixed">(
+    isDemoDataEnabled() ? "demo" : "supabase"
+  );
 
   const loadModeration = useCallback(() => {
     fetch("/api/admin/moderation")

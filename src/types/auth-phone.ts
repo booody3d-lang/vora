@@ -1,4 +1,4 @@
-export type OtpDeliveryChannel = "sms" | "whatsapp";
+export type OtpDeliveryChannel = "sms" | "whatsapp" | "email";
 
 export type OtpPurpose = "login" | "signup" | "2fa" | "password_reset";
 

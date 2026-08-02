@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ADMIN_VERIFICATION_QUEUE } from "@/lib/admin/mock-data";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { useTranslations } from "@/i18n/use-translations";
 import type { VerificationApplication, VerificationStatus } from "@/types/admin";
 
 export default function AdminVerificationPage() {
   const { t } = useTranslations();
-  const [queue, setQueue] = useState(ADMIN_VERIFICATION_QUEUE);
+  const [queue, setQueue] = useState(isDemoDataEnabled() ? ADMIN_VERIFICATION_QUEUE : []);
   const [persistence, setPersistence] = useState<"supabase" | "json">("json");
 
   const loadQueue = useCallback(() => {

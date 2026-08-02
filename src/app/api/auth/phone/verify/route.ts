@@ -7,7 +7,6 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitHeaders } from "@/lib/security/rate-limit";
 import { getRequestAuditContext, maskPhone, writeSecurityAuditEvent } from "@/lib/security/audit-store";
-import type { OtpDeliveryChannel } from "@/types/auth-phone";
 
 export async function POST(request: NextRequest) {
   if (!isSupabaseConfigured()) {
@@ -66,10 +65,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: otpResult.error }, { status: otpResult.status });
     }
 
-    const channel =
-      body.channel === "whatsapp" || body.channel === "sms"
-        ? (body.channel as OtpDeliveryChannel)
-        : undefined;
+    const channel: "sms" | "whatsapp" | undefined =
+      body.channel === "whatsapp" || body.channel === "sms" ? body.channel : undefined;
 
     const linkResult = await linkPhoneToAuthenticatedUser({
       authUser: auth.user,

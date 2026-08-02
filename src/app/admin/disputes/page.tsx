@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "@/i18n/use-translations";
 import { ADMIN_DISPUTES } from "@/lib/admin/mock-data";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { formatSar } from "@/lib/billing/engine";
 import type { DisputeStatus, DisputeTicket } from "@/types/admin";
 
 export default function AdminDisputesPage() {
   const { t } = useTranslations();
-  const [disputes, setDisputes] = useState<DisputeTicket[]>(ADMIN_DISPUTES);
+  const [disputes, setDisputes] = useState<DisputeTicket[]>(
+    isDemoDataEnabled() ? ADMIN_DISPUTES : []
+  );
 
   useEffect(() => {
     void fetch("/api/admin/disputes")

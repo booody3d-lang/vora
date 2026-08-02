@@ -3,16 +3,20 @@ import "server-only";
 import { validateRedisConfig } from "@/lib/cache/redis-config-validation";
 import { validateBillingPaymentConfig } from "@/lib/billing/stripe-config-validation";
 import { validateCronDiagnostics } from "@/lib/cron/cron-diagnostics";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { isStrictProduction } from "@/lib/env/validate";
 import { buildHealthReport } from "@/lib/monitoring/health";
 import { isSentryConfigured } from "@/lib/monitoring/sentry";
-import { validateNotificationProviderConfig } from "@/lib/notifications/provider-config-validation";
+import {
+  resolveProductionOtpReadiness,
+  validateNotificationProviderConfig,
+} from "@/lib/notifications/provider-config-validation";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 const DEV_JWT_MARKER = "vora-dev-jwt-secret";
 const DEV_PEPPER = "vora-pepper-2026";
 
-export const DEFERRED_LAUNCH_ITEMS = ["stripe_live"] as const;
+export const DEFERRED_LAUNCH_ITEMS = ["stripe_live", "twilio_sms", "custom_domain"] as const;
 
 export type DeferredLaunchItem = (typeof DEFERRED_LAUNCH_ITEMS)[number];
 
@@ -36,7 +40,10 @@ export interface LaunchReadinessReport {
     siteUrl: LaunchReadinessCheck;
     billing: LaunchReadinessCheck & { mode: string; simulationMode: boolean };
     otp: LaunchReadinessCheck;
+    emailOtp: LaunchReadinessCheck;
     email: LaunchReadinessCheck;
+    demoZero: LaunchReadinessCheck;
+    gdprDelete: LaunchReadinessCheck;
     cron: LaunchReadinessCheck;
     redis: LaunchReadinessCheck;
     sentry: LaunchReadinessCheck;
@@ -51,6 +58,7 @@ export interface LaunchReadinessReport {
     cacheDiagnostics: string;
     monitoringDiagnostics: string;
     launchReadiness: string;
+    smokeScript: string;
   };
   generatedAt: string;
 }
@@ -89,6 +97,27 @@ function checkSiteUrl(): LaunchReadinessCheck {
   return { ok: true };
 }
 
+function checkDemoZero(): LaunchReadinessCheck {
+  if (!isStrictProduction()) {
+    return { ok: true, detail: "Demo data enabled in non-production" };
+  }
+  const demoEnabled = isDemoDataEnabled();
+  return {
+    ok: !demoEnabled,
+    detail: demoEnabled ? "Demo seed data is still enabled in production" : undefined,
+  };
+}
+
+function checkGdprDelete(): LaunchReadinessCheck {
+  const configured = isSupabaseConfigured();
+  return {
+    ok: configured,
+    detail: configured
+      ? "DELETE /api/security/privacy purges account data from Supabase"
+      : "Supabase required for GDPR data deletion",
+  };
+}
+
 /** Owner-only consolidated soft-launch readiness — Stripe simulation does not block. */
 export async function buildLaunchReadinessReport(): Promise<LaunchReadinessReport> {
   const [health, billing, notifications, cron, redis] = await Promise.all([
@@ -113,6 +142,8 @@ export async function buildLaunchReadinessReport(): Promise<LaunchReadinessRepor
 
   const authSecrets = checkAuthSecrets();
   const siteUrl = checkSiteUrl();
+  const demoZero = checkDemoZero();
+  const gdprDelete = checkGdprDelete();
 
   const billingCheck: LaunchReadinessReport["checks"]["billing"] = {
     ok: true,
@@ -129,9 +160,15 @@ export async function buildLaunchReadinessReport(): Promise<LaunchReadinessRepor
     );
   }
 
+  const otpReadiness = resolveProductionOtpReadiness(notifications);
   const otp: LaunchReadinessCheck = {
-    ok: notifications.otp.readiness.sms.ready,
-    detail: notifications.otp.readiness.sms.reasons[0],
+    ok: otpReadiness.ready,
+    detail: otpReadiness.reasons[0],
+  };
+
+  const emailOtp: LaunchReadinessCheck = {
+    ok: notifications.otp.readiness.email.ready,
+    detail: notifications.otp.readiness.email.reasons[0],
   };
 
   const email: LaunchReadinessCheck = {
@@ -177,7 +214,10 @@ export async function buildLaunchReadinessReport(): Promise<LaunchReadinessRepor
     siteUrl,
     billing: billingCheck,
     otp,
+    emailOtp,
     email,
+    demoZero,
+    gdprDelete,
     cron: cronCheck,
     redis: redisCheck,
     sentry: sentryCheck,
@@ -190,7 +230,10 @@ export async function buildLaunchReadinessReport(): Promise<LaunchReadinessRepor
     siteUrl,
     billingCheck,
     otp,
+    emailOtp,
     email,
+    demoZero,
+    gdprDelete,
     cronCheck,
   ];
 
@@ -214,6 +257,7 @@ export async function buildLaunchReadinessReport(): Promise<LaunchReadinessRepor
       cacheDiagnostics: "/api/admin/cache/diagnostics",
       monitoringDiagnostics: "/api/admin/monitoring/diagnostics",
       launchReadiness: "/api/admin/launch/readiness",
+      smokeScript: "npm run smoke:production",
     },
     generatedAt: new Date().toISOString(),
   };

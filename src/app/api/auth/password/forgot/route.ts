@@ -126,7 +126,28 @@ export async function POST(request: Request) {
       }
     );
 
-    if (preferredChannel === "sms" && account.phone) {
+        if (preferredChannel === "email") {
+      try {
+        assertOtpProviderReady("email");
+        const provider = getConfiguredOtpProvider();
+        await provider.send({
+          phoneE164: "",
+          email: account.email,
+          code,
+          channel: "email",
+          purpose: "password_reset",
+        });
+      } catch (error) {
+        if (error instanceof NotificationProviderNotReadyError) {
+          return NextResponse.json(
+            { error: error.message, reasons: error.reasons },
+            { status: 503 }
+          );
+        }
+        console.error("[auth/forgot] email OTP delivery failed:", error instanceof Error ? error.message : error);
+        return NextResponse.json({ error: "Failed to send recovery email" }, { status: 502 });
+      }
+    } else if (preferredChannel === "sms" && account.phone) {
       try {
         assertOtpProviderReady("sms");
         const provider = getConfiguredOtpProvider();

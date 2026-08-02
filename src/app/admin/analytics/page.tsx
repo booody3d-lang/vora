@@ -13,6 +13,7 @@ import {
   ADMIN_TOP_CATEGORIES,
   ADMIN_TOP_INDUSTRIES,
 } from "@/lib/admin/mock-data";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { useTranslations } from "@/i18n/use-translations";
 import { formatSar } from "@/lib/billing/engine";
 import type {
@@ -27,12 +28,21 @@ type Timeline = "30d" | "90d" | "120d";
 export default function AdminAnalyticsPage() {
   const { t } = useTranslations();
   const [timeline, setTimeline] = useState<Timeline>("30d");
-  const [growthData, setGrowthData] = useState<AnalyticsTimeSeries[]>(ADMIN_GROWTH_30D);
-  const [revenueDistribution, setRevenueDistribution] =
-    useState<RevenueDistribution[]>(ADMIN_REVENUE_DISTRIBUTION);
-  const [topCategories, setTopCategories] = useState<CategoryPerformance[]>(ADMIN_TOP_CATEGORIES);
-  const [topIndustries, setTopIndustries] = useState<IndustryHiring[]>(ADMIN_TOP_INDUSTRIES);
-  const [persistence, setPersistence] = useState<"supabase" | "demo">("demo");
+  const [growthData, setGrowthData] = useState<AnalyticsTimeSeries[]>(
+    isDemoDataEnabled() ? ADMIN_GROWTH_30D : []
+  );
+  const [revenueDistribution, setRevenueDistribution] = useState<RevenueDistribution[]>(
+    isDemoDataEnabled() ? ADMIN_REVENUE_DISTRIBUTION : []
+  );
+  const [topCategories, setTopCategories] = useState<CategoryPerformance[]>(
+    isDemoDataEnabled() ? ADMIN_TOP_CATEGORIES : []
+  );
+  const [topIndustries, setTopIndustries] = useState<IndustryHiring[]>(
+    isDemoDataEnabled() ? ADMIN_TOP_INDUSTRIES : []
+  );
+  const [persistence, setPersistence] = useState<"supabase" | "demo">(
+    isDemoDataEnabled() ? "demo" : "supabase"
+  );
 
   const loadAnalytics = useCallback((range: Timeline) => {
     fetch(`/api/admin/analytics?timeline=${range}`)

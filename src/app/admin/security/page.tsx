@@ -2,15 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ADMIN_ABUSE_SIGNALS, ADMIN_AUDIT_LOG, ADMIN_SECURITY_LOG } from "@/lib/admin/mock-data";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { useTranslations } from "@/i18n/use-translations";
 import type { AbuseSignal, AuditLogEntry, SecurityEventType, SecurityLogEntry } from "@/types/admin";
 
 export default function AdminSecurityPage() {
   const { t } = useTranslations();
-  const [securityLog, setSecurityLog] = useState<SecurityLogEntry[]>(ADMIN_SECURITY_LOG);
-  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>(ADMIN_AUDIT_LOG);
-  const [abuseSignals, setAbuseSignals] = useState<AbuseSignal[]>(ADMIN_ABUSE_SIGNALS);
-  const [persistence, setPersistence] = useState<"supabase" | "demo">("demo");
+  const [securityLog, setSecurityLog] = useState<SecurityLogEntry[]>(
+    isDemoDataEnabled() ? ADMIN_SECURITY_LOG : []
+  );
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>(
+    isDemoDataEnabled() ? ADMIN_AUDIT_LOG : []
+  );
+  const [abuseSignals, setAbuseSignals] = useState<AbuseSignal[]>(
+    isDemoDataEnabled() ? ADMIN_ABUSE_SIGNALS : []
+  );
+  const [persistence, setPersistence] = useState<"supabase" | "demo">(
+    isDemoDataEnabled() ? "demo" : "supabase"
+  );
 
   const loadSecurity = useCallback(() => {
     fetch("/api/admin/security")
