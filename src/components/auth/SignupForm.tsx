@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/i18n/use-translations";
-import { generateDeviceFingerprint } from "@/lib/security/anti-abuse";
+import { generateDeviceFingerprint } from "@/lib/security/device-fingerprint";
 import type { UserGender } from "@/types/profile";
 
 export function SignupForm() {
