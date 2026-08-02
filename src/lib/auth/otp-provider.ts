@@ -92,7 +92,10 @@ function collectOtpReadinessReasons(channel: OtpDeliveryChannel = "sms"): string
   const reasons: string[] = [];
   const activeProvider = resolveActiveOtpProviderId();
 
-  if (activeProvider === "console" || isStrictProduction()) {
+  if (activeProvider === "console") {
+    if (isStrictProduction()) {
+      reasons.push("Console OTP fallback is disabled in production");
+    }
     return reasons;
   }
 
@@ -117,14 +120,19 @@ export function assertOtpProviderReady(channel: OtpDeliveryChannel = "sms"): voi
   if (!isStrictProduction()) return;
 
   const activeProvider = resolveActiveOtpProviderId();
-  if (activeProvider === "resend" || activeProvider === "console") {
+  if (activeProvider === "resend") {
     return;
   }
 
-  const reasons = collectOtpReadinessReasons(channel);
-  if (reasons.length > 0) {
-    throw new NotificationProviderNotReadyError("otp", reasons);
+  if (activeProvider !== "console") {
+    const reasons = collectOtpReadinessReasons(channel);
+    if (reasons.length > 0) {
+      throw new NotificationProviderNotReadyError("otp", reasons);
+    }
+    return;
   }
+
+  throw new NotificationProviderNotReadyError("otp", collectOtpReadinessReasons(channel));
 }
 
 export class ConsoleOtpProvider implements OtpProvider {

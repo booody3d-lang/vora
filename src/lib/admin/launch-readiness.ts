@@ -129,7 +129,10 @@ export async function buildLaunchReadinessReport(): Promise<LaunchReadinessRepor
     );
   }
 
-  const otp: LaunchReadinessCheck = { ok: true };
+  const otp: LaunchReadinessCheck = {
+    ok: notifications.otp.readiness.sms.ready,
+    detail: notifications.otp.readiness.sms.reasons[0],
+  };
 
   const email: LaunchReadinessCheck = {
     ok: notifications.email.readiness.transactional.ready,

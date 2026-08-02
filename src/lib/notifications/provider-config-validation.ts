@@ -110,14 +110,13 @@ function assessOtpChannelReadiness(
   keyPresence: NotificationProviderConfigValidation["otp"]["twilio"]["keyPresence"],
   strictProduction: boolean
 ): ProviderReadinessCheck {
-  if (strictProduction) {
-    return { ready: true, reasons: [] };
-  }
-
   const reasons: string[] = [];
 
   if (activeProvider === "console") {
-    return { ready: true, reasons: [] };
+    if (strictProduction) {
+      reasons.push("Console OTP fallback is disabled in production");
+    }
+    return { ready: reasons.length === 0, reasons };
   }
 
   if (activeProvider === "resend") {
@@ -280,7 +279,6 @@ export function validateNotificationProviderConfig(): NotificationProviderConfig
 export function collectOtpReadinessReasons(
   channel: "sms" | "whatsapp" = "sms"
 ): string[] {
-  if (isStrictProduction()) return [];
   const config = validateNotificationProviderConfig();
   return config.otp.readiness[channel].reasons;
 }

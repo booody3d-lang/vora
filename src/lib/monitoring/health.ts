@@ -48,7 +48,10 @@ export async function buildHealthReport(): Promise<HealthReport> {
       );
 
   const notifications = validateNotificationProviderConfig();
-  const otp = { ok: true as const };
+  const otp = checkWithDetail(
+    notifications.otp.readiness.sms.ready,
+    notifications.otp.readiness.sms.reasons[0]
+  );
   const email = checkWithDetail(
     notifications.email.readiness.transactional.ready,
     notifications.email.readiness.transactional.reasons[0]
