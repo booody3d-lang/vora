@@ -14,6 +14,7 @@
 --   freelance_inquiries.service_id          → ON DELETE SET NULL
 --   platform_links.freelancer_store_id      → ON DELETE SET NULL
 --   saved_services                          → CASCADE from services
+--   notifications                           → no service_id column (006 schema)
 --
 -- Usage (Supabase SQL Editor):
 --   1. Review the BEFORE counts below.
@@ -78,73 +79,128 @@ SELECT 'BEFORE' AS phase,
 
 -- ---------------------------------------------------------------------------
 -- Deletes (child → parent order)
+-- Guarded with to_regclass / information_schema for partial migration states.
 -- ---------------------------------------------------------------------------
 
--- Orders block service/store deletion (ON DELETE RESTRICT)
-DELETE FROM public.order_messages
-WHERE order_id IN (SELECT id FROM _demo_order_ids);
+DO $$
+BEGIN
+  IF to_regclass('public.order_messages') IS NOT NULL THEN
+    DELETE FROM public.order_messages
+    WHERE order_id IN (SELECT id FROM _demo_order_ids);
+  END IF;
 
-DELETE FROM public.order_disputes
-WHERE order_id IN (SELECT id FROM _demo_order_ids);
+  IF to_regclass('public.order_disputes') IS NOT NULL THEN
+    DELETE FROM public.order_disputes
+    WHERE order_id IN (SELECT id FROM _demo_order_ids);
+  END IF;
 
-DELETE FROM public.freelance_reviews
-WHERE order_id IN (SELECT id FROM _demo_order_ids)
-   OR service_id IN (SELECT id FROM _demo_service_ids)
-   OR store_id IN (SELECT id FROM _demo_store_ids);
+  IF to_regclass('public.freelance_reviews') IS NOT NULL THEN
+    -- 001 schema: service_id only. 022+ adds order_id and store_id.
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'freelance_reviews'
+        AND column_name = 'order_id'
+    ) THEN
+      DELETE FROM public.freelance_reviews
+      WHERE order_id IN (SELECT id FROM _demo_order_ids);
+    END IF;
 
-DELETE FROM public.freelance_orders
-WHERE id IN (SELECT id FROM _demo_order_ids);
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'freelance_reviews'
+        AND column_name = 'service_id'
+    ) THEN
+      DELETE FROM public.freelance_reviews
+      WHERE service_id IN (SELECT id FROM _demo_service_ids);
+    END IF;
 
--- Chat tied to demo orders or demo seller accounts
-DELETE FROM public.freelance_messages
-WHERE session_id IN (
-  SELECT cs.id
-  FROM public.freelance_chat_sessions cs
-  WHERE cs.order_id IN (SELECT id FROM _demo_order_ids)
-     OR cs.seller_id IN (
-       SELECT account_id FROM public.freelancer_stores WHERE id IN (SELECT id FROM _demo_store_ids)
-     )
-);
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'freelance_reviews'
+        AND column_name = 'store_id'
+    ) THEN
+      DELETE FROM public.freelance_reviews
+      WHERE store_id IN (SELECT id FROM _demo_store_ids);
+    END IF;
+  END IF;
 
-DELETE FROM public.freelance_chat_sessions
-WHERE order_id IN (SELECT id FROM _demo_order_ids)
-   OR seller_id IN (
-     SELECT account_id FROM public.freelancer_stores WHERE id IN (SELECT id FROM _demo_store_ids)
-   );
+  IF to_regclass('public.freelance_orders') IS NOT NULL THEN
+    DELETE FROM public.freelance_orders
+    WHERE id IN (SELECT id FROM _demo_order_ids);
+  END IF;
 
-DELETE FROM public.freelance_inquiries
-WHERE service_id IN (SELECT id FROM _demo_service_ids)
-   OR seller_id IN (
-     SELECT account_id FROM public.freelancer_stores WHERE id IN (SELECT id FROM _demo_store_ids)
-   );
+  IF to_regclass('public.freelance_messages') IS NOT NULL
+     AND to_regclass('public.freelance_chat_sessions') IS NOT NULL THEN
+    DELETE FROM public.freelance_messages
+    WHERE session_id IN (
+      SELECT cs.id
+      FROM public.freelance_chat_sessions cs
+      WHERE cs.order_id IN (SELECT id FROM _demo_order_ids)
+         OR cs.seller_id IN (
+           SELECT account_id FROM public.freelancer_stores WHERE id IN (SELECT id FROM _demo_store_ids)
+         )
+    );
+  END IF;
 
-DELETE FROM public.saved_services
-WHERE service_id IN (SELECT id FROM _demo_service_ids);
+  IF to_regclass('public.freelance_chat_sessions') IS NOT NULL THEN
+    DELETE FROM public.freelance_chat_sessions
+    WHERE order_id IN (SELECT id FROM _demo_order_ids)
+       OR seller_id IN (
+         SELECT account_id FROM public.freelancer_stores WHERE id IN (SELECT id FROM _demo_store_ids)
+       );
+  END IF;
 
-DELETE FROM public.service_addons
-WHERE service_id IN (SELECT id FROM _demo_service_ids);
+  IF to_regclass('public.freelance_inquiries') IS NOT NULL THEN
+    DELETE FROM public.freelance_inquiries
+    WHERE service_id IN (SELECT id FROM _demo_service_ids)
+       OR seller_id IN (
+         SELECT account_id FROM public.freelancer_stores WHERE id IN (SELECT id FROM _demo_store_ids)
+       );
+  END IF;
 
--- Null out optional references (006 notifications)
-UPDATE public.notifications
-SET service_id = NULL
-WHERE service_id IN (SELECT id FROM _demo_service_ids);
+  IF to_regclass('public.saved_services') IS NOT NULL THEN
+    DELETE FROM public.saved_services
+    WHERE service_id IN (SELECT id FROM _demo_service_ids);
+  END IF;
 
-DELETE FROM public.freelance_services
-WHERE id IN (SELECT id FROM _demo_service_ids);
+  IF to_regclass('public.service_addons') IS NOT NULL THEN
+    DELETE FROM public.service_addons
+    WHERE service_id IN (SELECT id FROM _demo_service_ids);
+  END IF;
 
-DELETE FROM public.freelance_portfolios
-WHERE store_id IN (SELECT id FROM _demo_store_ids);
+  IF to_regclass('public.freelance_services') IS NOT NULL THEN
+    DELETE FROM public.freelance_services
+    WHERE id IN (SELECT id FROM _demo_service_ids);
+  END IF;
 
-DELETE FROM public.store_analytics_daily
-WHERE store_id IN (SELECT id FROM _demo_store_ids);
+  IF to_regclass('public.freelance_portfolios') IS NOT NULL THEN
+    DELETE FROM public.freelance_portfolios
+    WHERE store_id IN (SELECT id FROM _demo_store_ids);
+  END IF;
 
--- platform_links.freelancer_store_id is ON DELETE SET NULL; clear explicitly for clarity
-UPDATE public.platform_links
-SET freelancer_store_id = NULL
-WHERE freelancer_store_id IN (SELECT id FROM _demo_store_ids);
+  IF to_regclass('public.store_analytics_daily') IS NOT NULL THEN
+    DELETE FROM public.store_analytics_daily
+    WHERE store_id IN (SELECT id FROM _demo_store_ids);
+  END IF;
 
-DELETE FROM public.freelancer_stores
-WHERE id IN (SELECT id FROM _demo_store_ids);
+  IF to_regclass('public.platform_links') IS NOT NULL THEN
+    -- CHECK requires at least one link target; delete rows with only a demo store link.
+    DELETE FROM public.platform_links
+    WHERE freelancer_store_id IN (SELECT id FROM _demo_store_ids)
+      AND professional_profile_id IS NULL;
+
+    UPDATE public.platform_links
+    SET freelancer_store_id = NULL
+    WHERE freelancer_store_id IN (SELECT id FROM _demo_store_ids)
+      AND professional_profile_id IS NOT NULL;
+  END IF;
+
+  DELETE FROM public.freelancer_stores
+  WHERE id IN (SELECT id FROM _demo_store_ids);
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- AFTER counts (verification — demo targets should be 0)
