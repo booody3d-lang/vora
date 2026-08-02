@@ -106,7 +106,14 @@ export function isPremiumUser(sub: UserSubscription): boolean {
   );
 }
 
-// Demo data
+// Demo data (development only — use EMPTY_* in production UI fallbacks)
+export const EMPTY_WALLET: TriWallet = {
+  pendingBalance: 0,
+  availableBalance: 0,
+  withdrawnTotal: 0,
+  currency: "SAR",
+};
+
 export const DEMO_WALLET: TriWallet = {
   pendingBalance: 1347.0,
   availableBalance: 8920.5,

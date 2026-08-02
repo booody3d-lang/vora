@@ -9,6 +9,7 @@ import {
   runOptionalDbSync,
   runOptionalDbSyncVoid,
 } from "@/lib/supabase/safe-db";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { DEMO_SERVICES } from "@/lib/freelance/mock-data";
 import {
   getServiceBySlugFromSupabase,
@@ -59,12 +60,14 @@ export async function isServicesSupabaseReady(): Promise<boolean> {
 function listJsonServicesForStoreSlug(storeSlug: string): MarketplaceService[] {
   const services = getStoreServices(storeSlug);
   if (services.length > 0) return services;
+  if (!isDemoDataEnabled()) return [];
   return DEMO_SERVICES.filter((service) => service.storeSlug === storeSlug);
 }
 
 function listJsonMarketplaceServices(): MarketplaceService[] {
   const services = listAllMarketplaceServices();
-  return services.length > 0 ? services : DEMO_SERVICES;
+  if (services.length > 0) return services;
+  return isDemoDataEnabled() ? DEMO_SERVICES : [];
 }
 
 async function maybeMigrateJsonServicesToSupabase(): Promise<void> {
@@ -160,8 +163,7 @@ export async function listActiveMarketplaceServices(): Promise<MarketplaceServic
 export async function getMarketplaceServiceBySlug(slug: string): Promise<MarketplaceService | null> {
   const jsonFallback =
     listJsonMarketplaceServices().find((service) => service.slug === slug) ??
-    DEMO_SERVICES.find((service) => service.slug === slug) ??
-    null;
+    (isDemoDataEnabled() ? DEMO_SERVICES.find((service) => service.slug === slug) ?? null : null);
 
   if (!(await isServicesSupabaseReady())) {
     return jsonFallback;

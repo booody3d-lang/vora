@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import { InvoiceTemplate } from "@/components/billing/InvoiceTemplate";
 import { useTranslations } from "@/i18n/use-translations";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { DEMO_INVOICES } from "@/lib/billing/engine";
 import type { Invoice } from "@/types/billing";
 
@@ -21,10 +22,18 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           setInvoice(data.invoice);
           return;
         }
-        setInvoice(DEMO_INVOICES.find((inv) => inv.id === id) ?? null);
+        if (isDemoDataEnabled()) {
+          setInvoice(DEMO_INVOICES.find((inv) => inv.id === id) ?? null);
+        } else {
+          setInvoice(null);
+        }
       })
       .catch(() => {
-        setInvoice(DEMO_INVOICES.find((inv) => inv.id === id) ?? null);
+        if (isDemoDataEnabled()) {
+          setInvoice(DEMO_INVOICES.find((inv) => inv.id === id) ?? null);
+        } else {
+          setInvoice(null);
+        }
       })
       .finally(() => setLoading(false));
   }, [id]);

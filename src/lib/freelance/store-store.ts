@@ -8,6 +8,7 @@ import {
   runOptionalDbSync,
   runOptionalDbSyncVoid,
 } from "@/lib/supabase/safe-db";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { DEMO_PORTFOLIO, DEMO_STORE } from "@/lib/freelance/mock-data";
 import {
   listPortfolioByStoreFromSupabase,
@@ -82,7 +83,7 @@ function writePortfolioData(data: PortfolioDataFile) {
 function listPortfolioFromJson(storeSlug: string): PortfolioItem[] {
   const items = readPortfolioData().byStoreSlug[storeSlug] ?? [];
   if (items.length > 0) return items;
-  if (storeSlug === DEMO_STORE.slug) return DEMO_PORTFOLIO;
+  if (isDemoDataEnabled() && storeSlug === DEMO_STORE.slug) return DEMO_PORTFOLIO;
   return [];
 }
 
@@ -183,7 +184,9 @@ export async function getStoreForAccount(accountId: string): Promise<FreelancerS
 }
 
 export async function getStoreBySlugLive(slug: string): Promise<FreelancerStore | null> {
-  const jsonFallback = getStoreBySlug(slug) ?? (slug === DEMO_STORE.slug ? DEMO_STORE : null);
+  const jsonFallback =
+    getStoreBySlug(slug) ??
+    (isDemoDataEnabled() && slug === DEMO_STORE.slug ? DEMO_STORE : null);
 
   if (!(await isStoreSupabaseReady())) {
     return jsonFallback;

@@ -9,6 +9,7 @@ import {
   saveTotpSetup,
 } from "@/lib/auth/totp-store";
 import { generateTotpSecret } from "@/lib/security/otp";
+import { isStrictProduction } from "@/lib/env/validate";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
@@ -20,6 +21,9 @@ export async function POST(_request: Request) {
   }
 
   if (!isSupabaseConfigured()) {
+    if (isStrictProduction()) {
+      return NextResponse.json({ error: "Two-factor setup unavailable" }, { status: 503 });
+    }
     const { findAccountById } = await import("@/lib/security/demo-store");
     const { generateTotpSecret: genSecret } = await import("@/lib/security/otp");
     const account = findAccountById(auth.user.id);
@@ -67,6 +71,9 @@ export async function PUT(request: Request) {
   }
 
   if (!isSupabaseConfigured()) {
+    if (isStrictProduction()) {
+      return NextResponse.json({ error: "Two-factor setup unavailable" }, { status: 503 });
+    }
     const { findAccountById } = await import("@/lib/security/demo-store");
     const { verifyTotpCode } = await import("@/lib/security/otp");
     const account = findAccountById(auth.user.id);

@@ -11,6 +11,7 @@ import {
   sessionCookieOptions,
   signSessionToken,
 } from "@/lib/security/jwt";
+import { isStrictProduction } from "@/lib/env/validate";
 import {
   createSession,
   findAccountByPhone,
@@ -99,6 +100,10 @@ export async function POST(request: NextRequest) {
       });
       clearLegacySessionCookie(response);
       return response;
+    }
+
+    if (isStrictProduction()) {
+      return NextResponse.json({ error: "Authentication service unavailable" }, { status: 503 });
     }
 
     await initDemoAccounts(hashPassword);

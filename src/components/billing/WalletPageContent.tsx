@@ -6,7 +6,8 @@ import { TriWalletCards } from "@/components/billing/TriWalletCards";
 import { CommissionBreakdown } from "@/components/billing/CommissionBreakdown";
 import { useLocale } from "@/providers/LocaleProvider";
 import { useTranslations } from "@/i18n/use-translations";
-import { DEMO_WALLET, DEMO_TRANSACTIONS, formatSar } from "@/lib/billing/engine";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
+import { DEMO_WALLET, DEMO_TRANSACTIONS, EMPTY_WALLET, formatSar } from "@/lib/billing/engine";
 import type { TransactionType, TriWallet, WalletLedgerType, WalletTransaction } from "@/types/billing";
 
 const TX_TYPE_KEYS: Record<TransactionType, string> = {
@@ -28,8 +29,10 @@ const LEDGER_KEYS: Record<WalletLedgerType, string> = {
 export function WalletPageContent() {
   const { t } = useTranslations();
   const { locale } = useLocale();
-  const [wallet, setWallet] = useState<TriWallet>(DEMO_WALLET);
-  const [transactions, setTransactions] = useState<WalletTransaction[]>(DEMO_TRANSACTIONS);
+  const [wallet, setWallet] = useState<TriWallet>(isDemoDataEnabled() ? DEMO_WALLET : EMPTY_WALLET);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>(
+    isDemoDataEnabled() ? DEMO_TRANSACTIONS : []
+  );
 
   useEffect(() => {
     fetch("/api/billing/wallet")

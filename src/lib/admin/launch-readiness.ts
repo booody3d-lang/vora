@@ -12,7 +12,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 const DEV_JWT_MARKER = "vora-dev-jwt-secret";
 const DEV_PEPPER = "vora-pepper-2026";
 
-export const DEFERRED_LAUNCH_ITEMS = ["stripe_live", "demo_removal"] as const;
+export const DEFERRED_LAUNCH_ITEMS = ["stripe_live"] as const;
 
 export type DeferredLaunchItem = (typeof DEFERRED_LAUNCH_ITEMS)[number];
 
@@ -164,8 +164,6 @@ export async function buildLaunchReadinessReport(): Promise<LaunchReadinessRepor
   if (!sentryConfigured && isStrictProduction()) {
     warnings.push("Sentry is not configured — error monitoring is disabled");
   }
-
-  warnings.push("Demo accounts and mock data remain enabled until legal approval (deferred)");
 
   const healthCheck: LaunchReadinessReport["checks"]["health"] = {
     ok: health.status === "ok",

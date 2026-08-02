@@ -3,7 +3,7 @@ import { getRequestAuditContext, writeSecurityAuditEvent } from "@/lib/security/
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { resolveCurrentTokenHash } from "@/lib/auth/persist-login-session";
 import { revokeOtherUserSessions } from "@/lib/auth/sessions-store";
-import { revokeAllSessions } from "@/lib/security/demo-store";
+import { isStrictProduction } from "@/lib/env/validate";
 import { revokeAllPersistedSessions } from "@/lib/security/auth-store";
 
 export async function POST(request: Request) {
@@ -19,7 +19,10 @@ export async function POST(request: Request) {
     revoked = await revokeOtherUserSessions(auth.user.id, currentTokenHash);
   }
 
-  revoked += revokeAllSessions(auth.user.id, auth.session.sessionId);
+  if (!isStrictProduction()) {
+    const { revokeAllSessions } = await import("@/lib/security/demo-store");
+    revoked += revokeAllSessions(auth.user.id, auth.session.sessionId);
+  }
   revokeAllPersistedSessions(auth.user.id, auth.session.sessionId);
 
   if (revoked > 0) {

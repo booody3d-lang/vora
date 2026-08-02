@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getRequestAuditContext, writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { resolveCurrentTokenHash } from "@/lib/auth/persist-login-session";
+import { isStrictProduction } from "@/lib/env/validate";
 import { revokeUserSession } from "@/lib/auth/sessions-store";
-import { revokeSession } from "@/lib/security/demo-store";
 
 export async function DELETE(
   request: Request,
@@ -29,7 +29,10 @@ export async function DELETE(
   }
 
   const revoked = await revokeUserSession(auth.user.id, id);
-  revokeSession(id);
+  if (!isStrictProduction()) {
+    const { revokeSession } = await import("@/lib/security/demo-store");
+    revokeSession(id);
+  }
 
   if (!revoked) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });

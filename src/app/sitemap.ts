@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/i18n/config";
 import { localizePath } from "@/i18n/routing";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { DEMO_SERVICES, DEMO_STORE } from "@/lib/freelance/mock-data";
 import { DEMO_JOBS } from "@/lib/network/mock-data";
 
@@ -30,44 +31,46 @@ export default function sitemap(): MetadataRoute.Sitemap {
     }
   }
 
-  for (const job of DEMO_JOBS) {
-    for (const locale of LOCALES) {
-      entries.push({
-        url: localizedUrl(`/network/jobs/${job.slug}`, locale),
-        lastModified: now,
-        changeFrequency: "daily",
-        priority: 0.9,
-        alternates: {
-          languages: Object.fromEntries(LOCALES.map((l) => [l, localizedUrl(`/network/jobs/${job.slug}`, l)])),
-        },
-      });
+  if (isDemoDataEnabled()) {
+    for (const job of DEMO_JOBS) {
+      for (const locale of LOCALES) {
+        entries.push({
+          url: localizedUrl(`/network/jobs/${job.slug}`, locale),
+          lastModified: now,
+          changeFrequency: "daily",
+          priority: 0.9,
+          alternates: {
+            languages: Object.fromEntries(LOCALES.map((l) => [l, localizedUrl(`/network/jobs/${job.slug}`, l)])),
+          },
+        });
+      }
     }
-  }
 
-  for (const service of DEMO_SERVICES) {
+    for (const service of DEMO_SERVICES) {
+      for (const locale of LOCALES) {
+        entries.push({
+          url: localizedUrl(`/freelance/services/${service.slug}`, locale),
+          lastModified: now,
+          changeFrequency: "weekly",
+          priority: 0.85,
+          alternates: {
+            languages: Object.fromEntries(LOCALES.map((l) => [l, localizedUrl(`/freelance/services/${service.slug}`, l)])),
+          },
+        });
+      }
+    }
+
     for (const locale of LOCALES) {
       entries.push({
-        url: localizedUrl(`/freelance/services/${service.slug}`, locale),
+        url: localizedUrl(`/freelance/store/${DEMO_STORE.slug}`, locale),
         lastModified: now,
         changeFrequency: "weekly",
         priority: 0.85,
         alternates: {
-          languages: Object.fromEntries(LOCALES.map((l) => [l, localizedUrl(`/freelance/services/${service.slug}`, l)])),
+          languages: Object.fromEntries(LOCALES.map((l) => [l, localizedUrl(`/freelance/store/${DEMO_STORE.slug}`, l)])),
         },
       });
     }
-  }
-
-  for (const locale of LOCALES) {
-    entries.push({
-      url: localizedUrl(`/freelance/store/${DEMO_STORE.slug}`, locale),
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.85,
-      alternates: {
-        languages: Object.fromEntries(LOCALES.map((l) => [l, localizedUrl(`/freelance/store/${DEMO_STORE.slug}`, l)])),
-      },
-    });
   }
 
   return entries;

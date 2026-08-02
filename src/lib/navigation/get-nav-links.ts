@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { FALLBACK_NAVIGATION_LINKS } from "@/lib/navigation/fallback-links";
 import { filterNavigationLinks } from "@/lib/navigation/filter-nav-links";
 import { appendRoleShortcuts } from "@/lib/navigation/role-shortcuts";
@@ -67,14 +68,23 @@ export async function getNavigationLinksForUser(options: {
   profileSlug?: string | null;
   storeSlug?: string | null;
 }): Promise<{ links: ResolvedNavigationLink[]; source: "supabase" | "fallback" }> {
-  // Supabase seed is outdated; local fallback has dual-identity freelance sidebar links.
-  const allLinks = FALLBACK_NAVIGATION_LINKS;
+  const dbLinks = await fetchNavigationLinksFromDb();
+  if (dbLinks && dbLinks.length > 0) {
+    const filtered = filterNavigationLinks(dbLinks, options);
+    const links = appendRoleShortcuts(filtered, options);
+    return { links, source: "supabase" };
+  }
 
-  const filtered = filterNavigationLinks(allLinks, options);
+  if (!isDemoDataEnabled()) {
+    const filtered = filterNavigationLinks(FALLBACK_NAVIGATION_LINKS, options).map((link) => ({
+      ...link,
+      id: link.id.replace(/^fallback-/, "nav-"),
+    }));
+    const links = appendRoleShortcuts(filtered, options);
+    return { links, source: "fallback" };
+  }
+
+  const filtered = filterNavigationLinks(FALLBACK_NAVIGATION_LINKS, options);
   const links = appendRoleShortcuts(filtered, options);
-
-  return {
-    links,
-    source: "fallback",
-  };
+  return { links, source: "fallback" };
 }

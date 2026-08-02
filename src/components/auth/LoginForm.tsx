@@ -7,6 +7,7 @@ import { PhoneInput } from "@/components/auth/PhoneInput";
 import { usePermissions } from "@/providers/VoraProviders";
 import { useTranslations } from "@/i18n/use-translations";
 import { DEFAULT_COUNTRY_ISO2, detectInitialCountryIso2 } from "@/lib/auth/phone";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import {
   PLATFORM_ACCOUNT_OPTIONS,
   getRedirectForRole,
@@ -196,6 +197,7 @@ export function LoginForm() {
         <p className="mt-1 text-sm text-slate-400">{t("auth.subtitle")}</p>
       </div>
 
+      {isDemoDataEnabled() && (
       <div className="mb-4 rounded-xl border border-[#3B5998]/30 bg-[#3B5998]/5 p-3">
         <p className="mb-2 text-xs font-semibold text-[#93B4E8]">{t("auth.accountTypeList")}</p>
         <div className="flex flex-wrap gap-2">
@@ -221,6 +223,7 @@ export function LoginForm() {
         </div>
         <p className="mt-2 text-[10px] text-slate-500">{t("auth.accountTypeHint")}</p>
       </div>
+      )}
 
       <div className="mb-4 flex rounded-xl bg-slate-800/50 p-1">
         <button
@@ -375,7 +378,7 @@ export function LoginForm() {
                   className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white focus:border-[#EA580C] focus:outline-none"
                 />
               </div>
-              {demoOtp && (
+              {isDemoDataEnabled() && demoOtp && (
                 <p className="text-xs text-amber-400">{t("auth.demoOtp", { code: demoOtp })}</p>
               )}
               <button

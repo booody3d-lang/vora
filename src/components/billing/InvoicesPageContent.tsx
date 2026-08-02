@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/providers/LocaleProvider";
 import { useTranslations } from "@/i18n/use-translations";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { DEMO_INVOICES, formatSar } from "@/lib/billing/engine";
 import type { Invoice, InvoiceType } from "@/types/billing";
 
@@ -17,7 +18,7 @@ const INVOICE_TYPE_KEYS: Record<InvoiceType, string> = {
 export function InvoicesPageContent() {
   const { t } = useTranslations();
   const { locale } = useLocale();
-  const [invoices, setInvoices] = useState<Invoice[]>(DEMO_INVOICES);
+  const [invoices, setInvoices] = useState<Invoice[]>(isDemoDataEnabled() ? DEMO_INVOICES : []);
 
   useEffect(() => {
     fetch("/api/billing/invoices")

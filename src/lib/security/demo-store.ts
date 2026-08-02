@@ -1,3 +1,6 @@
+import "server-only";
+
+import { isStrictProduction } from "@/lib/env/validate";
 import type { AuthUser, ContentReport, PrivacySettings, UserSession, VoraRole } from "@/types/security";
 import { DEFAULT_PRIVACY_SETTINGS } from "@/types/security";
 import {
@@ -130,6 +133,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
 let accountsInitialized = false;
 
 export async function initDemoAccounts(hashFn: (p: string) => Promise<string>) {
+  if (isStrictProduction()) return;
   if (accountsInitialized) return;
   const demoDefaultPassword = process.env.VORA_DEMO_DEFAULT_PASSWORD?.trim() || "Vora@2026!";
   const ownerPassword = getPlatformOwnerBootstrapPassword() ?? demoDefaultPassword;

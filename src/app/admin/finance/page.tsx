@@ -3,11 +3,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { useTranslations } from "@/i18n/use-translations";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { ADMIN_FINANCIAL_SUMMARY, ADMIN_RECENT_TRANSACTIONS } from "@/lib/admin/mock-data";
 import { DEMO_WALLET, DEMO_WITHDRAWALS, formatSar } from "@/lib/billing/engine";
 import type { AdminFinanceMetrics } from "@/lib/billing/billing-supabase";
 import type { AdminTransaction } from "@/types/admin";
 import type { WithdrawalRequest, WithdrawalStatus } from "@/types/billing";
+
+const EMPTY_FINANCE_SUMMARY: AdminFinanceMetrics = {
+  grossPlatformRevenue: 0,
+  netSubscriptionRevenue: 0,
+  netCommissionRevenue: 0,
+  activeEscrowLiquidity: 0,
+  totalEscrow: 0,
+  availablePayouts: 0,
+  totalWithdrawn: 0,
+  pendingWithdrawals: 0,
+  revenueGrowthPercent: 0,
+};
 
 const DEMO_FINANCE_SUMMARY: AdminFinanceMetrics = {
   grossPlatformRevenue: ADMIN_FINANCIAL_SUMMARY.grossPlatformRevenue,
@@ -45,10 +58,18 @@ const TX_STATUS_KEYS: Record<AdminTransaction["status"], string> = {
 
 export default function AdminFinancePage() {
   const { t } = useTranslations();
-  const [finance, setFinance] = useState<AdminFinanceMetrics>(DEMO_FINANCE_SUMMARY);
-  const [transactions, setTransactions] = useState<AdminTransaction[]>(ADMIN_RECENT_TRANSACTIONS);
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>(DEMO_WITHDRAWALS);
-  const [persistence, setPersistence] = useState<"supabase" | "demo">("demo");
+  const [finance, setFinance] = useState<AdminFinanceMetrics>(
+    isDemoDataEnabled() ? DEMO_FINANCE_SUMMARY : EMPTY_FINANCE_SUMMARY
+  );
+  const [transactions, setTransactions] = useState<AdminTransaction[]>(
+    isDemoDataEnabled() ? ADMIN_RECENT_TRANSACTIONS : []
+  );
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>(
+    isDemoDataEnabled() ? DEMO_WITHDRAWALS : []
+  );
+  const [persistence, setPersistence] = useState<"supabase" | "demo">(
+    isDemoDataEnabled() ? "demo" : "supabase"
+  );
 
   const loadFinance = useCallback(() => {
     fetch("/api/admin/finance")

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { isStrictProduction } from "@/lib/env/validate";
 import { getServerSession } from "@/lib/security/session";
-import { addReport, getReports } from "@/lib/security/demo-store";
 import { checkSpamMessages } from "@/lib/security/anti-abuse";
 import { buildTriggerNotification } from "@/lib/notifications/triggers";
 import { serverDispatchNotification } from "@/lib/notifications/server-dispatch";
@@ -35,7 +35,13 @@ export async function POST(request: Request) {
     createdAt: new Date().toISOString(),
   };
 
-  addReport(report);
+  if (isStrictProduction()) {
+    const { addReport } = await import("@/lib/security/reports-store");
+    addReport(report);
+  } else {
+    const { addReport } = await import("@/lib/security/demo-store");
+    addReport(report);
+  }
 
   await serverDispatchNotification(
     buildTriggerNotification({
@@ -58,5 +64,10 @@ export async function GET() {
   if (!session || (session.role !== "admin" && session.role !== "owner")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (isStrictProduction()) {
+    const { getReports } = await import("@/lib/security/reports-store");
+    return NextResponse.json({ reports: getReports() });
+  }
+  const { getReports } = await import("@/lib/security/demo-store");
   return NextResponse.json({ reports: getReports() });
 }

@@ -7,7 +7,7 @@ import { updateCompanyForAccount } from "@/lib/company/company-store";
 import { MAX_SHORT_VIDEO_SECONDS, MAX_UPLOAD_BYTES, IMAGE_MIME_TYPES } from "@/lib/media/constants";
 import { processAvatarImage, processFeedImage } from "@/lib/media/process-image";
 import { getAuthenticatedUser } from "@/lib/security/session";
-import { findAccountById } from "@/lib/security/demo-store";
+import type { AuthUser } from "@/types/security";
 import {
   saveProfileForAccount,
   saveStoreForAccount,
@@ -47,17 +47,15 @@ function videoExtension(mime: string) {
   return "mp4";
 }
 
-function ensureOwnerProfile(accountId: string) {
+function ensureOwnerProfile(accountId: string, authUser: AuthUser) {
   if (getProfileByAccountId(accountId)) return;
-  const account = findAccountById(accountId);
-  if (!account) throw new Error("Account not found");
   createProfileForAccount({
     accountId,
-    fullName: account.fullName,
-    email: account.email,
-    role: account.role,
-    gender: account.gender,
-    hasFreelancerStore: account.hasFreelancerStore,
+    fullName: authUser.fullName,
+    email: authUser.email,
+    role: authUser.role,
+    gender: authUser.gender,
+    hasFreelancerStore: authUser.hasFreelancerStore,
   });
 }
 
@@ -68,6 +66,7 @@ async function processUploadInput(input: {
   filename?: string;
   durationSeconds?: number;
   accountId: string;
+  authUser: AuthUser;
 }) {
   if (input.buffer.length > MAX_UPLOAD_BYTES) {
     throw new Error("File must be under 25MB");
@@ -132,7 +131,7 @@ async function processUploadInput(input: {
   const filename =
     input.filename?.replace(/[^\w.-]/g, "_") ?? `${kind}-${Date.now()}.${ext}`;
 
-  ensureOwnerProfile(input.accountId);
+  ensureOwnerProfile(input.accountId, input.authUser);
   const url = await uploadProfileMedia(input.accountId, filename, buffer, outMime);
 
   if (kind === "photo") {
@@ -188,6 +187,7 @@ export async function POST(request: Request) {
         filename: file.name,
         durationSeconds,
         accountId: auth.user.id,
+        authUser: auth.user,
       });
 
       if (!canBypassFeatureChecks(auth.user)) {
@@ -219,6 +219,7 @@ export async function POST(request: Request) {
       filename: body.filename,
       durationSeconds: body.durationSeconds,
       accountId: auth.user.id,
+      authUser: auth.user,
     });
 
     if (!canBypassFeatureChecks(auth.user)) {

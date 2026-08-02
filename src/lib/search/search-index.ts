@@ -6,6 +6,7 @@ import { listAllCompanies } from "@/lib/admin/admin-companies-store";
 import { listActivePublicJobListings } from "@/lib/company/jobs-store";
 import { listActiveMarketplaceServices } from "@/lib/freelance/services-store";
 import { getStoreBySlugLive } from "@/lib/freelance/store-store";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { DEMO_STORE } from "@/lib/freelance/mock-data";
 import { DEMO_JOBS, DEMO_PROFILES } from "@/lib/network/mock-data";
 import {
@@ -56,7 +57,7 @@ function buildTokenIndex(entries: SearchIndexEntry[]): Record<string, string[]> 
 
 function collectProfiles(): SearchIndexEntry[] {
   const entries: SearchIndexEntry[] = [];
-  const slugs = new Set<string>(Object.keys(DEMO_PROFILES));
+  const slugs = new Set<string>(isDemoDataEnabled() ? Object.keys(DEMO_PROFILES) : []);
 
   for (const accountId of listLinkedAccounts()) {
     const profile = getProfileByAccountId(accountId);
@@ -64,7 +65,7 @@ function collectProfiles(): SearchIndexEntry[] {
   }
 
   for (const slug of slugs) {
-    const profile = getProfileBySlug(slug) ?? DEMO_PROFILES[slug];
+    const profile = getProfileBySlug(slug) ?? (isDemoDataEnabled() ? DEMO_PROFILES[slug] : undefined);
     if (!profile) continue;
     entries.push({
       id: `profile-${profile.id}`,
@@ -102,18 +103,20 @@ async function collectJobs(): Promise<SearchIndexEntry[]> {
     });
   }
 
-  for (const job of DEMO_JOBS) {
-    if (seen.has(job.slug)) continue;
-    seen.add(job.slug);
-    entries.push({
-      id: `job-${job.id}`,
-      type: "job",
-      slug: job.slug,
-      title: job.title,
-      subtitle: `${job.company} · ${job.location}`,
-      href: `/network/jobs/${job.slug}`,
-      keywords: [job.title, job.company, job.location, job.employmentType].join(" "),
-    });
+  if (isDemoDataEnabled()) {
+    for (const job of DEMO_JOBS) {
+      if (seen.has(job.slug)) continue;
+      seen.add(job.slug);
+      entries.push({
+        id: `job-${job.id}`,
+        type: "job",
+        slug: job.slug,
+        title: job.title,
+        subtitle: `${job.company} · ${job.location}`,
+        href: `/network/jobs/${job.slug}`,
+        keywords: [job.title, job.company, job.location, job.employmentType].join(" "),
+      });
+    }
   }
 
   return entries;
@@ -152,7 +155,10 @@ async function collectStores(): Promise<SearchIndexEntry[]> {
     if (seen.has(service.storeSlug)) continue;
     seen.add(service.storeSlug);
 
-    const store = (await getStoreBySlugLive(service.storeSlug)) ?? DEMO_STORE;
+    const store =
+      (await getStoreBySlugLive(service.storeSlug)) ??
+      (isDemoDataEnabled() ? DEMO_STORE : null);
+    if (!store) continue;
     entries.push({
       id: `store-${store.id}`,
       type: "store",

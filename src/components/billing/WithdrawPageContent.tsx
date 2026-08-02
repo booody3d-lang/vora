@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { WithdrawForm } from "@/components/billing/WithdrawForm";
 import { TriWalletCards } from "@/components/billing/TriWalletCards";
 import { useTranslations } from "@/i18n/use-translations";
-import { DEMO_WALLET } from "@/lib/billing/engine";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
+import { DEMO_WALLET, EMPTY_WALLET } from "@/lib/billing/engine";
 import type { TriWallet } from "@/types/billing";
 
 export function WithdrawPageContent() {
   const { t } = useTranslations();
-  const [wallet, setWallet] = useState<TriWallet>(DEMO_WALLET);
+  const [wallet, setWallet] = useState<TriWallet>(isDemoDataEnabled() ? DEMO_WALLET : EMPTY_WALLET);
 
   useEffect(() => {
     fetch("/api/billing/wallet")

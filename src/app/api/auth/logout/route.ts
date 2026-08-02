@@ -3,11 +3,11 @@ import { clearLegacySessionCookie } from "@/lib/auth/legacy-cookie";
 import { getRequestAuditContext, writeSecurityAuditEvent } from "@/lib/security/audit-store";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { isStrictProduction } from "@/lib/env/validate";
 import { COOKIE_NAME } from "@/lib/security/jwt";
 import { getServerSession } from "@/lib/security/session";
 import { resolveCurrentTokenHash } from "@/lib/auth/persist-login-session";
 import { revokeOtherUserSessions, revokeUserSession } from "@/lib/auth/sessions-store";
-import { revokeAllSessions, revokeSession } from "@/lib/security/demo-store";
 
 export async function POST(request: Request) {
   const session = await getServerSession();
@@ -19,7 +19,10 @@ export async function POST(request: Request) {
       if (currentTokenHash) {
         await revokeOtherUserSessions(session.sub, currentTokenHash);
       }
-      revokeAllSessions(session.sub, session.sessionId);
+      if (!isStrictProduction()) {
+        const { revokeAllSessions } = await import("@/lib/security/demo-store");
+        revokeAllSessions(session.sub, session.sessionId);
+      }
       const { ip, userAgent } = getRequestAuditContext(request);
       await writeSecurityAuditEvent({
         accountId: session.sub,
@@ -35,7 +38,10 @@ export async function POST(request: Request) {
       if (current) {
         await revokeUserSession(session.sub, current.id);
       }
-      revokeSession(session.sessionId);
+      if (!isStrictProduction()) {
+        const { revokeSession } = await import("@/lib/security/demo-store");
+        revokeSession(session.sessionId);
+      }
     }
   }
 

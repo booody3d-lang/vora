@@ -14,6 +14,7 @@ import {
   setRecoveryChannel,
   type RecoveryChannel,
 } from "@/lib/security/auth-store";
+import { isStrictProduction } from "@/lib/env/validate";
 import { findAccountByEmail, findAccountByPhone } from "@/lib/security/demo-store";
 import { generateOtpCode, hashOtp, normalizeSaudiPhone, verifyOtp } from "@/lib/security/otp";
 import { buildTriggerNotification } from "@/lib/notifications/triggers";
@@ -206,6 +207,14 @@ export async function PATCH(request: Request) {
         }
 
         const normalizedPhone = normalizeSaudiPhone(identifier);
+        if (isStrictProduction() && !isSupabaseConfigured()) {
+          return NextResponse.json({
+            ok: true,
+            action: "forgotPassword",
+            message: "If an account exists, a recovery code has been sent.",
+          });
+        }
+
         const account =
           findAccountByEmail(identifier) ??
           (normalizedPhone ? findAccountByPhone(normalizedPhone) : undefined) ??

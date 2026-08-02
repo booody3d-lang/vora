@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import {
   buildMarketplaceInvoice,
   buildSubscriptionInvoice,
@@ -63,15 +64,22 @@ async function isWalletSupabaseReady(): Promise<boolean> {
   }
 }
 
+const emptyWallet = (): TriWallet => ({
+  pendingBalance: 0,
+  availableBalance: 0,
+  withdrawnTotal: 0,
+  currency: "SAR",
+});
+
 export async function getAccountWallet(accountId: string): Promise<TriWallet> {
   if (!(await isWalletSupabaseReady())) {
-    return DEMO_WALLET;
+    return isDemoDataEnabled() ? DEMO_WALLET : emptyWallet();
   }
 
   return runOptionalDbSync(
     "getAccountWallet",
     () => ensureWalletInSupabase(accountId),
-    DEMO_WALLET
+    isDemoDataEnabled() ? DEMO_WALLET : emptyWallet()
   );
 }
 
@@ -80,25 +88,25 @@ export async function getAccountWalletTransactions(
   limit = 50
 ): Promise<WalletTransaction[]> {
   if (!(await isWalletSupabaseReady())) {
-    return DEMO_TRANSACTIONS;
+    return isDemoDataEnabled() ? DEMO_TRANSACTIONS : [];
   }
 
   return runOptionalDbSync(
     "getAccountWalletTransactions",
     () => listWalletTransactionsFromSupabase(accountId, limit),
-    DEMO_TRANSACTIONS
+    isDemoDataEnabled() ? DEMO_TRANSACTIONS : []
   );
 }
 
 export async function getAccountInvoices(accountId: string, limit = 50): Promise<Invoice[]> {
   if (!(await isWalletSupabaseReady())) {
-    return DEMO_INVOICES;
+    return isDemoDataEnabled() ? DEMO_INVOICES : [];
   }
 
   return runOptionalDbSync(
     "getAccountInvoices",
     () => listInvoicesFromSupabase(accountId, limit),
-    DEMO_INVOICES
+    isDemoDataEnabled() ? DEMO_INVOICES : []
   );
 }
 
@@ -106,14 +114,18 @@ export async function getAccountInvoice(
   accountId: string,
   invoiceId: string
 ): Promise<Invoice | null> {
+  const demoFallback = isDemoDataEnabled()
+    ? DEMO_INVOICES.find((inv) => inv.id === invoiceId) ?? null
+    : null;
+
   if (!(await isWalletSupabaseReady())) {
-    return DEMO_INVOICES.find((inv) => inv.id === invoiceId) ?? null;
+    return demoFallback;
   }
 
   return runOptionalDbSync(
     "getAccountInvoice",
     () => loadInvoiceFromSupabase(accountId, invoiceId),
-    DEMO_INVOICES.find((inv) => inv.id === invoiceId) ?? null
+    demoFallback
   );
 }
 
@@ -253,7 +265,9 @@ export async function reviewWithdrawalRequest(
   reviewedBy: string,
   adminNotes?: string
 ): Promise<WithdrawalRequest> {
-  const demoFallback = DEMO_WITHDRAWALS.find((item) => item.id === withdrawalId);
+  const demoFallback = isDemoDataEnabled()
+    ? DEMO_WITHDRAWALS.find((item) => item.id === withdrawalId)
+    : undefined;
 
   if (!(await isWalletSupabaseReady()) || !isValidBillingUuid(withdrawalId)) {
     if (!demoFallback) throw new Error("Withdrawal not found");
@@ -269,57 +283,63 @@ export async function reviewWithdrawalRequest(
 
 export async function listAdminWithdrawals(limit = 100): Promise<WithdrawalRequest[]> {
   if (!(await isWalletSupabaseReady())) {
-    return DEMO_WITHDRAWALS;
+    return isDemoDataEnabled() ? DEMO_WITHDRAWALS : [];
   }
 
   return runOptionalDbSync(
     "listAdminWithdrawals",
     () => listAllWithdrawalsFromSupabase(limit),
-    DEMO_WITHDRAWALS
+    isDemoDataEnabled() ? DEMO_WITHDRAWALS : []
   );
 }
 
+const emptyFinanceSummary = (): AdminFinanceMetrics => ({
+  grossPlatformRevenue: 0,
+  netSubscriptionRevenue: 0,
+  netCommissionRevenue: 0,
+  activeEscrowLiquidity: 0,
+  totalEscrow: 0,
+  availablePayouts: 0,
+  totalWithdrawn: 0,
+  pendingWithdrawals: 0,
+  revenueGrowthPercent: 0,
+});
+
+const demoFinanceSummary = (): AdminFinanceMetrics => ({
+  grossPlatformRevenue: ADMIN_FINANCIAL_SUMMARY.grossPlatformRevenue,
+  netSubscriptionRevenue: ADMIN_FINANCIAL_SUMMARY.netSubscriptionRevenue,
+  netCommissionRevenue: ADMIN_FINANCIAL_SUMMARY.netCommissionRevenue,
+  activeEscrowLiquidity: ADMIN_FINANCIAL_SUMMARY.activeEscrowLiquidity,
+  totalEscrow: DEMO_WALLET.pendingBalance,
+  availablePayouts: DEMO_WALLET.availableBalance,
+  totalWithdrawn: DEMO_WALLET.withdrawnTotal,
+  pendingWithdrawals: DEMO_WITHDRAWALS.reduce((sum, wd) => sum + wd.amount, 0),
+  revenueGrowthPercent: ADMIN_FINANCIAL_SUMMARY.revenueGrowthPercent,
+});
+
 export async function getAdminFinanceSummary(): Promise<AdminFinanceMetrics> {
+  const fallback = isDemoDataEnabled() ? demoFinanceSummary() : emptyFinanceSummary();
+
   if (!(await isWalletSupabaseReady())) {
-    return {
-      grossPlatformRevenue: ADMIN_FINANCIAL_SUMMARY.grossPlatformRevenue,
-      netSubscriptionRevenue: ADMIN_FINANCIAL_SUMMARY.netSubscriptionRevenue,
-      netCommissionRevenue: ADMIN_FINANCIAL_SUMMARY.netCommissionRevenue,
-      activeEscrowLiquidity: ADMIN_FINANCIAL_SUMMARY.activeEscrowLiquidity,
-      totalEscrow: DEMO_WALLET.pendingBalance,
-      availablePayouts: DEMO_WALLET.availableBalance,
-      totalWithdrawn: DEMO_WALLET.withdrawnTotal,
-      pendingWithdrawals: DEMO_WITHDRAWALS.reduce((sum, wd) => sum + wd.amount, 0),
-      revenueGrowthPercent: ADMIN_FINANCIAL_SUMMARY.revenueGrowthPercent,
-    };
+    return fallback;
   }
 
   return runOptionalDbSync(
     "getAdminFinanceSummary",
     () => getAdminFinanceMetricsFromSupabase(),
-    {
-      grossPlatformRevenue: ADMIN_FINANCIAL_SUMMARY.grossPlatformRevenue,
-      netSubscriptionRevenue: ADMIN_FINANCIAL_SUMMARY.netSubscriptionRevenue,
-      netCommissionRevenue: ADMIN_FINANCIAL_SUMMARY.netCommissionRevenue,
-      activeEscrowLiquidity: ADMIN_FINANCIAL_SUMMARY.activeEscrowLiquidity,
-      totalEscrow: DEMO_WALLET.pendingBalance,
-      availablePayouts: DEMO_WALLET.availableBalance,
-      totalWithdrawn: DEMO_WALLET.withdrawnTotal,
-      pendingWithdrawals: DEMO_WITHDRAWALS.reduce((sum, wd) => sum + wd.amount, 0),
-      revenueGrowthPercent: ADMIN_FINANCIAL_SUMMARY.revenueGrowthPercent,
-    }
+    fallback
   );
 }
 
 export async function listAdminFinanceTransactions(limit = 50): Promise<AdminTransaction[]> {
   if (!(await isWalletSupabaseReady())) {
-    return ADMIN_RECENT_TRANSACTIONS;
+    return isDemoDataEnabled() ? ADMIN_RECENT_TRANSACTIONS : [];
   }
 
   return runOptionalDbSync(
     "listAdminFinanceTransactions",
     () => listAdminFinanceTransactionsFromSupabase(limit),
-    ADMIN_RECENT_TRANSACTIONS
+    isDemoDataEnabled() ? ADMIN_RECENT_TRANSACTIONS : []
   );
 }
 

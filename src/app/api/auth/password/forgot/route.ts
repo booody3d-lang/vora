@@ -10,6 +10,7 @@ import {
   setRecoveryChannel,
   type RecoveryChannel,
 } from "@/lib/security/auth-store";
+import { isStrictProduction } from "@/lib/env/validate";
 import { findAccountByEmail, findAccountByPhone } from "@/lib/security/demo-store";
 import { generateOtpCode, hashOtp, normalizeSaudiPhone } from "@/lib/security/otp";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -77,6 +78,10 @@ export async function POST(request: Request) {
     }
 
     const normalizedPhone = normalizeSaudiPhone(identifier);
+    if (isStrictProduction() && !isSupabaseConfigured()) {
+      return NextResponse.json(genericResponse);
+    }
+
     const account =
       findAccountByEmail(identifier) ??
       (normalizedPhone ? findAccountByPhone(normalizedPhone) : undefined);
