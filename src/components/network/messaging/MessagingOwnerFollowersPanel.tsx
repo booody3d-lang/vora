@@ -18,7 +18,7 @@ export function MessagingOwnerFollowersPanel({
   onMessageFollower,
 }: MessagingOwnerFollowersPanelProps) {
   const { t } = useTranslations();
-  const { user, isLoading: sessionLoading } = usePermissions();
+  const { user, isLoading: authLoading } = usePermissions();
   const [followerCount, setFollowerCount] = useState(0);
   const [followers, setFollowers] = useState<FollowListEntry[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -31,11 +31,21 @@ export function MessagingOwnerFollowersPanel({
     if (!accountId) return;
     setListLoading(true);
     try {
-      const res = await fetch("/api/social/followers", { credentials: "include" });
+      const params = new URLSearchParams({
+        targetId: accountId,
+        targetType: "user",
+      });
+      const res = await fetch(`/api/social/followers?${params.toString()}`, {
+        credentials: "include",
+      });
       const data = await res.json();
       if (res.ok) {
         setFollowers(data.followers ?? []);
-        setFollowerCount(data.followerCount ?? data.followers?.length ?? 0);
+        setFollowerCount(
+          typeof data.followerCount === "number"
+            ? data.followerCount
+            : (data.followers?.length ?? 0)
+        );
       }
     } finally {
       setListLoading(false);
@@ -43,14 +53,19 @@ export function MessagingOwnerFollowersPanel({
   }, [accountId]);
 
   useEffect(() => {
-    if (sessionLoading || !accountId) return;
+    if (authLoading || !accountId) return;
     void loadFollowers();
-  }, [sessionLoading, accountId, loadFollowers]);
+  }, [authLoading, accountId, loadFollowers]);
 
-  if (sessionLoading || !accountId) return null;
+  useEffect(() => {
+    if (!expanded || compact || !accountId) return;
+    void loadFollowers();
+  }, [expanded, compact, accountId, loadFollowers]);
+
+  if (authLoading || !accountId) return null;
 
   function handleToggle() {
-    if (compact) {
+    if (compact || followerCount === 0) {
       setShowModal(true);
       return;
     }
@@ -69,7 +84,7 @@ export function MessagingOwnerFollowersPanel({
         <button
           type="button"
           onClick={handleToggle}
-          disabled={followerCount === 0 && !listLoading}
+          disabled={followerCount === 0}
           aria-label={t("network.connections.followersList.viewFollowers")}
           className={cn(
             "flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-start transition-colors",

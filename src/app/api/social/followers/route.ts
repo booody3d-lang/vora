@@ -15,48 +15,54 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
+  const requestedTargetId = searchParams.get("targetId")?.trim();
   const targetType = (searchParams.get("targetType") ?? "user") as FollowTargetType;
-  const targetId = searchParams.get("targetId")?.trim() || auth.user.id;
 
   if (targetType !== "user" && targetType !== "company") {
     return NextResponse.json({ error: "Invalid targetType" }, { status: 400 });
   }
 
   if (targetType === "user") {
-    if (auth.user.id !== targetId) {
+    const ownerAccountId = requestedTargetId ?? auth.user.id;
+    if (ownerAccountId !== auth.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const [followers, followerCount] = await Promise.all([
-      listFollowersForOwner(targetId),
-      getFollowerCount(targetId, "user"),
+      listFollowersForOwner(ownerAccountId),
+      getFollowerCount(ownerAccountId, "user"),
     ]);
 
     return NextResponse.json({
-      targetId,
-      followerCount,
+      ownerAccountId,
       followers,
+      followerCount,
     });
   }
 
-  const company = await getCompanyById(targetId);
+  if (!requestedTargetId) {
+    return NextResponse.json({ error: "targetId is required" }, { status: 400 });
+  }
+
+  const company = await getCompanyById(requestedTargetId);
   if (!company) {
     return NextResponse.json({ error: "Company not found" }, { status: 404 });
   }
 
   const ownerCompany = await getCompanyByAccountId(auth.user.id);
-  if (!ownerCompany || ownerCompany.id !== targetId) {
+  if (!ownerCompany || ownerCompany.id !== requestedTargetId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const [followers, followerCount] = await Promise.all([
-    listCompanyFollowersForOwner(targetId),
-    getFollowerCount(targetId, "company"),
+    listCompanyFollowersForOwner(requestedTargetId),
+    getFollowerCount(requestedTargetId, "company"),
   ]);
 
   return NextResponse.json({
-    targetId,
-    followerCount,
+    ownerAccountId: auth.user.id,
+    companyId: requestedTargetId,
     followers,
+    followerCount,
   });
 }

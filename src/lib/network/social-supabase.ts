@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfileByAccountId } from "@/lib/profile/profile-store";
-import { resolveFollowListEntryForAccount } from "@/lib/network/follow-list-resolve";
+import { loadProfileForAccount } from "@/lib/supabase/profile-persistence";
 import type {
   FollowListEntry,
   FollowRelationship,
@@ -163,6 +163,73 @@ export async function getFollowingUserCountFromSupabase(accountId: string): Prom
   return count ?? 0;
 }
 
+async function fetchAccountDisplayName(accountId: string): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("accounts")
+    .select("full_name, email")
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const row = data as { full_name?: string | null; email?: string | null };
+  if (row.full_name?.trim()) return row.full_name.trim();
+  if (row.email?.trim()) return row.email.split("@")[0] ?? row.email;
+  return null;
+}
+
+export async function resolveFollowListEntryForAccount(
+  accountId: string,
+  status: FollowStatus,
+  since: string
+): Promise<FollowListEntry> {
+  const cached = getProfileByAccountId(accountId);
+  if (cached) {
+    return {
+      accountId,
+      fullName: cached.fullName,
+      headline: cached.headline ?? "",
+      profileSlug: cached.slug,
+      status,
+      since,
+    };
+  }
+
+  const loaded = await loadProfileForAccount(accountId);
+  if (loaded) {
+    return {
+      accountId,
+      fullName: loaded.fullName,
+      headline: loaded.headline ?? "",
+      profileSlug: loaded.slug,
+      status,
+      since,
+    };
+  }
+
+  const accountName = await fetchAccountDisplayName(accountId);
+  return {
+    accountId,
+    fullName: accountName ?? "User",
+    headline: "",
+    profileSlug: undefined,
+    status,
+    since,
+  };
+}
+
+async function mapConnectionToFollowListEntryResolved(
+  row: DbConnectionRow,
+  accountIdKey: "requester_id" | "recipient_id"
+): Promise<FollowListEntry> {
+  const accountId = row[accountIdKey];
+  return resolveFollowListEntryForAccount(
+    accountId,
+    row.status,
+    row.status === "accepted" ? row.updated_at : row.created_at
+  );
+}
+
 export async function listFollowersForOwnerFromSupabase(
   ownerAccountId: string
 ): Promise<FollowListEntry[]> {
@@ -178,11 +245,7 @@ export async function listFollowersForOwnerFromSupabase(
 
   return Promise.all(
     (data as DbConnectionRow[]).map((row) =>
-      resolveFollowListEntryForAccount(
-        row.requester_id,
-        row.status,
-        row.status === "accepted" ? row.updated_at : row.created_at
-      )
+      mapConnectionToFollowListEntryResolved(row, "requester_id")
     )
   );
 }
@@ -202,11 +265,7 @@ export async function listFollowingUsersFromSupabase(
 
   return Promise.all(
     (data as DbConnectionRow[]).map((row) =>
-      resolveFollowListEntryForAccount(
-        row.recipient_id,
-        row.status,
-        row.status === "accepted" ? row.updated_at : row.created_at
-      )
+      mapConnectionToFollowListEntryResolved(row, "recipient_id")
     )
   );
 }
@@ -226,7 +285,7 @@ export async function getIncomingPendingFollowsFromSupabase(
 
   return Promise.all(
     (data as DbConnectionRow[]).map((row) =>
-      resolveFollowListEntryForAccount(row.requester_id, row.status, row.created_at)
+      mapConnectionToFollowListEntryResolved(row, "requester_id")
     )
   );
 }

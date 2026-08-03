@@ -13,11 +13,11 @@ import { MessageButton } from "@/components/network/connections/MessageButton";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { getCompanyUrl, getFreelanceStoreUrl } from "@/lib/network/urls";
 import { useLocale } from "@/providers/LocaleProvider";
-import { usePermissions } from "@/providers/VoraProviders";
 import type { FullProfessionalProfile } from "@/types/network";
 
 interface ProfileHeaderProps {
   profile: FullProfessionalProfile;
+  ownerAccountId?: string;
   isOwnProfile?: boolean;
   initiallyFollowing?: boolean;
   initiallyAccepted?: boolean;
@@ -26,6 +26,7 @@ interface ProfileHeaderProps {
 
 export function ProfileHeader({
   profile,
+  ownerAccountId,
   isOwnProfile,
   initiallyFollowing = false,
   initiallyAccepted = false,
@@ -34,10 +35,8 @@ export function ProfileHeader({
   const [showContact, setShowContact] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
   const { t } = useLocale();
-  const { user } = usePermissions();
 
-  const targetAccountId =
-    isOwnProfile && user?.id ? user.id : (profile.accountId ?? profile.id);
+  const targetAccountId = ownerAccountId ?? profile.accountId ?? profile.id;
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

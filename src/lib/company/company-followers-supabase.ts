@@ -7,7 +7,7 @@ import {
   markSupabaseDbSyncUnavailable,
 } from "@/lib/supabase/safe-db";
 import type { FollowListEntry, FollowRelationship } from "@/lib/network/social-store";
-import { resolveFollowListEntryForAccount } from "@/lib/network/follow-list-resolve";
+import { resolveFollowListEntryForAccount } from "@/lib/network/social-supabase";
 
 let companyFollowersTableProbed = false;
 let companyFollowersTableAvailable = false;
