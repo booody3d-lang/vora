@@ -8,6 +8,10 @@
 --   التحقق أظهر: جدول otp_codes مفقود، أعمدة الهاتف مفقودة، جلسات المستخدم
 --   وسجل التدقيق جزئيان (فهارس/RLS)، و025 مطبّق مسبقاً.
 --
+--   NOTE: This script does NOT apply 008_navigation_links.sql. If you need
+--   navigation_links (required by 028/029), run:
+--   supabase/scripts/apply_navigation_and_accounts.sql
+--
 -- Usage / الاستخدام (Supabase SQL Editor):
 --   1. Review BEFORE verification output below.
 --      راجع نتائج التحقق BEFORE أدناه.

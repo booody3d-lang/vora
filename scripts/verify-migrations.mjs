@@ -1,5 +1,5 @@
 /**
- * Read-only verification of Supabase migrations 023-027 via PostgREST.
+ * Read-only verification of Supabase migrations 008, 023-027 via PostgREST.
  * Usage: node scripts/verify-migrations.mjs
  * Requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local
  */
@@ -75,6 +75,11 @@ function maskSecret(val, visible = 4) {
 }
 
 const CHECKS = {
+  "008": {
+    name: "008_navigation_links",
+    tableChecks: [{ table: "navigation_links", requiredColumns: ["platform", "href", "label_key", "sort_order"] }],
+    indexHints: ["idx_navigation_links_platform"],
+  },
   "023": {
     name: "023_auth_otp_phase8b",
     tableChecks: [{ table: "otp_codes", requiredColumns: ["channel", "provider_ref", "purpose"] }],

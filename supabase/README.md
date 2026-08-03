@@ -33,8 +33,11 @@ In the Supabase SQL editor, run the files in order:
 25. `025_auth_totp_phase8d.sql` — TOTP 2FA persistence (`totp_enabled_at`) and column documentation
 26. `026_user_sessions_phase8e.sql` — user sessions indexes and per-user RLS policies
 27. `027_security_audit_phase8f.sql` — security audit log indexes and user read RLS
-28. `028_fix_navigation_profile_href.sql` — replace hardcoded demo profile slug in nav links
-29. `029_fix_navigation_demo_hrefs.sql` — fix demo orders link and remaining profile hrefs
+28. `028_fix_navigation_profile_href.sql` — replace hardcoded demo profile slug in nav links (requires `008`)
+29. `029_fix_navigation_demo_hrefs.sql` — fix demo orders link and remaining profile hrefs (requires `008`)
+30. `030_ensure_navigation_links.sql` — idempotent create/seed if `008` was skipped
+
+> **Partial migration gap:** `supabase/scripts/apply_missing_migrations_007_023_027.sql` does **not** include `008_navigation_links.sql`. If you used that script and then run `028`/`029`, you will get `relation "public.navigation_links" does not exist`. Run `supabase/scripts/apply_navigation_and_accounts.sql` in the SQL Editor instead (creates table, seeds, and applies 028+029 fixes).
 
 ## Production accounts
 
