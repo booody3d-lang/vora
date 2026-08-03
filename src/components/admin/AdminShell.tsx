@@ -43,7 +43,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </p>
         </div>
 
-        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-3">
+        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-y-contain p-3">
           {NAV_KEYS.map((item) => {
             const active =
               pathname === item.href ||

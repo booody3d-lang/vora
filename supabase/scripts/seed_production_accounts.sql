@@ -46,10 +46,11 @@ BEGIN
     updated_at = NOW()
   WHERE id = v_id;
 
-  INSERT INTO public.professional_profiles (account_id, slug, headline, is_public, is_premium)
-  VALUES (v_id, 'abdullah-saeed-albakkar', 'Platform Owner', TRUE, TRUE)
+  INSERT INTO public.professional_profiles (account_id, slug, headline, full_name, is_public, is_premium)
+  VALUES (v_id, 'abdullah-saeed-albakkar', 'Platform Owner', 'Abdullah saeed alBakkar', TRUE, TRUE)
   ON CONFLICT (account_id) DO UPDATE SET
     slug = EXCLUDED.slug,
+    full_name = EXCLUDED.full_name,
     is_premium = TRUE,
     updated_at = NOW();
 
@@ -70,33 +71,33 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- 2. Company + Limited Admin — abadi.5g@outlook.com
---    ONE auth user serves both company portal and admin panel access.
---    See docs/PRODUCTION_ACCOUNTS.md for duplicate-email resolution.
+-- 2. Company — abadi.5g@outlook.com
+--    Company portal only; separate from admin account (b.3d@live.com).
 -- ---------------------------------------------------------------------------
 DO $$
 DECLARE
   v_id UUID := _vora_account_id('abadi.5g@outlook.com');
 BEGIN
   IF v_id IS NULL THEN
-    RAISE NOTICE 'SKIP company/admin: abadi.5g@outlook.com — auth user not found';
+    RAISE NOTICE 'SKIP company: abadi.5g@outlook.com — auth user not found';
     RETURN;
   END IF;
 
   UPDATE public.accounts SET
-    full_name = 'Saeed Bakka',
-    primary_role = 'admin',
+    full_name = 'AlBakkar (company account)',
+    primary_role = 'company',
     account_type = 'company',
     tier = 'professional',
-    professional_unlocked = TRUE,
-    has_freelancer_store = TRUE,
+    professional_unlocked = FALSE,
+    has_freelancer_store = FALSE,
     updated_at = NOW()
   WHERE id = v_id;
 
-  INSERT INTO public.professional_profiles (account_id, slug, headline, is_public, is_premium)
-  VALUES (v_id, 'saeed-bakka', 'Administrator', TRUE, TRUE)
+  INSERT INTO public.professional_profiles (account_id, slug, headline, full_name, is_public, is_premium)
+  VALUES (v_id, 'albakkars-company', 'AlBakkar Company', 'AlBakkar (company account)', TRUE, TRUE)
   ON CONFLICT (account_id) DO UPDATE SET
     slug = EXCLUDED.slug,
+    full_name = EXCLUDED.full_name,
     is_premium = TRUE,
     updated_at = NOW();
 
@@ -116,7 +117,7 @@ BEGIN
     updated_at = NOW();
 
   INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason, granted_by)
-  VALUES (v_id, 'premium-user', 'Company admin — premium badge', 'seed_production_accounts')
+  VALUES (v_id, 'premium-user', 'Company account — premium badge', 'seed_production_accounts')
   ON CONFLICT (account_id) DO UPDATE SET
     tier_id = 'premium-user',
     reason = EXCLUDED.reason,
@@ -124,7 +125,54 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- 3. Premium User — abod.s.bakkar@hotmail.com
+-- 3. Limited Admin — b.3d@live.com
+--    Admin panel + freelancer store creation (separate email from company).
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_id UUID := _vora_account_id('b.3d@live.com');
+BEGIN
+  IF v_id IS NULL THEN
+    RAISE NOTICE 'SKIP admin: b.3d@live.com — auth user not found';
+    RETURN;
+  END IF;
+
+  UPDATE public.accounts SET
+    full_name = 'Saeed Bakka',
+    primary_role = 'admin',
+    account_type = 'individual',
+    tier = 'professional',
+    professional_unlocked = TRUE,
+    has_freelancer_store = TRUE,
+    updated_at = NOW()
+  WHERE id = v_id;
+
+  INSERT INTO public.professional_profiles (account_id, slug, headline, full_name, is_public, is_premium)
+  VALUES (v_id, 'saeed-bakka', 'Administrator', 'Saeed Bakka', TRUE, TRUE)
+  ON CONFLICT (account_id) DO UPDATE SET
+    slug = EXCLUDED.slug,
+    full_name = EXCLUDED.full_name,
+    is_premium = TRUE,
+    updated_at = NOW();
+
+  INSERT INTO public.account_subscription_assignments (account_id, tier_id, status, source)
+  VALUES (v_id, 'premium-user', 'active', 'manual_override')
+  ON CONFLICT (account_id) DO UPDATE SET
+    tier_id = 'premium-user',
+    status = 'active',
+    source = 'manual_override',
+    updated_at = NOW();
+
+  INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason, granted_by)
+  VALUES (v_id, 'premium-user', 'Limited admin — premium badge', 'seed_production_accounts')
+  ON CONFLICT (account_id) DO UPDATE SET
+    tier_id = 'premium-user',
+    reason = EXCLUDED.reason,
+    granted_at = NOW();
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 4. Premium User — abod.s.bakkar@hotmail.com
 --    Lifetime free premium + premium badge.
 -- ---------------------------------------------------------------------------
 DO $$
@@ -146,10 +194,11 @@ BEGIN
     updated_at = NOW()
   WHERE id = v_id;
 
-  INSERT INTO public.professional_profiles (account_id, slug, headline, is_public, is_premium)
-  VALUES (v_id, 'bakkar-3d', 'Premium Member', TRUE, TRUE)
+  INSERT INTO public.professional_profiles (account_id, slug, headline, full_name, is_public, is_premium)
+  VALUES (v_id, 'bakkar-3d', 'Premium Member', 'Bakkar.3d', TRUE, TRUE)
   ON CONFLICT (account_id) DO UPDATE SET
     slug = EXCLUDED.slug,
+    full_name = EXCLUDED.full_name,
     is_premium = TRUE,
     updated_at = NOW();
 
@@ -179,11 +228,15 @@ SELECT
   a.full_name,
   a.primary_role,
   a.account_type,
+  a.professional_unlocked,
+  a.has_freelancer_store,
   pp.slug AS profile_slug,
+  pp.full_name AS profile_display_name,
   pp.is_premium,
   c.name AS company_name,
   c.slug AS company_slug,
   asa.tier_id,
+  asa.expires_at,
   smo.reason AS override_reason
 FROM public.accounts a
 LEFT JOIN public.professional_profiles pp ON pp.account_id = a.id
@@ -193,6 +246,7 @@ LEFT JOIN public.subscription_manual_overrides smo ON smo.account_id = a.id
 WHERE lower(a.email) IN (
   'booody3d@gmail.com',
   'abadi.5g@outlook.com',
+  'b.3d@live.com',
   'abod.s.bakkar@hotmail.com'
 )
 ORDER BY a.email;

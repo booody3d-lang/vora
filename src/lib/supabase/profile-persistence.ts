@@ -66,9 +66,28 @@ interface DbProfileRow {
   current_role: string | null;
 }
 
-function mapDbProfileRow(row: DbProfileRow, base?: FullProfessionalProfile | null): FullProfessionalProfile {
+async function fetchAccountFullName(accountId: string): Promise<string | null> {
+  if (!isSupabasePersistenceEnabled()) return null;
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("accounts")
+    .select("full_name")
+    .eq("id", accountId)
+    .maybeSingle();
+  if (error) {
+    console.error("[profile-persistence] fetch account name:", error.message);
+    return null;
+  }
+  return (data?.full_name as string | null) ?? null;
+}
+
+function mapDbProfileRow(
+  row: DbProfileRow,
+  base?: FullProfessionalProfile | null,
+  accountFullName?: string | null
+): FullProfessionalProfile {
   const accountId = row.account_id;
-  const fullName = row.full_name ?? base?.fullName ?? row.slug;
+  const fullName = row.full_name ?? accountFullName ?? base?.fullName ?? row.slug;
   const merged: FullProfessionalProfile = {
     id: accountId,
     accountId,
@@ -310,9 +329,10 @@ export async function loadProfileForAccount(accountId: string): Promise<FullProf
 
   if (dbRow) {
     const storeRow = await fetchStoreRowByAccountId(accountId);
+    const accountFullName = await fetchAccountFullName(accountId);
     syncJsonFromDbProfile(dbRow, storeRow);
     jsonProfile = getProfileByAccountId(accountId);
-    const fromDb = mapDbProfileRow(dbRow, jsonProfile);
+    const fromDb = mapDbProfileRow(dbRow, jsonProfile, accountFullName);
     if (jsonProfile) {
       return {
         ...jsonProfile,
@@ -341,9 +361,10 @@ export async function loadProfileBySlug(slug: string): Promise<FullProfessionalP
 
   if (dbRow) {
     const storeRow = await fetchStoreRowByAccountId(dbRow.account_id);
+    const accountFullName = await fetchAccountFullName(dbRow.account_id);
     syncJsonFromDbProfile(dbRow, storeRow);
     jsonProfile = getProfileBySlug(slug) ?? getProfileByAccountId(dbRow.account_id);
-    const fromDb = mapDbProfileRow(dbRow, jsonProfile);
+    const fromDb = mapDbProfileRow(dbRow, jsonProfile, accountFullName);
     if (jsonProfile) {
       return {
         ...jsonProfile,
