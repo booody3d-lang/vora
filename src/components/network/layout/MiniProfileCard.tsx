@@ -4,18 +4,18 @@ import Link from "next/link";
 import { CrossPlatformLink } from "@/components/navigation/DualDashboardToggle";
 import { ProfessionalScoreRing } from "@/components/professional/ProfessionalScoreRing";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { useCurrentCompany } from "@/hooks/use-current-company";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
 import { usePermissions } from "@/providers/VoraProviders";
 import { usePublicPageHref } from "@/hooks/use-public-page-href";
 import { useTranslations } from "@/i18n/use-translations";
-import {
-  getFreelanceStoreUrl,
-} from "@/lib/network/urls";
+import { getCompanyUrl, getFreelanceStoreUrl } from "@/lib/network/urls";
 
 export function MiniProfileCard() {
   const { t } = useTranslations();
   const { role } = usePermissions();
   const publicPageHref = usePublicPageHref();
+  const { company, companySlug, loading: companyLoading } = useCurrentCompany();
   const {
     profile,
     profileSlug,
@@ -29,6 +29,64 @@ export function MiniProfileCard() {
     loading,
     subscriptionBadge,
   } = useCurrentProfile();
+
+  if (role === "company") {
+    if (companyLoading) {
+      return (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-14 animate-pulse bg-slate-200" />
+          <div className="px-4 pb-4 pt-0">
+            <div className="-mt-8 h-16 w-16 animate-pulse rounded-lg bg-slate-200" />
+            <div className="mt-3 h-4 w-32 animate-pulse rounded bg-slate-200" />
+          </div>
+        </div>
+      );
+    }
+
+    if (!company || !companySlug) return null;
+
+    const coverStyle = company.coverImageUrl
+      ? {
+          backgroundImage: `url(${company.coverImageUrl})`,
+          backgroundSize: "cover" as const,
+          backgroundPosition: "center" as const,
+        }
+      : { background: "linear-gradient(to right, #1E293B, #3B5998)" };
+
+    return (
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <Link href={getCompanyUrl(companySlug)}>
+          <div className="h-14 bg-cover bg-center" style={coverStyle} />
+          <div className="relative px-4 pb-4">
+            {company.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={company.logoUrl}
+                alt={company.name}
+                className="-mt-8 h-16 w-16 rounded-lg border-4 border-white object-cover"
+              />
+            ) : (
+              <div className="-mt-8 flex h-16 w-16 items-center justify-center rounded-lg border-4 border-white bg-slate-100 text-2xl">
+                🏢
+              </div>
+            )}
+            <h2 className="mt-2 truncate text-sm font-bold text-[#0F172A]">{company.name}</h2>
+            {company.tagline && (
+              <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{company.tagline}</p>
+            )}
+          </div>
+        </Link>
+        <div className="border-t border-slate-100 px-4 py-3">
+          <Link
+            href="/company/dashboard"
+            className="block w-full rounded-lg bg-[#3B5998] px-4 py-2 text-center text-xs font-semibold text-white hover:bg-[#2d4373]"
+          >
+            {t("company.nav.portal")}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -66,7 +124,7 @@ export function MiniProfileCard() {
   const name = fullName;
   const photo = profilePhotoUrl || avatarUrl;
   const cover = coverImageUrl;
-  const hasStore = role !== "company" && profile.hasFreelancerStore;
+  const hasStore = profile.hasFreelancerStore;
   const storeLinkSlug = storeSlug ?? profile.freelancerStoreSlug;
 
   const coverStyle = cover

@@ -11,6 +11,7 @@ import { GlobalSearchBar } from "@/components/search/GlobalSearchBar";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
 import { usePublicPageHref } from "@/hooks/use-public-page-href";
 import { useTranslations } from "@/i18n/use-translations";
+import { usePermissions } from "@/providers/VoraProviders";
 import { cn } from "@/lib/utils";
 
 const NAV_KEYS = [
@@ -23,14 +24,26 @@ const NAV_KEYS = [
 export function NetworkNav() {
   const pathname = usePathname();
   const { t } = useTranslations();
+  const { role } = usePermissions();
   const { avatarUrl, gender, profile, fullName, profilePhotoUrl, subscriptionBadge } =
     useCurrentProfile();
   const profileHref = usePublicPageHref();
 
+  const visibleNavKeys = NAV_KEYS.filter(
+    (item) => role !== "company" || item.labelKey !== "nav.voraAi"
+  );
+
   const navItems = [
     NAV_KEYS[0],
-    { href: profileHref, labelKey: "nav.profile" as const, icon: "👤", matchPrefix: true },
-    ...NAV_KEYS.slice(1),
+    {
+      href: profileHref,
+      labelKey: (role === "company" ? "company.nav.companyPage" : "nav.profile") as
+        | "company.nav.companyPage"
+        | "nav.profile",
+      icon: role === "company" ? "🏢" : "👤",
+      matchPrefix: true,
+    },
+    ...visibleNavKeys.slice(1),
   ];
 
   return (
@@ -43,7 +56,7 @@ export function NetworkNav() {
               const href = item.href;
               const active =
                 pathname === href ||
-                (item.labelKey === "nav.profile" &&
+                ((item.labelKey === "nav.profile" || item.labelKey === "company.nav.companyPage") &&
                   (pathname.startsWith("/network/profile/") ||
                     pathname.startsWith("/network/company/") ||
                     pathname === "/profile/me")) ||

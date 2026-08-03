@@ -50,6 +50,22 @@ export function appendRoleShortcuts(
       labelEn: "Manage Jobs",
       labelAr: "إدارة الوظائف",
     });
+    add({
+      id: "role-company-analytics",
+      href: "/company/dashboard/analytics",
+      icon: "📈",
+      labelKey: "company.nav.analytics",
+      labelEn: "Analytics",
+      labelAr: "التحليلات",
+    });
+    add({
+      id: "role-company-settings",
+      href: "/company/dashboard/settings",
+      icon: "⚙️",
+      labelKey: "nav.settings",
+      labelEn: "Settings",
+      labelAr: "الإعدادات",
+    });
   }
 
   if (
@@ -161,7 +177,11 @@ export function appendRoleShortcuts(
         if (ctx.role === "company") {
           link.labelEn = "Company Page";
           link.labelAr = "صفحة الشركة";
+          link.labelKey = "company.nav.companyPage";
         }
+      }
+      if (ctx.role === "company" && link.labelKey === "nav.settings") {
+        link.href = "/company/dashboard/settings";
       }
     }
   }

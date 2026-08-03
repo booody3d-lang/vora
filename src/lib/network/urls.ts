@@ -28,8 +28,9 @@ export function getCurrentUserPublicPageUrl(options?: {
   profileSlug?: string | null;
   companySlug?: string | null;
 }): string {
-  if (options?.role === "company" && options.companySlug) {
-    return getCompanyUrl(options.companySlug);
+  if (options?.role === "company") {
+    if (options.companySlug) return getCompanyUrl(options.companySlug);
+    return "/company/dashboard";
   }
   return getCurrentUserProfileUrl(options?.profileSlug);
 }
@@ -38,14 +39,28 @@ function isProfileNavHref(href: string): boolean {
   return href.includes("{profileSlug}") || /^\/network\/profile\/[^/]+$/.test(href);
 }
 
+const COMPANY_SETTINGS_PATH = "/company/dashboard/settings";
+
+function isSettingsNavHref(href: string): boolean {
+  return href === "/network/settings" || href.startsWith("/network/settings/");
+}
+
 /** Resolve sidebar/API profile nav hrefs; falls back to the current-user alias. */
 export function resolveProfileNavHref(
   href: string,
   profileSlug?: string | null,
   options?: { role?: VoraRole | null; companySlug?: string | null }
 ): string {
-  if (options?.role === "company" && options.companySlug && isProfileNavHref(href)) {
-    return getCompanyUrl(options.companySlug);
+  if (options?.role === "company") {
+    if (options.companySlug && isProfileNavHref(href)) {
+      return getCompanyUrl(options.companySlug);
+    }
+    if (isSettingsNavHref(href)) {
+      return COMPANY_SETTINGS_PATH;
+    }
+    if (isProfileNavHref(href)) {
+      return "/company/dashboard";
+    }
   }
 
   if (profileSlug) {

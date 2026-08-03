@@ -15,6 +15,7 @@ const ROLE_RANK: Record<VoraRole, number> = {
 /** Network sidebar links hidden for company (employer) accounts. */
 const COMPANY_HIDDEN_LABEL_KEYS = new Set([
   "nav.voraAi",
+  "nav.settings",
   "sidebar.freelance.dashboard",
   "sidebar.freelance.myServices",
   "sidebar.freelance.orders",

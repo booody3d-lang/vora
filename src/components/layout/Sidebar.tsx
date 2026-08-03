@@ -71,9 +71,10 @@ export function Sidebar() {
   const pathname = usePathname();
   const { mode, setMode, links, isLoading, error, isOpen, setOpen } = useSidebar();
   const { t, locale, dir } = useLocale();
-  const { refreshSession } = usePermissions();
+  const { refreshSession, role } = usePermissions();
   const styles = MODE_STYLES[mode];
   const isRtl = dir === "rtl";
+  const isCompanyAccount = role === "company";
 
   async function handleLogout() {
     await fetch("/api/auth/logout", {
@@ -127,6 +128,7 @@ export function Sidebar() {
         </div>
 
         <div className="px-3 pt-3">
+          {!isCompanyAccount && (
           <div
             className={cn(
               "flex rounded-full p-1",
@@ -160,6 +162,7 @@ export function Sidebar() {
               {t("common.freelance")}
             </button>
           </div>
+          )}
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">

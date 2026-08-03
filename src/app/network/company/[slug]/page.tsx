@@ -1,5 +1,5 @@
 import { CompanyPageView } from "@/components/company/page/CompanyPageView";
-import { getCompanyBySlug } from "@/lib/company/company-store";
+import { getCompanyBySlug, isCompanyOwnedByAccount } from "@/lib/company/company-store";
 import { listCurrentEmployeesForCompany } from "@/lib/company/employees";
 import { listActiveJobsForCompany } from "@/lib/company/jobs-store";
 import { listPostsForCompany } from "@/lib/company/posts-store";
@@ -20,6 +20,7 @@ export default async function CompanyPublicPage({ params }: CompanyPublicPagePro
   }
 
   const auth = await getAuthenticatedUser();
+  const isOwner = auth ? await isCompanyOwnedByAccount(auth.user.id, slug) : false;
   const social = await getCompanySocialContext(auth?.user.id ?? null, baseCompany.id);
 
   const company = {
@@ -37,6 +38,7 @@ export default async function CompanyPublicPage({ params }: CompanyPublicPagePro
         company={company}
         posts={posts}
         jobs={jobs}
+        isOwner={isOwner}
         initiallyFollowing={social.isFollowing}
       />
     </div>

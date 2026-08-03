@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getAuthenticatedUser } from "@/lib/security/session";
 
 const SETTINGS_LINKS = [
   {
@@ -28,7 +30,12 @@ const SETTINGS_LINKS = [
   },
 ] as const;
 
-export default function NetworkSettingsPage() {
+export default async function NetworkSettingsPage() {
+  const auth = await getAuthenticatedUser();
+  if (auth?.user.role === "company") {
+    redirect("/company/dashboard/settings");
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 md:px-6">
       <h1 className="text-2xl font-bold text-[#0F172A]">Settings</h1>

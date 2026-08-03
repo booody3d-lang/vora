@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
+import { permanentRedirect, redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 
 import { ProfileHeader } from "@/components/network/profile/ProfileHeader";
 import { ProfileTabs } from "@/components/network/profile/ProfileTabs";
-import { getCompanyBySlug } from "@/lib/company/company-store";
+import { getCompanyByAccountId, getCompanyBySlug } from "@/lib/company/company-store";
 import { getCompanyUrl } from "@/lib/network/urls";
 import { isProfileOwner } from "@/lib/profile/profile-store";
 import { stripPrivateProfileFields } from "@/lib/profile/private-fields";
@@ -26,7 +26,16 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
   const company = await getCompanyBySlug(slug);
   if (company) {
-    redirect(getCompanyUrl(slug));
+    permanentRedirect(getCompanyUrl(slug));
+  }
+
+  const auth = await getAuthenticatedUser();
+  if (auth?.user.role === "company") {
+    const ownedCompany = await getCompanyByAccountId(auth.user.id);
+    if (ownedCompany) {
+      redirect(getCompanyUrl(ownedCompany.slug));
+    }
+    redirect("/company/dashboard");
   }
 
   const rawProfile = await loadProfileBySlug(slug);
@@ -35,7 +44,6 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     notFound();
   }
 
-  const auth = await getAuthenticatedUser();
   const isOwnProfile = auth ? isProfileOwner(auth.user.id, slug) : false;
   const targetAccountId =
     rawProfile.accountId ?? (await resolveAccountIdForProfileSlug(slug)) ?? rawProfile.id;

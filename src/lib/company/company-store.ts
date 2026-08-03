@@ -140,6 +140,15 @@ export function getCompanySlugForAccount(accountId: string): string | null {
   return getAccountLink(accountId);
 }
 
+/** True when the account owns the company identified by slug. */
+export async function isCompanyOwnedByAccount(
+  accountId: string,
+  companySlug: string
+): Promise<boolean> {
+  const company = await getCompanyByAccountId(accountId);
+  return company?.slug === companySlug;
+}
+
 export function getCompanyBySlugSync(slug: string): CompanyProfile | null {
   return getCompanyBySlugFromJson(slug);
 }

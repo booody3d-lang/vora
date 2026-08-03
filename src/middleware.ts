@@ -81,6 +81,16 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(deniedUrl);
       }
 
+      if (user) {
+        const role = resolveRoleFromSupabaseUser(user);
+        if (role === "company" && barePath.startsWith("/network/profile/")) {
+          const redirectUrl = request.nextUrl.clone();
+          redirectUrl.pathname = "/profile/me";
+          redirectUrl.search = "";
+          return NextResponse.redirect(redirectUrl);
+        }
+      }
+
       const sessionResponse = getResponse();
       return finalizeResponse(request, sessionResponse, isLocalePath, barePath);
     }

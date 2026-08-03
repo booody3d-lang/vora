@@ -21,6 +21,7 @@ interface CompanyPageViewProps {
   company: CompanyProfile;
   posts: CompanyPost[];
   jobs: JobPosting[];
+  isOwner?: boolean;
   initiallyFollowing?: boolean;
 }
 
@@ -28,6 +29,7 @@ export function CompanyPageView({
   company,
   posts,
   jobs,
+  isOwner = false,
   initiallyFollowing = false,
 }: CompanyPageViewProps) {
   const { t } = useTranslations();
@@ -71,12 +73,29 @@ export function CompanyPageView({
                 )}
               </div>
             </div>
-            <FollowButton
-              targetUserId={company.id}
-              targetType="company"
-              initiallyFollowing={initiallyFollowing}
-              initiallyAccepted={initiallyFollowing}
-            />
+            {isOwner ? (
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Link
+                  href="/company/dashboard/settings"
+                  className="rounded-lg border border-[#3B5998] bg-[#3B5998] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2d4373]"
+                >
+                  {t("company.dashboard.editCompanyPage")}
+                </Link>
+                <Link
+                  href="/company/dashboard"
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#0F172A] transition-colors hover:bg-slate-50"
+                >
+                  {t("company.nav.portal")}
+                </Link>
+              </div>
+            ) : (
+              <FollowButton
+                targetUserId={company.id}
+                targetType="company"
+                initiallyFollowing={initiallyFollowing}
+                initiallyAccepted={initiallyFollowing}
+              />
+            )}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-4 text-xs text-slate-500">
