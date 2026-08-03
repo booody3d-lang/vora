@@ -55,13 +55,18 @@ export function PlansPageContent() {
   }, [loadPlans]);
 
   useEffect(() => {
-    if (searchParams.get("success") === "true") {
-      setSuccessNotice(
-        searchParams.get("simulated") === "true"
-          ? t("billing.plans.simulationSuccess")
-          : t("billing.plans.paymentSuccess")
-      );
-    }
+    if (searchParams.get("audience") !== "company") return;
+    const section = document.getElementById("company-plans");
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [searchParams, loading]);
+
+  useEffect(() => {
+    if (searchParams.get("success") !== "true") return;
+    setSuccessNotice(
+      searchParams.get("simulated") === "true"
+        ? t("billing.plans.simulationSuccess")
+        : t("billing.plans.paymentSuccess")
+    );
   }, [searchParams, t]);
 
   async function openBillingPortal() {
@@ -156,7 +161,7 @@ export function PlansPageContent() {
         />
       </section>
 
-      <section>
+      <section id="company-plans">
         <h2 className="mb-4 text-lg font-semibold text-[#0F172A]">
           {t("billing.plans.companySection")}
         </h2>

@@ -544,6 +544,8 @@
       "jobs": "Jobs",
       "postJob": "Post a Job",
       "analytics": "Analytics",
+      "ats": "ATS Pipeline",
+      "subscription": "Subscription",
       "publicPage": "View Public Page"
     },
     "page": {
@@ -592,6 +594,7 @@
       "postNewJob": "+ Post New Job Vacancy",
       "manageJobs": "Manage Job Listings",
       "openAts": "Open ATS Pipeline",
+      "manageSubscription": "Upgrade / Manage Subscription",
       "viewAnalytics": "View Analytics",
       "restrictions": "Access Restrictions",
       "noFreelanceStores": "Cannot create freelance stores",

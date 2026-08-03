@@ -16,7 +16,7 @@ export default async function AtsPage({ params }: AtsPageProps) {
   if (!auth) notFound();
 
   const denied = await forbidCompanyAts(auth.user);
-  if (denied) redirect("/billing/plans");
+  if (denied) redirect("/billing/plans?audience=company");
 
   const job = await getJobByIdForAccount(auth.user.id, jobId);
   if (!job) notFound();

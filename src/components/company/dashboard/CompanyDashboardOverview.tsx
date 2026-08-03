@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { computeSubscriptionState, getAtsUrl } from "@/lib/company/mock-data";
+import { computeSubscriptionState } from "@/lib/company/mock-data";
 import { CompanyPostsPanel } from "@/components/company/dashboard/CompanyPostsPanel";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { useLocale } from "@/providers/LocaleProvider";
@@ -118,10 +118,16 @@ export function CompanyDashboardOverview() {
               {t("company.dashboard.manageJobs")}
             </Link>
             <Link
-              href={getAtsUrl("job-1")}
+              href="/company/dashboard/ats"
               className="block rounded-lg border border-slate-100 px-4 py-3 text-sm font-medium text-[#3B5998] hover:bg-slate-50"
             >
               {t("company.dashboard.openAts")}
+            </Link>
+            <Link
+              href="/billing/plans?audience=company"
+              className="block rounded-lg border border-slate-100 px-4 py-3 text-sm font-medium text-[#3B5998] hover:bg-slate-50"
+            >
+              {t("company.dashboard.manageSubscription")}
             </Link>
             <Link
               href="/company/dashboard/analytics"

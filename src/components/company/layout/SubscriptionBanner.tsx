@@ -115,7 +115,7 @@ export function SubscriptionBanner({ subscription }: SubscriptionBannerProps) {
               Secure payment · Mada cards accepted when live billing is enabled
             </p>
             <Link
-              href="/billing/plans"
+              href="/billing/plans?audience=company"
               className="mt-2 block text-center text-xs text-[#3B5998] hover:underline"
             >
               View billing details
