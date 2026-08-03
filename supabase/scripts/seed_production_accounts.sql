@@ -4,10 +4,16 @@
 -- IMPORTANT:
 --   1. Create auth users FIRST in Supabase Dashboard (Authentication → Users)
 --      or via signup API. This script does NOT create auth.users or passwords.
---   2. Run AFTER all migrations (001–029) are applied.
+--   2. Matches ACTUAL production schema (PostgREST-probed):
+--        accounts:                    id, email, account_type, status
+--        profiles:                    id, full_name, updated_at  (NOT professional_profiles)
+--        companies:                   id, owner_account_id, slug, name, updated_at
+--        account_subscription_assignments: account_id, tier_id, status, expires_at, updated_at
+--        subscription_manual_overrides: account_id, tier_id, reason
 --   3. Safe to re-run: uses email-based upserts only.
 --
 -- See docs/PRODUCTION_ACCOUNTS.md for account purposes and manual setup steps.
+-- Prefer: node scripts/seed-production-accounts-rest.mjs (uses service role REST)
 -- =============================================================================
 
 BEGIN;
@@ -37,37 +43,29 @@ BEGIN
   END IF;
 
   UPDATE public.accounts SET
-    full_name = 'Abdullah saeed alBakkar',
-    primary_role = 'owner',
-    account_type = 'individual',
-    tier = 'professional',
-    professional_unlocked = TRUE,
-    has_freelancer_store = TRUE,
-    updated_at = NOW()
+    account_type = 'owner',
+    status = 'active'
   WHERE id = v_id;
 
-  INSERT INTO public.professional_profiles (account_id, slug, headline, full_name, is_public, is_premium)
-  VALUES (v_id, 'abdullah-saeed-albakkar', 'Platform Owner', 'Abdullah saeed alBakkar', TRUE, TRUE)
-  ON CONFLICT (account_id) DO UPDATE SET
-    slug = EXCLUDED.slug,
+  INSERT INTO public.profiles (id, full_name, updated_at)
+  VALUES (v_id, 'Abdullah saeed alBakkar', NOW())
+  ON CONFLICT (id) DO UPDATE SET
     full_name = EXCLUDED.full_name,
-    is_premium = TRUE,
     updated_at = NOW();
 
-  INSERT INTO public.account_subscription_assignments (account_id, tier_id, status, source)
-  VALUES (v_id, 'premium-user', 'active', 'manual_override')
+  INSERT INTO public.account_subscription_assignments (account_id, tier_id, status, expires_at, updated_at)
+  VALUES (v_id, 'premium-user', 'active', NULL, NOW())
   ON CONFLICT (account_id) DO UPDATE SET
     tier_id = 'premium-user',
     status = 'active',
-    source = 'manual_override',
+    expires_at = NULL,
     updated_at = NOW();
 
-  INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason, granted_by)
-  VALUES (v_id, 'premium-user', 'Platform owner — lifetime premium', 'seed_production_accounts')
+  INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason)
+  VALUES (v_id, 'premium-user', 'Platform owner — lifetime premium')
   ON CONFLICT (account_id) DO UPDATE SET
     tier_id = 'premium-user',
-    reason = EXCLUDED.reason,
-    granted_at = NOW();
+    reason = EXCLUDED.reason;
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -84,44 +82,36 @@ BEGIN
   END IF;
 
   UPDATE public.accounts SET
-    full_name = 'AlBakkar',
-    primary_role = 'company',
     account_type = 'company',
-    tier = 'professional',
-    professional_unlocked = FALSE,
-    has_freelancer_store = FALSE,
-    updated_at = NOW()
+    status = 'active'
   WHERE id = v_id;
 
-  INSERT INTO public.professional_profiles (account_id, slug, headline, full_name, is_public, is_premium)
-  VALUES (v_id, 'albakkars-company', 'AlBakkar', 'AlBakkar', TRUE, TRUE)
-  ON CONFLICT (account_id) DO UPDATE SET
-    slug = EXCLUDED.slug,
+  INSERT INTO public.profiles (id, full_name, updated_at)
+  VALUES (v_id, 'AlBakkar', NOW())
+  ON CONFLICT (id) DO UPDATE SET
     full_name = EXCLUDED.full_name,
-    is_premium = TRUE,
     updated_at = NOW();
 
-  INSERT INTO public.companies (owner_account_id, slug, name, is_public)
-  VALUES (v_id, 'albakkar', 'AlBakkar', TRUE)
+  INSERT INTO public.companies (owner_account_id, slug, name, updated_at)
+  VALUES (v_id, 'albakkar', 'AlBakkar', NOW())
   ON CONFLICT (slug) DO UPDATE SET
     owner_account_id = EXCLUDED.owner_account_id,
     name = EXCLUDED.name,
     updated_at = NOW();
 
-  INSERT INTO public.account_subscription_assignments (account_id, tier_id, status, source)
-  VALUES (v_id, 'premium-user', 'active', 'manual_override')
+  INSERT INTO public.account_subscription_assignments (account_id, tier_id, status, expires_at, updated_at)
+  VALUES (v_id, 'premium-user', 'active', NULL, NOW())
   ON CONFLICT (account_id) DO UPDATE SET
     tier_id = 'premium-user',
     status = 'active',
-    source = 'manual_override',
+    expires_at = NULL,
     updated_at = NOW();
 
-  INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason, granted_by)
-  VALUES (v_id, 'premium-user', 'Company account — premium badge', 'seed_production_accounts')
+  INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason)
+  VALUES (v_id, 'premium-user', 'Company account — premium badge')
   ON CONFLICT (account_id) DO UPDATE SET
     tier_id = 'premium-user',
-    reason = EXCLUDED.reason,
-    granted_at = NOW();
+    reason = EXCLUDED.reason;
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -138,37 +128,29 @@ BEGIN
   END IF;
 
   UPDATE public.accounts SET
-    full_name = 'Saeed Bakka',
-    primary_role = 'admin',
-    account_type = 'individual',
-    tier = 'professional',
-    professional_unlocked = TRUE,
-    has_freelancer_store = TRUE,
-    updated_at = NOW()
+    account_type = 'admin',
+    status = 'active'
   WHERE id = v_id;
 
-  INSERT INTO public.professional_profiles (account_id, slug, headline, full_name, is_public, is_premium)
-  VALUES (v_id, 'saeed-bakka', 'Administrator', 'Saeed Bakka', TRUE, TRUE)
-  ON CONFLICT (account_id) DO UPDATE SET
-    slug = EXCLUDED.slug,
+  INSERT INTO public.profiles (id, full_name, updated_at)
+  VALUES (v_id, 'Saeed Bakka', NOW())
+  ON CONFLICT (id) DO UPDATE SET
     full_name = EXCLUDED.full_name,
-    is_premium = TRUE,
     updated_at = NOW();
 
-  INSERT INTO public.account_subscription_assignments (account_id, tier_id, status, source)
-  VALUES (v_id, 'premium-user', 'active', 'manual_override')
+  INSERT INTO public.account_subscription_assignments (account_id, tier_id, status, expires_at, updated_at)
+  VALUES (v_id, 'premium-user', 'active', NULL, NOW())
   ON CONFLICT (account_id) DO UPDATE SET
     tier_id = 'premium-user',
     status = 'active',
-    source = 'manual_override',
+    expires_at = NULL,
     updated_at = NOW();
 
-  INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason, granted_by)
-  VALUES (v_id, 'premium-user', 'Limited admin — premium badge', 'seed_production_accounts')
+  INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason)
+  VALUES (v_id, 'premium-user', 'Limited admin — premium badge')
   ON CONFLICT (account_id) DO UPDATE SET
     tier_id = 'premium-user',
-    reason = EXCLUDED.reason,
-    granted_at = NOW();
+    reason = EXCLUDED.reason;
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -185,39 +167,29 @@ BEGIN
   END IF;
 
   UPDATE public.accounts SET
-    full_name = 'Bakkar.3d',
-    primary_role = 'professional',
-    account_type = 'individual',
-    tier = 'professional',
-    professional_unlocked = TRUE,
-    has_freelancer_store = TRUE,
-    updated_at = NOW()
+    account_type = 'professional',
+    status = 'active'
   WHERE id = v_id;
 
-  INSERT INTO public.professional_profiles (account_id, slug, headline, full_name, is_public, is_premium)
-  VALUES (v_id, 'bakkar-3d', 'Premium Member', 'Bakkar.3d', TRUE, TRUE)
-  ON CONFLICT (account_id) DO UPDATE SET
-    slug = EXCLUDED.slug,
+  INSERT INTO public.profiles (id, full_name, updated_at)
+  VALUES (v_id, 'Bakkar.3d', NOW())
+  ON CONFLICT (id) DO UPDATE SET
     full_name = EXCLUDED.full_name,
-    is_premium = TRUE,
     updated_at = NOW();
 
-  INSERT INTO public.account_subscription_assignments (account_id, tier_id, status, source, expires_at)
-  VALUES (v_id, 'premium-user', 'active', 'manual_override', NULL)
+  INSERT INTO public.account_subscription_assignments (account_id, tier_id, status, expires_at, updated_at)
+  VALUES (v_id, 'premium-user', 'active', NULL, NOW())
   ON CONFLICT (account_id) DO UPDATE SET
     tier_id = 'premium-user',
     status = 'active',
-    source = 'manual_override',
     expires_at = NULL,
     updated_at = NOW();
 
-  INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason, granted_by, expires_at)
-  VALUES (v_id, 'premium-user', 'Lifetime free premium — founder account', 'seed_production_accounts', NULL)
+  INSERT INTO public.subscription_manual_overrides (account_id, tier_id, reason)
+  VALUES (v_id, 'premium-user', 'Lifetime free premium — founder account')
   ON CONFLICT (account_id) DO UPDATE SET
     tier_id = 'premium-user',
-    reason = EXCLUDED.reason,
-    expires_at = NULL,
-    granted_at = NOW();
+    reason = EXCLUDED.reason;
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -225,21 +197,17 @@ END $$;
 -- ---------------------------------------------------------------------------
 SELECT
   a.email,
-  a.full_name,
-  a.primary_role,
   a.account_type,
-  a.professional_unlocked,
-  a.has_freelancer_store,
-  pp.slug AS profile_slug,
-  pp.full_name AS profile_display_name,
-  pp.is_premium,
+  a.status,
+  p.full_name AS profile_display_name,
   c.name AS company_name,
   c.slug AS company_slug,
   asa.tier_id,
+  asa.status AS subscription_status,
   asa.expires_at,
   smo.reason AS override_reason
 FROM public.accounts a
-LEFT JOIN public.professional_profiles pp ON pp.account_id = a.id
+LEFT JOIN public.profiles p ON p.id = a.id
 LEFT JOIN public.companies c ON c.owner_account_id = a.id
 LEFT JOIN public.account_subscription_assignments asa ON asa.account_id = a.id
 LEFT JOIN public.subscription_manual_overrides smo ON smo.account_id = a.id

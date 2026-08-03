@@ -43,7 +43,25 @@ Supabase Auth allows **one auth user per email address**. Company and admin are 
 | Manage subscriptions (admin) | Yes | No | Yes | No |
 
 Owner effective role is determined by `VORA_PLATFORM_OWNER_EMAIL` env var matching
-`booody3d@gmail.com`, regardless of DB `primary_role`.
+`booody3d@gmail.com`, regardless of DB `account_type`.
+
+---
+
+## Production Schema (PostgREST-probed)
+
+The live Supabase project uses a **slim schema** that differs from migration files 001/012:
+
+| Table | Columns (production) |
+|-------|---------------------|
+| `accounts` | `id`, `email`, `account_type`, `status` |
+| `profiles` | `id`, `full_name`, `updated_at` (NOT `professional_profiles`) |
+| `companies` | `id`, `owner_account_id`, `slug`, `name`, `updated_at` |
+| `account_subscription_assignments` | `account_id`, `tier_id`, `status`, `expires_at`, `updated_at` |
+| `subscription_manual_overrides` | `account_id`, `tier_id`, `reason` |
+
+Roles are stored in `accounts.account_type`: `owner`, `company`, `admin`, `professional`.
+Display names live in `profiles.full_name` (profile `id` = account `id`).
+Premium badge uses `account_subscription_assignments` + `subscription_manual_overrides` with tier `premium-user`.
 
 ---
 
@@ -100,22 +118,30 @@ WHERE label_key IN ('nav.profile', 'sidebar.freelance.orders');
 
 ### 4. Seed account roles and profiles
 
-```sql
--- Run in Supabase SQL Editor:
-\i supabase/scripts/seed_production_accounts.sql
+**Preferred (REST, uses service role from `.env.local`):**
+
+```bash
+node scripts/seed-production-accounts-rest.mjs
 ```
 
-Or paste the contents of `supabase/scripts/seed_production_accounts.sql` into the SQL Editor.
+**Alternative (SQL Editor or direct Postgres):**
+
+```bash
+node scripts/run-sql-file.mjs supabase/scripts/seed_production_accounts.sql
+```
+
+Or paste `supabase/scripts/seed_production_accounts.sql` into the Supabase SQL Editor.
 
 The script is idempotent and skips accounts whose auth user does not yet exist.
 
 ### 5. Verify
 
 ```sql
-SELECT a.email, a.full_name, a.primary_role, pp.slug, pp.full_name, pp.is_premium, c.name
+SELECT a.email, a.account_type, a.status, p.full_name, c.name, c.slug, asa.tier_id
 FROM accounts a
-LEFT JOIN professional_profiles pp ON pp.account_id = a.id
+LEFT JOIN profiles p ON p.id = a.id
 LEFT JOIN companies c ON c.owner_account_id = a.id
+LEFT JOIN account_subscription_assignments asa ON asa.account_id = a.id
 WHERE lower(a.email) IN (
   'booody3d@gmail.com',
   'abadi.5g@outlook.com',
@@ -137,7 +163,9 @@ BASE_URL=https://your-app.vercel.app npm run smoke:production
 
 | File | Purpose |
 |------|---------|
-| `supabase/scripts/seed_production_accounts.sql` | Email-based role/profile/company/premium seed |
+| `supabase/scripts/seed_production_accounts.sql` | Email-based role/profile/company/premium seed (SQL) |
+| `scripts/seed-production-accounts-rest.mjs` | Same seed via PostgREST service role (preferred) |
+| `scripts/probe-schema.mjs` | Read-only production schema probe |
 | `supabase/migrations/029_fix_navigation_demo_hrefs.sql` | Fix demo nav hrefs (404 sources) |
 | `.env.local.example` | Env var placeholders |
 | `src/lib/security/roles.ts` | Owner email + admin test email resolution |
