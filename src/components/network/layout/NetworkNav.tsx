@@ -8,7 +8,6 @@ import { NavRouteLink, shouldHardNavigate } from "@/components/navigation/NavRou
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { GlobalSearchBar } from "@/components/search/GlobalSearchBar";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
 import { usePublicPageHref } from "@/hooks/use-public-page-href";
 import { useTranslations } from "@/i18n/use-translations";
@@ -72,7 +71,7 @@ export function NetworkNav() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#0F172A] shadow-lg">
-      <div className="mx-auto flex max-w-[1440px] items-center gap-3 px-4 py-2.5 md:gap-4 md:px-6">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 py-2.5 md:gap-4 md:px-6">
         <div className="flex min-w-0 shrink-0 items-center gap-4 md:gap-6">
           <VoraLogo size="sm" href={logoHref} />
           <nav className="hidden items-center gap-1 md:flex">
@@ -111,12 +110,8 @@ export function NetworkNav() {
           </nav>
         </div>
 
-        <div className="hidden min-w-0 flex-1 md:block md:max-w-xl lg:max-w-2xl">
-          <GlobalSearchBar variant="nav" />
-        </div>
-
-        <DualDashboardToggle />
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
+          <DualDashboardToggle />
           {isAdminUser && (
             <NavRouteLink
               href="/admin"

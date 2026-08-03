@@ -22,7 +22,7 @@ const TYPE_LABELS: Record<SearchResult["type"], string> = {
 };
 
 interface GlobalSearchBarProps {
-  variant?: "nav" | "page";
+  variant?: "nav" | "sidebar" | "page";
   className?: string;
 }
 
@@ -72,12 +72,17 @@ export function GlobalSearchBar({ variant = "nav", className }: GlobalSearchBarP
     router.push(`/network/search?q=${encodeURIComponent(trimmed)}`);
   }
 
-  const isNav = variant === "nav";
+  const isDarkDropdown = variant === "nav" || variant === "sidebar";
 
   return (
     <div ref={containerRef} className={cn("relative w-full", className)}>
       <form onSubmit={handleSubmit} className="relative">
-        <span className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-slate-400">
+        <span
+          className={cn(
+            "pointer-events-none absolute start-3 top-1/2 -translate-y-1/2",
+            variant === "sidebar" ? "text-slate-400" : "text-slate-400"
+          )}
+        >
           🔍
         </span>
         <input
@@ -87,10 +92,13 @@ export function GlobalSearchBar({ variant = "nav", className }: GlobalSearchBarP
           onFocus={() => query.trim() && setOpen(true)}
           placeholder={t("search.globalPlaceholder")}
           className={cn(
-            "w-full rounded-full border ps-9 pe-4 text-sm outline-none transition-colors",
-            isNav
-              ? "border-white/15 bg-white/10 py-2 text-white placeholder:text-slate-400 focus:border-[#3B5998] focus:bg-white/15"
-              : "border-slate-200 bg-white py-3 text-slate-800 placeholder:text-slate-400 focus:border-[#3B5998]"
+            "w-full rounded-full border ps-10 pe-4 outline-none transition-colors",
+            variant === "nav" &&
+              "min-h-11 border-white/20 bg-white/10 py-2.5 text-base text-white placeholder:text-slate-300 focus:border-[#3B5998] focus:bg-white/15",
+            variant === "sidebar" &&
+              "min-h-11 border-slate-700 bg-slate-800/80 py-2.5 text-base text-white placeholder:text-slate-400 focus:border-[#3B5998] focus:bg-slate-800",
+            variant === "page" &&
+              "border-slate-200 bg-white py-3 text-base text-slate-800 placeholder:text-slate-400 focus:border-[#3B5998]"
           )}
         />
       </form>
@@ -99,11 +107,11 @@ export function GlobalSearchBar({ variant = "nav", className }: GlobalSearchBarP
         <div
           className={cn(
             "absolute top-[calc(100%+8px)] z-50 max-h-80 w-full overflow-y-auto rounded-xl border shadow-xl",
-            isNav ? "border-slate-700 bg-[#0F172A]" : "border-slate-200 bg-white"
+            isDarkDropdown ? "border-slate-700 bg-[#0F172A]" : "border-slate-200 bg-white"
           )}
         >
           {loading && (
-            <p className={cn("px-4 py-3 text-sm", isNav ? "text-slate-400" : "text-slate-500")}>
+            <p className={cn("px-4 py-3 text-sm", isDarkDropdown ? "text-slate-400" : "text-slate-500")}>
               {t("common.loading")}
             </p>
           )}
@@ -115,7 +123,7 @@ export function GlobalSearchBar({ variant = "nav", className }: GlobalSearchBarP
                 onClick={() => setOpen(false)}
                 className={cn(
                   "flex items-start gap-3 px-4 py-3 transition-colors",
-                  isNav ? "hover:bg-white/5" : "hover:bg-slate-50"
+                  isDarkDropdown ? "hover:bg-white/5" : "hover:bg-slate-50"
                 )}
               >
                 <span
@@ -129,17 +137,17 @@ export function GlobalSearchBar({ variant = "nav", className }: GlobalSearchBarP
                   {TYPE_LABELS[result.type]}
                 </span>
                 <div className="min-w-0">
-                  <p className={cn("truncate text-sm font-medium", isNav ? "text-white" : "text-slate-900")}>
+                  <p className={cn("truncate text-sm font-medium", isDarkDropdown ? "text-white" : "text-slate-900")}>
                     {result.title}
                   </p>
-                  <p className={cn("truncate text-xs", isNav ? "text-slate-400" : "text-slate-500")}>
+                  <p className={cn("truncate text-xs", isDarkDropdown ? "text-slate-400" : "text-slate-500")}>
                     {result.subtitle}
                   </p>
                 </div>
               </Link>
             ))}
           {!loading && results.length === 0 && query.trim() && (
-            <p className={cn("px-4 py-3 text-sm", isNav ? "text-slate-400" : "text-slate-500")}>
+            <p className={cn("px-4 py-3 text-sm", isDarkDropdown ? "text-slate-400" : "text-slate-500")}>
               {t("search.noResults")}
             </p>
           )}
@@ -152,7 +160,7 @@ export function GlobalSearchBar({ variant = "nav", className }: GlobalSearchBarP
               }}
               className={cn(
                 "w-full border-t px-4 py-2 text-start text-xs font-medium",
-                isNav
+                isDarkDropdown
                   ? "border-slate-700 text-[#93C5FD] hover:bg-white/5"
                   : "border-slate-100 text-[#3B5998] hover:bg-slate-50"
               )}

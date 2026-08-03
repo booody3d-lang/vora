@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { VoraLogo } from "@/components/brand/VoraLogo";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { SidebarProfileCard } from "@/components/layout/SidebarProfileCard";
+import { GlobalSearchBar } from "@/components/search/GlobalSearchBar";
 import { NavRouteLink, isValidNavHref, shouldHardNavigate } from "@/components/navigation/NavRouteLink";
 import { useSidebar } from "@/providers/SidebarProvider";
 import { useLocale } from "@/providers/LocaleProvider";
@@ -131,6 +132,12 @@ export function Sidebar() {
             {mode === "network" ? t("sidebar.networkPlatform") : t("sidebar.freelancePlatform")}
           </p>
         </div>
+
+        {mode === "network" && (
+          <div className="px-3 pt-3">
+            <GlobalSearchBar variant="sidebar" />
+          </div>
+        )}
 
         <div className="px-3 pt-3">
           {!isCompanyAccount && (

@@ -68,11 +68,11 @@ export function MarketplaceSearch() {
           onFocus={() => query.length > 1 && setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={t("marketplace.searchPlaceholder")}
-          className="flex-1 rounded-xl border border-white/20 bg-white/95 px-5 py-3.5 text-sm text-slate-800 shadow-lg outline-none placeholder:text-slate-400 focus:border-[#EA580C]"
+          className="min-h-11 flex-1 rounded-xl border border-white/20 bg-white/95 px-5 py-3 text-base text-slate-800 shadow-lg outline-none placeholder:text-slate-400 focus:border-[#EA580C]"
         />
         <button
           type="submit"
-          className="rounded-xl bg-[#EA580C] px-6 py-3.5 text-sm font-semibold text-white shadow-lg hover:opacity-90"
+          className="min-h-11 rounded-xl bg-[#EA580C] px-6 py-3 text-base font-semibold text-white shadow-lg hover:opacity-90"
         >
           {t("marketplace.searchButton")}
         </button>
