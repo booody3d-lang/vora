@@ -29,6 +29,8 @@ function meetsRoleRequirement(userRole: VoraRole, minRole: VoraRole | null): boo
   return ROLE_RANK[userRole] >= ROLE_RANK[minRole];
 }
 
+const MESSAGING_HREFS = new Set(["/network/messages", "/freelance/messages"]);
+
 export function personalizeNavHref(
   href: string,
   context?: {
@@ -38,6 +40,11 @@ export function personalizeNavHref(
     role?: VoraRole;
   }
 ): string {
+  const pathOnly = href.split("?")[0].split("#")[0].replace(/\/+$/, "") || "/";
+  if (MESSAGING_HREFS.has(pathOnly)) {
+    return href;
+  }
+
   let result = resolveProfileNavHref(href, context?.profileSlug, {
     role: context?.role,
     companySlug: context?.companySlug,

@@ -28,10 +28,15 @@ const MIDDLEWARE_GATED_PREFIXES = [
 ];
 
 export function shouldHardNavigate(href: string): boolean {
-  const path = href.split("?")[0].split("#")[0];
+  const path = href.split("?")[0].split("#")[0].replace(/\/+$/, "") || "/";
   return MIDDLEWARE_GATED_PREFIXES.some(
     (prefix) => path === prefix || path.startsWith(`${prefix}/`)
   );
+}
+
+function hardNavigateTo(href: string, onNavigate?: () => void) {
+  onNavigate?.();
+  window.location.assign(href);
 }
 
 interface NavRouteLinkProps {
@@ -66,7 +71,10 @@ export function NavRouteLink({
         href={href}
         aria-label={ariaLabel}
         className={className}
-        onClick={() => onNavigate?.()}
+        onClick={(event) => {
+          event.preventDefault();
+          hardNavigateTo(href, onNavigate);
+        }}
       >
         {children}
       </a>

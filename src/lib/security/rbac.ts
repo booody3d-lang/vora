@@ -195,6 +195,8 @@ const ROLE_HIERARCHY: VoraRole[] = ["visitor", "registered", "professional", "co
 
 export function roleMeetsMinimum(current: VoraRole, required: VoraRole): boolean {
   if (current === "owner") return true;
+  // Limited admins inherit registered/professional/company route minimums.
+  if (current === "admin" && required !== "owner") return true;
   if (required === "admin" && current === "admin") return true;
   if (required === "company" && current === "company") return true;
   if (required === "professional" && current === "professional") return true;
