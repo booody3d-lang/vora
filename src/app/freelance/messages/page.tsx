@@ -11,6 +11,9 @@ export default async function FreelanceMessagesPage() {
   if (!auth) {
     redirect("/auth/login?next=/freelance/messages");
   }
+  if (auth.session.role === "company") {
+    redirect("/company/dashboard");
+  }
 
   const [sessions, inquiries] = await Promise.all([
     listChatSessionsForAccount(auth.user.id),

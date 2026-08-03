@@ -1232,6 +1232,23 @@
     "continue": "متابعة",
     "enterPlatform": "الدخول إلى المنصة"
   },
+  "calls": {
+    "startVideo": "مكالمة فيديو",
+    "startAudio": "مكالمة صوت",
+    "incoming": "مكالمة واردة من {name}",
+    "calling": "جاري الاتصال بـ {name}...",
+    "inCall": "في مكالمة مع {name}",
+    "videoMode": "فيديو",
+    "audioMode": "صوت فقط",
+    "you": "أنت",
+    "accept": "قبول",
+    "decline": "رفض",
+    "leave": "مغادرة",
+    "mute": "كتم",
+    "unmute": "إلغاء الكتم",
+    "cameraOff": "إيقاف الكاميرا",
+    "cameraOn": "تشغيل الكاميرا"
+  },
   "seo": {
     "siteName": "VORA",
     "defaultDescription": "شبكة مهنية وسوق فريلانس في السعودية. وظائف، تواصل، وخدمات بسعر ثابت مع حماية Escrow.",

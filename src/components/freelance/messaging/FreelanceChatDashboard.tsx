@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { FreelanceChatSession, FreelanceInquiry } from "@/types/notifications";
 import { DEMO_FREELANCE_CHATS, DEMO_INQUIRIES } from "@/lib/notifications/mock-data";
 import { MessageInput } from "@/components/network/messaging/MessageInput";
+import { CallControls } from "@/components/calls/CallControls";
 import { useLocale } from "@/providers/LocaleProvider";
 import { useNotificationTrigger } from "@/hooks/useNotificationTrigger";
 import { buildTriggerNotification } from "@/lib/notifications/triggers";
@@ -166,6 +167,24 @@ export function FreelanceChatDashboard({
                 <ChatLockedState locale={locale} />
               ) : (
                 <>
+                  <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#0F172A]">
+                        {isSeller ? active.buyerName : active.sellerName}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {isAr ? "محادثة الأعمال الحرة" : "Freelance chat"}
+                      </p>
+                    </div>
+                    {viewerAccountId && (
+                      <CallControls
+                        contextType="freelance"
+                        contextId={active.id}
+                        localAccountId={viewerAccountId}
+                        peerLabel={isSeller ? active.buyerName : active.sellerName}
+                      />
+                    )}
+                  </div>
                   <div className="flex-1 overflow-y-auto px-4 py-4">
                     <ul className="space-y-3">
                       {messages.map((msg) => (

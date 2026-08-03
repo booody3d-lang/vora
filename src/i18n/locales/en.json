@@ -1232,6 +1232,23 @@
     "continue": "Continue",
     "enterPlatform": "Enter Platform"
   },
+  "calls": {
+    "startVideo": "Video call",
+    "startAudio": "Voice call",
+    "incoming": "Incoming call from {name}",
+    "calling": "Calling {name}...",
+    "inCall": "In call with {name}",
+    "videoMode": "Video",
+    "audioMode": "Voice only",
+    "you": "You",
+    "accept": "Accept",
+    "decline": "Decline",
+    "leave": "Leave",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "cameraOff": "Turn camera off",
+    "cameraOn": "Turn camera on"
+  },
   "seo": {
     "siteName": "VORA",
     "defaultDescription": "Professional Network & Freelance Marketplace in Saudi Arabia. Jobs, connections, and fixed-price services with escrow protection.",

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { ChatMessage, ConversationPreview, MessageAttachment } from "@/types/network";
+import { CallControls } from "@/components/calls/CallControls";
 import { MessageInput } from "@/components/network/messaging/MessageInput";
 import { ChatMessageMedia } from "@/components/network/messaging/ChatMessageMedia";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -74,6 +75,13 @@ export function MessageThread({
               : conversation.participant.headline}
           </p>
         </div>
+        <CallControls
+          contextType="network"
+          contextId={conversation.id}
+          localAccountId={currentUserId}
+          peerLabel={conversation.participant.fullName}
+          disabled={disabled}
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto bg-slate-50/60 px-4 py-4">

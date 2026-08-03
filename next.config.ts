@@ -1,6 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+const videoCallsEnabled = process.env.NEXT_PUBLIC_ENABLE_VIDEO_CALLS === "true";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
@@ -26,7 +28,12 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          {
+            key: "Permissions-Policy",
+            value: videoCallsEnabled
+              ? "camera=(self), microphone=(self), geolocation=()"
+              : "camera=(), microphone=(), geolocation=()",
+          },
         ],
       },
       {
