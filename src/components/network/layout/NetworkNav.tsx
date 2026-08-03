@@ -14,11 +14,17 @@ import { useTranslations } from "@/i18n/use-translations";
 import { usePermissions } from "@/providers/VoraProviders";
 import { cn } from "@/lib/utils";
 
-const NAV_KEYS = [
+const PROFESSIONAL_NAV_KEYS = [
   { href: "/network", labelKey: "nav.home", icon: "🏠", matchPrefix: false },
   { href: "/network/messages", labelKey: "nav.messaging", icon: "💬", matchPrefix: true },
   { href: "/network/jobs", labelKey: "nav.jobs", icon: "💼", matchPrefix: true },
   { href: "/network/ai", labelKey: "nav.voraAi", icon: "✨", matchPrefix: true },
+] as const;
+
+const COMPANY_NAV_KEYS = [
+  { href: "/company/dashboard", labelKey: "company.nav.portal", icon: "🏠", matchPrefix: false },
+  { href: "/network/messages", labelKey: "nav.messaging", icon: "💬", matchPrefix: true },
+  { href: "/company/dashboard/jobs", labelKey: "company.nav.jobs", icon: "💼", matchPrefix: true },
 ] as const;
 
 export function NetworkNav() {
@@ -28,29 +34,30 @@ export function NetworkNav() {
   const { avatarUrl, gender, profile, fullName, profilePhotoUrl, subscriptionBadge } =
     useCurrentProfile();
   const profileHref = usePublicPageHref();
+  const isCompany = role === "company";
 
-  const visibleNavKeys = NAV_KEYS.filter(
-    (item) => role !== "company" || item.labelKey !== "nav.voraAi"
-  );
+  const baseNavKeys = isCompany ? COMPANY_NAV_KEYS : PROFESSIONAL_NAV_KEYS;
 
   const navItems = [
-    NAV_KEYS[0],
+    baseNavKeys[0],
     {
       href: profileHref,
-      labelKey: (role === "company" ? "company.nav.companyPage" : "nav.profile") as
+      labelKey: (isCompany ? "company.nav.companyPage" : "nav.profile") as
         | "company.nav.companyPage"
         | "nav.profile",
-      icon: role === "company" ? "🏢" : "👤",
+      icon: isCompany ? "🏢" : "👤",
       matchPrefix: true,
     },
-    ...visibleNavKeys.slice(1),
+    ...baseNavKeys.slice(1),
   ];
+
+  const logoHref = isCompany ? "/company/dashboard" : "/network";
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#0F172A] shadow-lg">
       <div className="mx-auto flex max-w-[1440px] items-center gap-3 px-4 py-2.5 md:gap-4 md:px-6">
         <div className="flex min-w-0 shrink-0 items-center gap-4 md:gap-6">
-          <VoraLogo size="sm" href="/network" />
+          <VoraLogo size="sm" href={logoHref} />
           <nav className="hidden items-center gap-1 lg:flex">
             {navItems.map((item) => {
               const href = item.href;
@@ -60,7 +67,9 @@ export function NetworkNav() {
                   (pathname.startsWith("/network/profile/") ||
                     pathname.startsWith("/network/company/") ||
                     pathname === "/profile/me")) ||
-                (item.matchPrefix && href !== "/network" && pathname.startsWith(href));
+                (item.labelKey === "company.nav.portal" && pathname === "/company/dashboard") ||
+                (item.labelKey === "company.nav.jobs" && pathname.startsWith("/company/dashboard/jobs")) ||
+                (item.matchPrefix && href !== "/network" && href !== "/company/dashboard" && pathname.startsWith(href));
               return (
                 <Link
                   key={item.labelKey}

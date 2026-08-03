@@ -33,23 +33,26 @@ export function appendRoleShortcuts(
 
   if (!ctx.isAuthenticated) return [...links, ...extras];
 
+  if (ctx.role === "company" && ctx.platform === "network") {
+    for (const link of links) {
+      if (link.labelKey === "nav.home") {
+        link.href = "/company/dashboard";
+        link.labelKey = "company.nav.portal";
+        link.labelEn = "Dashboard";
+        link.labelAr = "لوحة التحكم";
+        link.icon = "🏠";
+      }
+      if (link.labelKey === "nav.jobs") {
+        link.href = "/company/dashboard/jobs";
+        link.labelKey = "company.nav.jobs";
+        link.labelEn = "Manage Jobs";
+        link.labelAr = "إدارة الوظائف";
+        link.icon = "💼";
+      }
+    }
+  }
+
   if (ctx.role === "company") {
-    add({
-      id: "role-company-portal",
-      href: "/company/dashboard",
-      icon: "🏢",
-      labelKey: "company.nav.portal",
-      labelEn: "Company Portal",
-      labelAr: "بوابة الشركة",
-    });
-    add({
-      id: "role-company-jobs",
-      href: "/company/dashboard/jobs",
-      icon: "📋",
-      labelKey: "company.nav.jobs",
-      labelEn: "Manage Jobs",
-      labelAr: "إدارة الوظائف",
-    });
     add({
       id: "role-company-analytics",
       href: "/company/dashboard/analytics",

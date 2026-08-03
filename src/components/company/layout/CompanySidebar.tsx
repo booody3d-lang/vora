@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/company/dashboard/jobs", labelKey: "company.nav.jobs", icon: "💼" },
   { href: "/company/dashboard/jobs/new", labelKey: "company.nav.postJob", icon: "➕" },
   { href: "/company/dashboard/analytics", labelKey: "company.nav.analytics", icon: "📈" },
+  { href: "/network/messages", labelKey: "nav.messaging", icon: "💬" },
 ] as const;
 
 export function CompanySidebar() {

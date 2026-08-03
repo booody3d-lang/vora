@@ -45,6 +45,14 @@ export function personalizeNavHref(
   if (context?.storeSlug) {
     result = result.replace("{storeSlug}", context.storeSlug);
   }
+  if (context?.role === "company") {
+    if (result === "/network" || result === "/network/") {
+      return "/company/dashboard";
+    }
+    if (result === "/network/jobs") {
+      return "/company/dashboard/jobs";
+    }
+  }
   return result;
 }
 

@@ -75,6 +75,11 @@ export function Sidebar() {
   const styles = MODE_STYLES[mode];
   const isRtl = dir === "rtl";
   const isCompanyAccount = role === "company";
+  const homeHref = isCompanyAccount
+    ? "/company/dashboard"
+    : mode === "network"
+      ? "/network"
+      : "/freelance";
 
   async function handleLogout() {
     await fetch("/api/auth/logout", {
@@ -119,7 +124,7 @@ export function Sidebar() {
         <div className={cn("border-b p-5", styles.footer)}>
           <VoraLogo
             size="lg"
-            href={mode === "network" ? "/network" : "/freelance"}
+            href={homeHref}
             linkClassName="block transition-opacity hover:opacity-90"
           />
           <p className={cn("mt-1 text-[10px] uppercase tracking-widest", styles.subtitle)}>
@@ -185,9 +190,11 @@ export function Sidebar() {
             links.map((item) => {
               const active =
                 pathname === item.href ||
-                (item.href !== "/network" &&
-                  item.href !== "/freelance" &&
-                  pathname.startsWith(item.href));
+                (item.href === "/company/dashboard"
+                  ? pathname === "/company/dashboard"
+                  : item.href !== "/network" &&
+                    item.href !== "/freelance" &&
+                    pathname.startsWith(item.href));
 
               return (
                 <Link

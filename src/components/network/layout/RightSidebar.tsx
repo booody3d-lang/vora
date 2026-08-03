@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { RecommendedJob } from "@/types/network";
 import { useTranslations } from "@/i18n/use-translations";
+import { usePermissions } from "@/providers/VoraProviders";
 
 const MatchmakingPanel = dynamic(
   () => import("@/components/ai/MatchmakingPanel").then((mod) => mod.MatchmakingPanel),
@@ -20,9 +21,12 @@ const MatchmakingPanel = dynamic(
 
 export function RightSidebar() {
   const { t } = useTranslations();
+  const { role } = usePermissions();
   const [jobs, setJobs] = useState<RecommendedJob[]>([]);
 
   useEffect(() => {
+    if (role === "company") return;
+
     let cancelled = false;
     void fetch("/api/jobs", { credentials: "include" })
       .then((res) => res.json())
@@ -35,7 +39,39 @@ export function RightSidebar() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [role]);
+
+  if (role === "company") {
+    return (
+      <aside className="space-y-4">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h2 className="text-sm font-bold text-[#0F172A]">{t("company.dashboard.quickActions")}</h2>
+          </div>
+          <div className="space-y-1 p-3">
+            <Link
+              href="/company/dashboard/jobs/new"
+              className="block rounded-lg px-3 py-2.5 text-sm font-medium text-[#3B5998] hover:bg-slate-50"
+            >
+              {t("company.dashboard.postNewJob")}
+            </Link>
+            <Link
+              href="/company/dashboard/jobs"
+              className="block rounded-lg px-3 py-2.5 text-sm font-medium text-[#3B5998] hover:bg-slate-50"
+            >
+              {t("company.dashboard.manageJobs")}
+            </Link>
+            <Link
+              href="/company/dashboard/analytics"
+              className="block rounded-lg px-3 py-2.5 text-sm font-medium text-[#3B5998] hover:bg-slate-50"
+            >
+              {t("company.dashboard.viewAnalytics")}
+            </Link>
+          </div>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className="space-y-4">

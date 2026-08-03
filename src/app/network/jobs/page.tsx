@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { JobsListView } from "@/components/network/jobs/JobsListView";
 import { buildPageMetadata } from "@/lib/seo/metadata";
+import { getAuthenticatedUser } from "@/lib/security/session";
 
 export const metadata = buildPageMetadata({
   title: "Job Opportunities | VORA Network",
@@ -8,6 +10,11 @@ export const metadata = buildPageMetadata({
   keywords: ["jobs", "careers", "Saudi Arabia", "VORA", "professional network"],
 });
 
-export default function JobsPage() {
+export default async function JobsPage() {
+  const auth = await getAuthenticatedUser();
+  if (auth?.session.role === "company") {
+    redirect("/company/dashboard/jobs");
+  }
+
   return <JobsListView />;
 }

@@ -77,7 +77,11 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
       }
       setPlatform(next);
       if (options?.navigate !== false) {
-        router.push(next === "network" ? "/network" : "/freelance");
+        if (role === "company") {
+          router.push("/company/dashboard");
+        } else {
+          router.push(next === "network" ? "/network" : "/freelance");
+        }
       }
     },
     [router, setPlatform, role]

@@ -83,11 +83,25 @@ export async function middleware(request: NextRequest) {
 
       if (user) {
         const role = resolveRoleFromSupabaseUser(user);
-        if (role === "company" && barePath.startsWith("/network/profile/")) {
-          const redirectUrl = request.nextUrl.clone();
-          redirectUrl.pathname = "/profile/me";
-          redirectUrl.search = "";
-          return NextResponse.redirect(redirectUrl);
+        if (role === "company") {
+          if (barePath.startsWith("/network/profile/")) {
+            const redirectUrl = request.nextUrl.clone();
+            redirectUrl.pathname = "/profile/me";
+            redirectUrl.search = "";
+            return NextResponse.redirect(redirectUrl);
+          }
+          if (barePath === "/network" || barePath === "/network/") {
+            const redirectUrl = request.nextUrl.clone();
+            redirectUrl.pathname = "/company/dashboard";
+            redirectUrl.search = "";
+            return NextResponse.redirect(redirectUrl);
+          }
+          if (barePath === "/network/jobs") {
+            const redirectUrl = request.nextUrl.clone();
+            redirectUrl.pathname = "/company/dashboard/jobs";
+            redirectUrl.search = "";
+            return NextResponse.redirect(redirectUrl);
+          }
         }
       }
 

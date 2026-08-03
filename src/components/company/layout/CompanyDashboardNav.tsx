@@ -25,20 +25,20 @@ export function CompanyDashboardNav() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href="/company/dashboard/settings"
-            className="text-xs font-medium text-slate-400 hover:text-white"
-          >
-            {t("company.nav.companyPage")}
-          </Link>
           {publicPageHref && (
             <Link
               href={publicPageHref}
               className="text-xs font-medium text-slate-400 hover:text-white"
             >
-              {t("company.nav.publicPage")}
+              {t("company.nav.companyPage")}
             </Link>
           )}
+          <Link
+            href="/company/dashboard/settings"
+            className="text-xs font-medium text-slate-400 hover:text-white"
+          >
+            {t("nav.settings")}
+          </Link>
           {company?.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

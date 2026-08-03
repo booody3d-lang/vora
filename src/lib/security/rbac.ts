@@ -32,6 +32,8 @@ const ROLE_PERMISSIONS: Record<VoraRole, Set<RbacAction>> = {
     "manage_company",
     "manage_ats",
     "buy_corporate_plan",
+    "network_message",
+    "engage_content",
   ]),
   admin: new Set([
     "browse_public",
@@ -176,7 +178,8 @@ export function shouldEnforceRouteRole(_pathname: string): boolean {
 export function getMinimumRoleForRoute(pathname: string): VoraRole | null {
   if (pathname.startsWith("/admin")) return "admin";
   if (pathname.startsWith("/company/dashboard")) return "company";
-  if (pathname.startsWith("/network/messages") || pathname.startsWith("/network/ai")) return "professional";
+  if (pathname.startsWith("/network/ai")) return "professional";
+  if (pathname.startsWith("/network/messages")) return "registered";
   if (pathname.startsWith("/freelance/dashboard") || pathname.startsWith("/freelance/messages")) return "registered";
   if (pathname.startsWith("/billing")) return "registered";
   return null;
@@ -189,7 +192,12 @@ export function roleMeetsMinimum(current: VoraRole, required: VoraRole): boolean
   if (required === "admin" && current === "admin") return true;
   if (required === "company" && current === "company") return true;
   if (required === "professional" && current === "professional") return true;
-  if (required === "registered" && (current === "registered" || current === "professional")) return true;
+  if (
+    required === "registered" &&
+    (current === "registered" || current === "professional" || current === "company")
+  ) {
+    return true;
+  }
   return current === required;
 }
 
