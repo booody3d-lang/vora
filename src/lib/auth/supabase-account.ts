@@ -94,14 +94,36 @@ function mapRoleToAuthUser(
   };
 }
 
-export function mapProductionAccount(row: ProductionAccountRow): AuthUser {
+export function mapProductionAccount(
+  row: ProductionAccountRow,
+  profileFullName?: string | null
+): AuthUser {
   const role = parseRole(row.account_type) ?? "registered";
-  return mapRoleToAuthUser(row, role, { status: row.status });
+  return mapRoleToAuthUser(row, role, {
+    status: row.status,
+    full_name: profileFullName ?? undefined,
+  });
 }
 
 export function mapDbAccount(row: DbAccountRow): AuthUser {
   const role = row.primary_role ?? "registered";
   return mapRoleToAuthUser(row, role, row);
+}
+
+async function fetchProfileDisplayName(accountId: string): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("full_name")
+    .eq("id", accountId)
+    .maybeSingle();
+  if (error) {
+    if (!isMissingRelationError(error)) {
+      console.error("[supabase-account] fetch profile display name:", error.message);
+    }
+    return null;
+  }
+  return (data?.full_name as string | null) ?? null;
 }
 
 async function fetchAccountById(accountId: string): Promise<AuthUser | null> {
@@ -116,7 +138,8 @@ async function fetchAccountById(accountId: string): Promise<AuthUser | null> {
     .maybeSingle();
 
   if (!production.error && production.data) {
-    return mapProductionAccount(production.data as ProductionAccountRow);
+    const profileName = await fetchProfileDisplayName(accountId);
+    return mapProductionAccount(production.data as ProductionAccountRow, profileName);
   }
 
   if (production.error && !isMissingColumnError(production.error) && !isMissingRelationError(production.error)) {
