@@ -5,6 +5,7 @@ import {
   getAccessDeniedRedirect,
   getCompanyNetworkRedirectTarget,
   isCompanyNetworkRedirectSource,
+  isCompanyPath,
   isPageAllowedForRole,
   resolveRoleForMiddleware,
   shouldApplyAccessDeniedRedirect,
@@ -79,23 +80,30 @@ export async function middleware(request: NextRequest) {
       if (user) {
         const role = await resolveRoleForMiddleware(user, supabase);
 
-        if (needsAuth && !isPageAllowedForRole(barePath, role)) {
-          const deniedPath = getAccessDeniedRedirect(barePath, role);
-          if (shouldApplyAccessDeniedRedirect(barePath, deniedPath, role)) {
-            const deniedUrl = request.nextUrl.clone();
-            deniedUrl.pathname = deniedPath;
-            deniedUrl.search = "";
-            return NextResponse.redirect(deniedUrl);
-          }
-        }
-
+        // Single company rule: /network → /company/dashboard (once, before RBAC).
         if (role === "company" && isCompanyNetworkRedirectSource(barePath)) {
           const companyTarget = getCompanyNetworkRedirectTarget(barePath);
           if (companyTarget && companyTarget !== barePath) {
             const redirectUrl = request.nextUrl.clone();
             redirectUrl.pathname = companyTarget;
             redirectUrl.search = "";
-            return NextResponse.redirect(redirectUrl);
+            return NextResponse.redirect(redirectUrl, 307);
+          }
+        }
+
+        const skipRbacForCompanyOnCompanyPaths = role === "company" && isCompanyPath(barePath);
+
+        if (
+          needsAuth &&
+          !skipRbacForCompanyOnCompanyPaths &&
+          !isPageAllowedForRole(barePath, role)
+        ) {
+          const deniedPath = getAccessDeniedRedirect(barePath, role);
+          if (shouldApplyAccessDeniedRedirect(barePath, deniedPath, role)) {
+            const deniedUrl = request.nextUrl.clone();
+            deniedUrl.pathname = deniedPath;
+            deniedUrl.search = "";
+            return NextResponse.redirect(deniedUrl);
           }
         }
       }
