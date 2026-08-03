@@ -215,13 +215,12 @@ BEGIN
       END IF;
 
       INSERT INTO public.freelancer_stores (
-        account_id, slug, store_name, is_active, updated_at
+        account_id, slug, store_name, updated_at
       )
-      VALUES (v_id, rec.store_slug, rec.store_name, TRUE, NOW())
+      VALUES (v_id, rec.store_slug, rec.store_name, NOW())
       ON CONFLICT (account_id) DO UPDATE SET
         slug = EXCLUDED.slug,
         store_name = EXCLUDED.store_name,
-        is_active = TRUE,
         updated_at = NOW();
     END;
   END LOOP;

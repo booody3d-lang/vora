@@ -153,7 +153,7 @@ async function upsertStore(baseUrl, apiKey, accountId, { slug, name }) {
   if (existing.ok && Array.isArray(existing.body) && existing.body.length > 0) {
     return rest(baseUrl, apiKey, `freelancer_stores?account_id=eq.${accountId}`, {
       method: "PATCH",
-      body: { slug, store_name: name, is_active: true, updated_at: new Date().toISOString() },
+      body: { slug, store_name: name, updated_at: new Date().toISOString() },
       prefer: "return=minimal",
     });
   }
@@ -163,7 +163,6 @@ async function upsertStore(baseUrl, apiKey, accountId, { slug, name }) {
       account_id: accountId,
       slug,
       store_name: name,
-      is_active: true,
       updated_at: new Date().toISOString(),
     },
     prefer: "return=minimal",
@@ -223,6 +222,11 @@ async function verify(baseUrl, apiKey) {
       apiKey,
       `subscription_manual_overrides?select=reason&account_id=eq.${acct.id}&limit=1`,
     );
+    const store = await rest(
+      baseUrl,
+      apiKey,
+      `freelancer_stores?select=slug,store_name&account_id=eq.${acct.id}&limit=1`,
+    );
     rows.push({
       email: acct.email,
       account_type: acct.account_type,
@@ -230,6 +234,8 @@ async function verify(baseUrl, apiKey) {
       profile_display_name: prof.body?.[0]?.full_name ?? null,
       company_name: comp.body?.[0]?.name ?? null,
       company_slug: comp.body?.[0]?.slug ?? null,
+      store_slug: store.body?.[0]?.slug ?? null,
+      store_name: store.body?.[0]?.store_name ?? null,
       tier_id: asa.body?.[0]?.tier_id ?? null,
       subscription_status: asa.body?.[0]?.status ?? null,
       override_reason: smo.body?.[0]?.reason ?? null,

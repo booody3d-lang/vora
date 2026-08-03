@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { slugifyName, uniqueSlug } from "@/lib/profile/slugify";
+import { isMissingColumnError } from "@/lib/supabase/safe-db";
 import type { FreelancerStore } from "@/types/freelance";
 
 export interface DbStoreRow {
@@ -45,8 +46,19 @@ export function mapStoreRow(row: DbStoreRow, base?: FreelancerStore | null): Fre
   };
 }
 
-const STORE_SELECT =
-  "id, account_id, slug, store_name, tagline, description, logo_url, cover_image_url, video_intro_url, seo_slug, rating_avg, total_reviews, view_count, conversion_rate, is_verified, is_premium, is_active";
+const STORE_SELECT_BASE =
+  "id, account_id, slug, store_name, tagline, description, logo_url, cover_image_url, video_intro_url, seo_slug, rating_avg, total_reviews, view_count, conversion_rate, is_verified, is_premium";
+const STORE_SELECT = `${STORE_SELECT_BASE}, is_active`;
+
+type StoreQueryResult = { data: DbStoreRow | null; error: { code?: string; message?: string } | null };
+
+async function selectStoreRow(
+  run: (select: string) => Promise<StoreQueryResult>
+): Promise<StoreQueryResult> {
+  const full = await run(STORE_SELECT);
+  if (!full.error || !isMissingColumnError(full.error)) return full;
+  return run(STORE_SELECT_BASE);
+}
 
 export async function listExistingStoreSlugs(): Promise<Set<string>> {
   const admin = createAdminClient();
@@ -72,11 +84,9 @@ export async function getStoreBySlugFromSupabase(slug: string): Promise<Freelanc
 
 export async function fetchStoreRowByAccountId(accountId: string): Promise<DbStoreRow | null> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("freelancer_stores")
-    .select(STORE_SELECT)
-    .eq("account_id", accountId)
-    .maybeSingle();
+  const { data, error } = await selectStoreRow((select) =>
+    admin.from("freelancer_stores").select(select).eq("account_id", accountId).maybeSingle()
+  );
 
   if (error) throw error;
   return (data as DbStoreRow | null) ?? null;
@@ -84,20 +94,16 @@ export async function fetchStoreRowByAccountId(accountId: string): Promise<DbSto
 
 export async function fetchStoreRowBySlug(slug: string): Promise<DbStoreRow | null> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("freelancer_stores")
-    .select(STORE_SELECT)
-    .eq("slug", slug)
-    .maybeSingle();
+  const { data, error } = await selectStoreRow((select) =>
+    admin.from("freelancer_stores").select(select).eq("slug", slug).maybeSingle()
+  );
 
   if (error) throw error;
   if (data) return data as DbStoreRow;
 
-  const { data: bySeo, error: seoError } = await admin
-    .from("freelancer_stores")
-    .select(STORE_SELECT)
-    .eq("seo_slug", slug)
-    .maybeSingle();
+  const { data: bySeo, error: seoError } = await selectStoreRow((select) =>
+    admin.from("freelancer_stores").select(select).eq("seo_slug", slug).maybeSingle()
+  );
 
   if (seoError) throw seoError;
   return (bySeo as DbStoreRow | null) ?? null;
@@ -113,11 +119,9 @@ export async function getStoreByAccountFromSupabase(
 
 export async function getStoreByIdFromSupabase(storeId: string): Promise<FreelancerStore | null> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("freelancer_stores")
-    .select(STORE_SELECT)
-    .eq("id", storeId)
-    .maybeSingle();
+  const { data, error } = await selectStoreRow((select) =>
+    admin.from("freelancer_stores").select(select).eq("id", storeId).maybeSingle()
+  );
 
   if (error) throw error;
   if (!data) return null;
@@ -145,6 +149,11 @@ function mapStoreToUpsertRow(accountId: string, store: FreelancerStore): Record<
   };
 }
 
+function omitIsActive(row: Record<string, unknown>): Record<string, unknown> {
+  const { is_active: _ignored, ...rest } = row;
+  return rest;
+}
+
 export async function upsertStoreInSupabase(
   accountId: string,
   store: FreelancerStore,
@@ -157,11 +166,20 @@ export async function upsertStoreInSupabase(
     .eq("account_id", accountId)
     .maybeSingle();
 
-  const { data, error } = await admin
+  const upsertRow = mapStoreToUpsertRow(accountId, store);
+  let { data, error } = await admin
     .from("freelancer_stores")
-    .upsert(mapStoreToUpsertRow(accountId, store), { onConflict: "account_id" })
+    .upsert(upsertRow, { onConflict: "account_id" })
     .select(STORE_SELECT)
     .single();
+
+  if (error && isMissingColumnError(error)) {
+    ({ data, error } = await admin
+      .from("freelancer_stores")
+      .upsert(omitIsActive(upsertRow), { onConflict: "account_id" })
+      .select(STORE_SELECT_BASE)
+      .single());
+  }
 
   if (error) throw error;
 
