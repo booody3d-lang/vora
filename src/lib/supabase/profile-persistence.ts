@@ -31,6 +31,7 @@ import {
   resolveAccountIdForStoreSlugLive,
   updateStoreForAccountLive,
 } from "@/lib/freelance/store-store";
+import { getEffectiveSubscription } from "@/lib/subscription/resolve-subscription";
 import type { FullProfessionalProfile } from "@/types/network";
 import type { AuthUser } from "@/types/security";
 
@@ -66,19 +67,49 @@ interface DbProfileRow {
   current_role: string | null;
 }
 
-async function fetchAccountFullName(accountId: string): Promise<string | null> {
+function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  const message = (error.message ?? "").toLowerCase();
+  return error.code === "PGRST204" || message.includes("could not find") && message.includes("column");
+}
+
+/** Production schema uses `profiles` (id, full_name) instead of `professional_profiles`. */
+async function fetchLegacyProfileName(accountId: string): Promise<string | null> {
   if (!isSupabasePersistenceEnabled()) return null;
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("accounts")
-    .select("full_name")
-    .eq("id", accountId)
-    .maybeSingle();
+  const { data, error } = await admin.from("profiles").select("full_name").eq("id", accountId).maybeSingle();
   if (error) {
-    console.error("[profile-persistence] fetch account name:", error.message);
+    if (!isMissingRelationError(error)) {
+      console.error("[profile-persistence] fetch legacy profile name:", error.message);
+    }
     return null;
   }
   return (data?.full_name as string | null) ?? null;
+}
+
+async function fetchAccountFullName(accountId: string): Promise<string | null> {
+  const legacy = await fetchLegacyProfileName(accountId);
+  if (legacy) return legacy;
+
+  if (!isSupabasePersistenceEnabled()) return null;
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("accounts").select("full_name").eq("id", accountId).maybeSingle();
+  if (error) {
+    if (!isMissingColumnError(error) && !isMissingRelationError(error)) {
+      console.error("[profile-persistence] fetch account name:", error.message);
+    }
+    return null;
+  }
+  return (data?.full_name as string | null) ?? null;
+}
+
+function mergeLegacyProfileFields(
+  accountId: string,
+  profile: FullProfessionalProfile,
+  legacyName: string
+): FullProfessionalProfile {
+  const isPremium = getEffectiveSubscription(accountId, "user").isPremium;
+  return { ...profile, fullName: legacyName, isPremium: profile.isPremium || isPremium };
 }
 
 function mapDbProfileRow(
@@ -346,6 +377,37 @@ export async function loadProfileForAccount(accountId: string): Promise<FullProf
       };
     }
     return fromDb;
+  }
+
+  const legacyName = await fetchLegacyProfileName(accountId);
+  if (legacyName) {
+    if (jsonProfile) {
+      return mergeLegacyProfileFields(accountId, jsonProfile, legacyName);
+    }
+    const slug = slugifyName(legacyName) || accountId.slice(0, 8);
+    return mergeLegacyProfileFields(accountId, {
+      id: accountId,
+      accountId,
+      slug,
+      fullName: legacyName,
+      headline: "",
+      about: "",
+      profilePhotoUrl: "",
+      coverImageUrl: "",
+      resumeUrl: "",
+      videoIntroUrl: "",
+      location: "",
+      isVerified: false,
+      isPremium: false,
+      professionalScore: 0,
+      hasFreelancerStore: false,
+      experiences: [],
+      education: [],
+      certifications: [],
+      skills: [],
+      languages: [],
+      projects: [],
+    }, legacyName);
   }
 
   if (jsonProfile && isSupabasePersistenceEnabled()) {

@@ -46,20 +46,20 @@ interface DbAssignmentRow {
   account_id: string;
   tier_id: string;
   status: AccountSubscriptionAssignment["status"];
-  started_at: string;
+  started_at?: string;
   expires_at: string | null;
-  source: AccountSubscriptionAssignment["source"];
+  source?: AccountSubscriptionAssignment["source"];
   stripe_subscription_id: string | null;
   checkout_plan_id: string | null;
-  updated_at: string;
+  updated_at?: string;
 }
 
 interface DbOverrideRow {
   account_id: string;
   tier_id: string;
   reason: string;
-  granted_by: string;
-  granted_at: string;
+  granted_by?: string;
+  granted_at?: string;
   expires_at: string | null;
 }
 
@@ -158,9 +158,9 @@ export async function loadSubscriptionSnapshotFromSupabase(): Promise<Subscripti
     assignments[row.account_id] = {
       tierId: row.tier_id,
       status: row.status,
-      startedAt: row.started_at,
+      startedAt: row.started_at ?? row.updated_at ?? new Date().toISOString(),
       expiresAt: row.expires_at ?? undefined,
-      source: row.source,
+      source: row.source ?? "manual_override",
       stripeSubscriptionId: row.stripe_subscription_id ?? undefined,
       checkoutPlanId: row.checkout_plan_id ?? undefined,
     };
@@ -171,8 +171,8 @@ export async function loadSubscriptionSnapshotFromSupabase(): Promise<Subscripti
     overrides[row.account_id] = {
       tierId: row.tier_id,
       reason: row.reason,
-      grantedBy: row.granted_by,
-      grantedAt: row.granted_at,
+      grantedBy: row.granted_by ?? "seed",
+      grantedAt: row.granted_at ?? new Date().toISOString(),
       expiresAt: row.expires_at ?? undefined,
     };
   }
