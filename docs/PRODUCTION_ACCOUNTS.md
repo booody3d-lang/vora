@@ -14,7 +14,7 @@ and set bootstrap passwords only in `.env.local` (local) or Vercel env (never co
 | Role | Email | Display Name | Profile Slug | Company | Premium Badge |
 |------|-------|--------------|--------------|---------|---------------|
 | **Owner** | `booody3d@gmail.com` | Abdullah saeed alBakkar | `abdullah-saeed-albakkar` | — | Yes |
-| **Company** | `abadi.5g@outlook.com` | AlBakkar (company account) | `albakkars-company` | AlBakkar (`albakkar`) | Yes |
+| **Company** | `abadi.5g@outlook.com` | AlBakkar | `albakkars-company` | AlBakkar (`albakkar`) | Yes |
 | **Admin** | `b.3d@live.com` | Saeed Bakka | `saeed-bakka` | — | Yes |
 | **Premium User** | `abod.s.bakkar@hotmail.com` | Bakkar.3d | `bakkar-3d` | — | Yes (lifetime) |
 

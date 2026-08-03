@@ -84,7 +84,7 @@ BEGIN
   END IF;
 
   UPDATE public.accounts SET
-    full_name = 'AlBakkar (company account)',
+    full_name = 'AlBakkar',
     primary_role = 'company',
     account_type = 'company',
     tier = 'professional',
@@ -94,7 +94,7 @@ BEGIN
   WHERE id = v_id;
 
   INSERT INTO public.professional_profiles (account_id, slug, headline, full_name, is_public, is_premium)
-  VALUES (v_id, 'albakkars-company', 'AlBakkar Company', 'AlBakkar (company account)', TRUE, TRUE)
+  VALUES (v_id, 'albakkars-company', 'AlBakkar', 'AlBakkar', TRUE, TRUE)
   ON CONFLICT (account_id) DO UPDATE SET
     slug = EXCLUDED.slug,
     full_name = EXCLUDED.full_name,
