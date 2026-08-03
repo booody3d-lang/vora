@@ -49,8 +49,9 @@ export async function GET(request: Request) {
         storeSlug = store?.slug ?? getStoreSlugForAccount(auth.user.id);
 
         if (!storeSlug) {
-          const ensured = ensureFreelancerStoreForAccount(auth.user.id);
-          storeSlug = ensured?.storeSlug ?? getStoreSlugForAccount(auth.user.id);
+          ensureFreelancerStoreForAccount(auth.user.id);
+          const reloaded = await loadStoreForAccount(auth.user.id);
+          storeSlug = reloaded?.slug ?? getStoreSlugForAccount(auth.user.id);
         }
 
         if (!storeSlug) {

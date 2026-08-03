@@ -214,7 +214,9 @@ export async function migrateJsonStoreToSupabase(input: {
 
   if (existing) return getStoreByAccountFromSupabase(input.accountId);
 
-  const slug = await generateUniqueStoreSlug(input.store.storeName || input.store.slug);
+  const slug =
+    input.store.slug ||
+    (await generateUniqueStoreSlug(input.store.storeName || input.store.slug));
   const storeToMigrate: FreelancerStore = {
     ...input.store,
     slug,

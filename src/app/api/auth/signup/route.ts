@@ -7,6 +7,7 @@ import {
   upsertAccountRow,
   buildAuthUserFromMetadata,
 } from "@/lib/auth/supabase-account";
+import { ensureSupabaseProfileAndStore } from "@/lib/supabase/profile-persistence";
 import {
   cleanupStaleAccountRowForEmail,
   getSupabaseAuthDiagnostics,
@@ -50,6 +51,7 @@ async function bootstrapProfileAfterSignup(input: {
   try {
     await upsertAccountRow(input.authUser);
     ensureLocalProfile(input.authUser);
+    await ensureSupabaseProfileAndStore(input.authUser);
   } catch (profileError) {
     logSignupUnhandledError(profileError, "profile-bootstrap", { email: input.email });
   }

@@ -1,4 +1,4 @@
-import { getCurrentUserPublicPageUrl } from "@/lib/network/urls";
+import { getCurrentUserPublicPageUrl, getCurrentUserStoreUrl } from "@/lib/network/urls";
 import type { ResolvedNavigationLink } from "@/types/navigation";
 import type { PlatformContext } from "@/types/vora";
 import type { VoraRole } from "@/types/security";
@@ -139,7 +139,7 @@ export function appendRoleShortcuts(
     if (ctx.storeSlug) {
       add({
         id: "role-my-store",
-        href: `/freelance/store/${ctx.storeSlug}`,
+        href: getCurrentUserStoreUrl(ctx.storeSlug),
         icon: "🛒",
         labelKey: "sidebar.freelance.myStore",
         labelEn: "View My Store",
@@ -147,7 +147,7 @@ export function appendRoleShortcuts(
       });
       add({
         id: "role-edit-store",
-        href: `/freelance/store/${ctx.storeSlug}/edit`,
+        href: "/freelance/manage-store",
         icon: "📝",
         labelKey: "storeEdit.editStore",
         labelEn: "Edit Store",
@@ -177,7 +177,6 @@ export function appendRoleShortcuts(
       if (isProfileNavLink(link)) {
         link.href = getCurrentUserPublicPageUrl({
           role: ctx.role,
-          profileSlug: ctx.profileSlug,
           companySlug: ctx.companySlug,
         });
         if (ctx.role === "company") {

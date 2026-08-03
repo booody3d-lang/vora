@@ -1,6 +1,7 @@
 import type { VoraRole } from "@/types/security";
 
 export const CURRENT_USER_PROFILE_PATH = "/profile/me";
+export const CURRENT_USER_STORE_PATH = "/freelance/my-store";
 
 /** Canonical public profile route under the Network section. */
 export function getProfileUrl(slug: string) {
@@ -8,14 +9,16 @@ export function getProfileUrl(slug: string) {
 }
 
 /**
- * Resolve the current user's profile page. Prefer the slug route so navigation
- * stays inside /network and avoids /profile/me RBAC + redirect hops.
+ * Self-healing alias for the signed-in user's profile. Always safe for nav links
+ * (bootstraps Supabase + redirects to the canonical slug route).
  */
-export function getCurrentUserProfileUrl(profileSlug?: string | null) {
-  if (profileSlug) {
-    return getProfileUrl(profileSlug);
-  }
+export function getCurrentUserProfileUrl(_profileSlug?: string | null) {
   return CURRENT_USER_PROFILE_PATH;
+}
+
+/** Self-healing alias for the signed-in user's public store page. */
+export function getCurrentUserStoreUrl(_storeSlug?: string | null) {
+  return CURRENT_USER_STORE_PATH;
 }
 
 export function getCompanyUrl(slug: string) {
@@ -63,15 +66,12 @@ export function resolveProfileNavHref(
     }
   }
 
-  if (profileSlug) {
-    if (isProfileNavHref(href)) {
-      return getProfileUrl(profileSlug);
-    }
-    return href;
-  }
-
   if (isProfileNavHref(href)) {
     return CURRENT_USER_PROFILE_PATH;
+  }
+
+  if (profileSlug) {
+    return href;
   }
 
   return href;
@@ -79,6 +79,16 @@ export function resolveProfileNavHref(
 
 export function getFreelanceStoreUrl(storeSlug: string) {
   return `/freelance/store/${storeSlug}`;
+}
+
+export function getFreelanceStoreManageUrl(storeSlug?: string | null) {
+  if (storeSlug) return `/freelance/store/${storeSlug}/manage`;
+  return "/freelance/manage-store";
+}
+
+export function getFreelanceStoreEditUrl(storeSlug?: string | null) {
+  if (storeSlug) return `/freelance/store/${storeSlug}/edit`;
+  return "/freelance/manage-store";
 }
 
 export function getMessagingUrl(options?: { conversationId?: string; targetAccountId?: string }) {

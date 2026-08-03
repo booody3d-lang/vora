@@ -13,6 +13,7 @@ function isValidNavHref(href: string): boolean {
 /** Routes gated by middleware RBAC — use full document navigation to avoid silent client redirects. */
 const MIDDLEWARE_GATED_PREFIXES = [
   "/admin",
+  "/profile/me",
   "/network/messages",
   "/network/settings",
   "/network/ai",
@@ -22,6 +23,7 @@ const MIDDLEWARE_GATED_PREFIXES = [
   "/freelance/dashboard",
   "/freelance/orders",
   "/freelance/manage-store",
+  "/freelance/my-store",
   "/billing",
   "/company/dashboard",
   "/company/onboarding",

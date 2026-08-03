@@ -167,6 +167,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
   "/freelance/messages",
   "/freelance/orders",
   "/freelance/manage-store",
+  "/freelance/my-store",
   "/company/dashboard",
   "/company/onboarding",
   "/billing",

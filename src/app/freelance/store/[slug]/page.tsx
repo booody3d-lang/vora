@@ -7,9 +7,12 @@ import { buildStoreMetadata } from "@/lib/seo/metadata";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import {
   loadStoreBySlug,
+  loadStoreForAccount,
   resolveAccountIdForStoreSlug,
+  ensureSupabaseProfileAndStore,
 } from "@/lib/supabase/profile-persistence";
-import { notFound } from "next/navigation";
+import { getFreelanceStoreUrl } from "@/lib/network/urls";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 interface StorePageProps {
@@ -25,7 +28,20 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
 
 export default async function FreelanceStorePage({ params }: StorePageProps) {
   const { slug } = await params;
-  const store = await loadStoreBySlug(slug);
+  let store = await loadStoreBySlug(slug);
+
+  const auth = await getAuthenticatedUser();
+  if (!store && auth) {
+    await ensureSupabaseProfileAndStore(auth.user);
+    const ownStore = await loadStoreForAccount(auth.user.id);
+    if (ownStore?.slug === slug) {
+      store = ownStore;
+    } else if (await isStoreOwnerLive(auth.user.id, slug)) {
+      store = (await loadStoreBySlug(slug)) ?? ownStore;
+    } else if (ownStore) {
+      redirect(getFreelanceStoreUrl(ownStore.slug));
+    }
+  }
 
   if (!store) {
     notFound();
@@ -37,7 +53,6 @@ export default async function FreelanceStorePage({ params }: StorePageProps) {
     listPublicReviewsForStoreSlug(slug),
   ]);
   void recordStoreView(slug);
-  const auth = await getAuthenticatedUser();
   const isOwnStore = auth ? await isStoreOwnerLive(auth.user.id, slug) : false;
   const storeOwnerAccountId = await resolveAccountIdForStoreSlug(slug);
 

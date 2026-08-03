@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { ProfileHeader } from "@/components/network/profile/ProfileHeader";
 import { ProfileTabs } from "@/components/network/profile/ProfileTabs";
 import { getCompanyByAccountId, getCompanyBySlug } from "@/lib/company/company-store";
-import { getCompanyUrl } from "@/lib/network/urls";
-import { isProfileOwner } from "@/lib/profile/profile-store";
+import { getCompanyUrl, getProfileUrl } from "@/lib/network/urls";
+import { getProfileSlugForAccount, isProfileOwner } from "@/lib/profile/profile-store";
 import { stripPrivateProfileFields } from "@/lib/profile/private-fields";
 import {
   getRelationship,
@@ -13,7 +13,9 @@ import {
 } from "@/lib/network/social-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import {
+  ensureSupabaseProfileAndStore,
   loadProfileBySlug,
+  loadProfileForAccount,
   resolveAccountIdForProfileSlug,
 } from "@/lib/supabase/profile-persistence";
 
@@ -38,7 +40,21 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     redirect("/company/dashboard");
   }
 
-  const rawProfile = await loadProfileBySlug(slug);
+  let rawProfile = await loadProfileBySlug(slug);
+
+  if (!rawProfile && auth) {
+    const ownsSlug =
+      isProfileOwner(auth.user.id, slug) ||
+      getProfileSlugForAccount(auth.user.id) === slug;
+    if (ownsSlug) {
+      await ensureSupabaseProfileAndStore(auth.user);
+      rawProfile =
+        (await loadProfileBySlug(slug)) ?? (await loadProfileForAccount(auth.user.id));
+      if (rawProfile && rawProfile.slug !== slug) {
+        permanentRedirect(getProfileUrl(rawProfile.slug));
+      }
+    }
+  }
 
   if (!rawProfile) {
     notFound();

@@ -9,7 +9,7 @@ import { useCurrentProfile } from "@/hooks/use-current-profile";
 import { usePermissions } from "@/providers/VoraProviders";
 import { usePublicPageHref } from "@/hooks/use-public-page-href";
 import { useTranslations } from "@/i18n/use-translations";
-import { getCompanyUrl, getFreelanceStoreUrl } from "@/lib/network/urls";
+import { getCompanyUrl, getCurrentUserStoreUrl } from "@/lib/network/urls";
 
 export function MiniProfileCard() {
   const { t } = useTranslations();
@@ -156,10 +156,10 @@ export function MiniProfileCard() {
             label="Score"
           />
         </div>
-        {hasStore && storeLinkSlug && (
+        {hasStore && (
           <CrossPlatformLink
             type="visit-store"
-            href={getFreelanceStoreUrl(storeLinkSlug)}
+            href={getCurrentUserStoreUrl(storeLinkSlug)}
             className="mt-3 w-full justify-center text-xs"
           />
         )}

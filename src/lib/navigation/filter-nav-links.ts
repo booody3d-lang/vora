@@ -1,4 +1,4 @@
-import { resolveProfileNavHref } from "@/lib/network/urls";
+import { resolveProfileNavHref, CURRENT_USER_STORE_PATH } from "@/lib/network/urls";
 import type { NavigationLinkRecord, ResolvedNavigationLink } from "@/types/navigation";
 import type { PlatformContext } from "@/types/vora";
 import type { VoraRole } from "@/types/security";
@@ -51,6 +51,17 @@ export function personalizeNavHref(
   });
   if (context?.storeSlug) {
     result = result.replace("{storeSlug}", context.storeSlug);
+  }
+  if (context?.storeSlug && result.startsWith(`/freelance/store/${context.storeSlug}`)) {
+    if (result.includes("/manage")) {
+      result = result.includes("?")
+        ? `/freelance/manage-store${result.slice(result.indexOf("?"))}`
+        : "/freelance/manage-store";
+    } else if (result.includes("/edit")) {
+      result = "/freelance/manage-store";
+    } else if (result === `/freelance/store/${context.storeSlug}`) {
+      result = CURRENT_USER_STORE_PATH;
+    }
   }
   if (context?.role === "company") {
     if (result === "/network" || result === "/network/") {

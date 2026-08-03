@@ -34,6 +34,10 @@ import {
 import { getEffectiveSubscription } from "@/lib/subscription/resolve-subscription";
 import type { FullProfessionalProfile } from "@/types/network";
 import type { AuthUser } from "@/types/security";
+import {
+  fetchAuthNavMetadata,
+  syncAuthUserNavMetadata,
+} from "@/lib/security/sync-auth-role-metadata";
 
 export function isSupabasePersistenceEnabled(): boolean {
   return isSupabaseConfigured() && isAdminClientAvailable() && isSupabaseDbSyncEnabled();
@@ -71,6 +75,131 @@ function isMissingColumnError(error: { message?: string; code?: string } | null)
   if (!error) return false;
   const message = (error.message ?? "").toLowerCase();
   return error.code === "PGRST204" || message.includes("could not find") && message.includes("column");
+}
+
+function mapProductionProfileRow(
+  accountId: string,
+  fullName: string | null,
+  slug: string | null
+): DbProfileRow {
+  const resolvedSlug = slug ?? accountId.slice(0, 8);
+  return {
+    id: accountId,
+    account_id: accountId,
+    slug: resolvedSlug,
+    headline: null,
+    about: null,
+    profile_photo_url: null,
+    cover_image_url: null,
+    resume_url: null,
+    video_intro_url: null,
+    location: null,
+    contact_email: null,
+    full_name: fullName,
+    gender: null,
+    professional_score: null,
+    is_verified: null,
+    is_premium: null,
+    website_url: null,
+    contact_phone: null,
+    current_role: null,
+  };
+}
+
+async function upsertProductionSlimProfile(
+  accountId: string,
+  profile: FullProfessionalProfile
+): Promise<boolean> {
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  const withSlug = {
+    id: accountId,
+    full_name: profile.fullName,
+    slug: profile.slug,
+    updated_at: now,
+  };
+
+  let { error } = await admin.from("profiles").upsert(withSlug, { onConflict: "id" });
+
+  if (error && isMissingColumnError(error)) {
+    ({ error } = await admin.from("profiles").upsert(
+      { id: accountId, full_name: profile.fullName, updated_at: now },
+      { onConflict: "id" }
+    ));
+  }
+
+  if (error) {
+    if (!isMissingRelationError(error)) {
+      console.error("[profile-persistence] upsert production profile:", error.message);
+    }
+    return false;
+  }
+
+  await syncAuthUserNavMetadata(accountId, { profileSlug: profile.slug });
+  return true;
+}
+
+async function fetchProductionProfileRowByAccountId(
+  accountId: string
+): Promise<DbProfileRow | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, full_name, slug")
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingColumnError(error)) {
+      const { data: slim, error: slimError } = await admin
+        .from("profiles")
+        .select("id, full_name")
+        .eq("id", accountId)
+        .maybeSingle();
+      if (slimError || !slim) return null;
+      const meta = await fetchAuthNavMetadata(accountId);
+      return mapProductionProfileRow(
+        slim.id as string,
+        (slim.full_name as string | null) ?? null,
+        meta?.profileSlug ?? null
+      );
+    }
+    if (!isMissingRelationError(error)) {
+      console.error("[profile-persistence] fetch production profile:", error.message);
+    }
+    return null;
+  }
+
+  if (!data) return null;
+  const row = data as { id: string; full_name: string | null; slug?: string | null };
+  let slug = row.slug ?? null;
+  if (!slug) {
+    const meta = await fetchAuthNavMetadata(accountId);
+    slug = meta?.profileSlug ?? null;
+  }
+  return mapProductionProfileRow(row.id, row.full_name, slug);
+}
+
+async function fetchProductionProfileRowBySlug(slug: string): Promise<DbProfileRow | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, full_name, slug")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingColumnError(error)) return null;
+    if (!isMissingRelationError(error)) {
+      console.error("[profile-persistence] fetch production profile by slug:", error.message);
+    }
+    return null;
+  }
+
+  if (!data) return null;
+  const row = data as { id: string; full_name: string | null; slug?: string | null };
+  return mapProductionProfileRow(row.id, row.full_name, row.slug ?? slug);
 }
 
 /** Production schema uses `profiles` (id, full_name) instead of `professional_profiles`. */
@@ -180,13 +309,13 @@ async function fetchProfileRowByAccountId(accountId: string): Promise<DbProfileR
     .maybeSingle();
   if (error) {
     if (isMissingRelationError(error)) {
-      markSupabaseDbSyncUnavailable("fetch profile", error);
-    } else {
-      console.error("[profile-persistence] fetch profile:", error.message);
+      return fetchProductionProfileRowByAccountId(accountId);
     }
+    console.error("[profile-persistence] fetch profile:", error.message);
     return null;
   }
-  return data as DbProfileRow | null;
+  if (data) return data as DbProfileRow;
+  return fetchProductionProfileRowByAccountId(accountId);
 }
 
 async function fetchStoreRowByAccountId(accountId: string): Promise<DbStoreRow | null> {
@@ -257,13 +386,13 @@ async function fetchProfileRowBySlug(slug: string): Promise<DbProfileRow | null>
     .maybeSingle();
   if (error) {
     if (isMissingRelationError(error)) {
-      markSupabaseDbSyncUnavailable("fetch profile by slug", error);
-    } else {
-      console.error("[profile-persistence] fetch profile by slug:", error.message);
+      return fetchProductionProfileRowBySlug(slug);
     }
+    console.error("[profile-persistence] fetch profile by slug:", error.message);
     return null;
   }
-  return data as DbProfileRow | null;
+  if (data) return data as DbProfileRow;
+  return fetchProductionProfileRowBySlug(slug);
 }
 
 export async function upsertSupabaseProfile(
@@ -312,13 +441,14 @@ export async function upsertSupabaseProfile(
 
   if (error) {
     if (isMissingRelationError(error)) {
-      markSupabaseDbSyncUnavailable("upsert profile", error);
-    } else {
-      console.error("[profile-persistence] upsert profile:", error.message);
+      return upsertProductionSlimProfile(accountId, profile);
     }
+    console.error("[profile-persistence] upsert profile:", error.message);
     return false;
   }
 
+  await upsertProductionSlimProfile(accountId, profile);
+  await syncAuthUserNavMetadata(accountId, { profileSlug: profile.slug });
   return true;
 }
 
@@ -348,16 +478,23 @@ export async function ensureSupabaseProfileAndStore(authUser: AuthUser): Promise
     await upsertSupabaseProfile(authUser.id, profile);
 
     const shouldEnsureStore =
-      authUser.hasFreelancerStore ||
-      authUser.role === "admin" ||
-      authUser.role === "owner" ||
-      authUser.role === "professional" ||
-      Boolean(getAccountLink(authUser.id)?.storeSlug);
+      authUser.role !== "company" &&
+      (authUser.hasFreelancerStore ||
+        authUser.role === "admin" ||
+        authUser.role === "owner" ||
+        authUser.role === "professional" ||
+        authUser.role === "registered" ||
+        Boolean(getAccountLink(authUser.id)?.storeSlug));
 
     if (shouldEnsureStore) {
       ensureFreelancerStoreForAccount(authUser.id);
-      await getStoreForAccount(authUser.id);
+      const store = await getStoreForAccount(authUser.id);
+      if (store?.slug) {
+        await syncAuthUserNavMetadata(authUser.id, { storeSlug: store.slug });
+      }
     }
+
+    await syncAuthUserNavMetadata(authUser.id, { profileSlug: profile.slug });
   });
 }
 
