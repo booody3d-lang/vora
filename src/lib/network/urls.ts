@@ -19,7 +19,10 @@ export function getCurrentUserProfileUrl(profileSlug?: string | null) {
 /** Resolve sidebar/API profile nav hrefs; falls back to the current-user alias. */
 export function resolveProfileNavHref(href: string, profileSlug?: string | null): string {
   if (profileSlug) {
-    return href.replace("{profileSlug}", profileSlug);
+    if (href.includes("{profileSlug}") || /^\/network\/profile\/[^/]+$/.test(href)) {
+      return getProfileUrl(profileSlug);
+    }
+    return href;
   }
   if (href.includes("{profileSlug}") || /^\/network\/profile\/[^/]+$/.test(href)) {
     return CURRENT_USER_PROFILE_PATH;

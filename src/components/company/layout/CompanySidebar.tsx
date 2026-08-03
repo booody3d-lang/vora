@@ -24,9 +24,7 @@ export function CompanySidebar() {
   const { t, dir } = useLocale();
   const { companySlug } = useCurrentCompany();
   const isRtl = dir === "rtl";
-  const publicPageHref = companySlug
-    ? `/network/company/${companySlug}`
-    : "/network/company/techcorp-global";
+  const publicPageHref = companySlug ? `/network/company/${companySlug}` : null;
 
   return (
     <>
@@ -94,18 +92,22 @@ export function CompanySidebar() {
             );
           })}
 
-          <div className="my-3 border-t border-slate-800" />
+          {publicPageHref && (
+            <>
+              <div className="my-3 border-t border-slate-800" />
 
-          <Link
-            href={publicPageHref}
-            onClick={() => {
-              if (window.innerWidth < 1024) setOpen(false);
-            }}
-            className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
-          >
-            <span className="text-base opacity-80">🌐</span>
-            {t("company.nav.publicPage")}
-          </Link>
+              <Link
+                href={publicPageHref}
+                onClick={() => {
+                  if (window.innerWidth < 1024) setOpen(false);
+                }}
+                className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+              >
+                <span className="text-base opacity-80">🌐</span>
+                {t("company.nav.publicPage")}
+              </Link>
+            </>
+          )}
         </nav>
 
         <div className="border-t border-slate-800 p-4">

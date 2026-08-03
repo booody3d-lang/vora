@@ -8,9 +8,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 export function CompanyDashboardNav() {
   const { t } = useLocale();
   const { company, companySlug } = useCurrentCompany();
-  const publicPageHref = companySlug
-    ? `/network/company/${companySlug}`
-    : "/network/company/techcorp-global";
+  const publicPageHref = companySlug ? `/network/company/${companySlug}` : null;
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-700/50 bg-[#0F172A] shadow-lg">
@@ -33,12 +31,14 @@ export function CompanyDashboardNav() {
           >
             {t("company.nav.companyPage")}
           </Link>
-          <Link
-            href={publicPageHref}
-            className="text-xs font-medium text-slate-400 hover:text-white"
-          >
-            {t("company.nav.publicPage")}
-          </Link>
+          {publicPageHref && (
+            <Link
+              href={publicPageHref}
+              className="text-xs font-medium text-slate-400 hover:text-white"
+            >
+              {t("company.nav.publicPage")}
+            </Link>
+          )}
           {company?.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

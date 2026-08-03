@@ -33,6 +33,13 @@ In the Supabase SQL editor, run the files in order:
 25. `025_auth_totp_phase8d.sql` — TOTP 2FA persistence (`totp_enabled_at`) and column documentation
 26. `026_user_sessions_phase8e.sql` — user sessions indexes and per-user RLS policies
 27. `027_security_audit_phase8f.sql` — security audit log indexes and user read RLS
+28. `028_fix_navigation_profile_href.sql` — replace hardcoded demo profile slug in nav links
+29. `029_fix_navigation_demo_hrefs.sql` — fix demo orders link and remaining profile hrefs
+
+## Production accounts
+
+See `docs/PRODUCTION_ACCOUNTS.md` and run `supabase/scripts/seed_production_accounts.sql`
+after creating auth users in Supabase Dashboard.
 
 ## 2. Quick bootstrap (empty project)
 

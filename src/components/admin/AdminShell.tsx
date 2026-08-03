@@ -31,7 +31,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[#0B1120]">
-      <aside className="fixed inset-y-0 start-0 z-40 flex w-64 flex-col border-e border-red-900/20 bg-[#0F172A]">
+      <aside className="fixed inset-y-0 start-0 z-40 flex w-64 flex-col overflow-hidden border-e border-red-900/20 bg-[#0F172A]">
         <div className="border-b border-slate-800 p-5">
           <VoraLogo
             size="md"
@@ -43,7 +43,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </p>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
+        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-3">
           {NAV_KEYS.map((item) => {
             const active =
               pathname === item.href ||

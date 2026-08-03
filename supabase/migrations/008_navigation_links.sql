@@ -39,7 +39,7 @@ CREATE POLICY "navigation_links_admin_write"
 INSERT INTO public.navigation_links (platform, label_key, label_en, label_ar, href, icon, sort_order, requires_auth, min_role)
 SELECT * FROM (VALUES
   ('network'::platform_context, 'nav.home', 'Home', 'الرئيسية', '/network', '🏠', 10, FALSE, NULL::vora_role),
-  ('network'::platform_context, 'nav.profile', 'Profile', 'الملف الشخصي', '/network/profile/alex-morgan', '👤', 20, FALSE, NULL::vora_role),
+  ('network'::platform_context, 'nav.profile', 'Profile', 'الملف الشخصي', '/network/profile/{profileSlug}', '👤', 20, FALSE, NULL::vora_role),
   ('network'::platform_context, 'nav.messaging', 'Messaging', 'الرسائل', '/network/messages', '💬', 30, TRUE, 'registered'::vora_role),
   ('network'::platform_context, 'nav.jobs', 'Jobs', 'الوظائف', '/network/jobs', '💼', 40, FALSE, NULL::vora_role),
   ('network'::platform_context, 'nav.voraAi', 'VORA AI', 'VORA AI', '/network/ai', '✨', 50, TRUE, 'professional'::vora_role),
@@ -47,6 +47,6 @@ SELECT * FROM (VALUES
   ('freelance'::platform_context, 'sidebar.freelance.search', 'Search', 'بحث', '/freelance/search', '🔍', 20, FALSE, NULL::vora_role),
   ('freelance'::platform_context, 'sidebar.freelance.messages', 'Messages', 'الرسائل', '/freelance/messages', '💬', 30, TRUE, 'registered'::vora_role),
   ('freelance'::platform_context, 'sidebar.freelance.dashboard', 'My Store', 'متجري', '/freelance/dashboard', '🛍️', 40, TRUE, 'registered'::vora_role),
-  ('freelance'::platform_context, 'sidebar.freelance.orders', 'Orders', 'الطلبات', '/freelance/orders/demo-order', '📦', 50, TRUE, 'registered'::vora_role)
+  ('freelance'::platform_context, 'sidebar.freelance.orders', 'Orders', 'الطلبات', '/freelance/orders', '📦', 50, TRUE, 'registered'::vora_role)
 ) AS seed(platform, label_key, label_en, label_ar, href, icon, sort_order, requires_auth, min_role)
 WHERE NOT EXISTS (SELECT 1 FROM public.navigation_links LIMIT 1);
