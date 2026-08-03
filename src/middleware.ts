@@ -3,8 +3,11 @@ import { COOKIE_NAME, verifySessionToken } from "@/lib/security/jwt";
 import { PROTECTED_ROUTE_PREFIXES } from "@/lib/security/rbac";
 import {
   getAccessDeniedRedirect,
-  isPageAllowedForUser,
-  resolveRoleFromSupabaseUser,
+  getCompanyNetworkRedirectTarget,
+  isCompanyNetworkRedirectSource,
+  isPageAllowedForRole,
+  resolveRoleForMiddleware,
+  shouldApplyAccessDeniedRedirect,
 } from "@/lib/security/middleware-auth";
 import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -73,32 +76,24 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
       }
 
-      if (user && needsAuth && !isPageAllowedForUser(barePath, user)) {
-        const role = resolveRoleFromSupabaseUser(user);
-        const deniedUrl = request.nextUrl.clone();
-        deniedUrl.pathname = getAccessDeniedRedirect(barePath, role);
-        deniedUrl.search = "";
-        return NextResponse.redirect(deniedUrl);
-      }
-
       if (user) {
-        const role = resolveRoleFromSupabaseUser(user);
-        if (role === "company") {
-          if (barePath.startsWith("/network/profile/")) {
-            const redirectUrl = request.nextUrl.clone();
-            redirectUrl.pathname = "/profile/me";
-            redirectUrl.search = "";
-            return NextResponse.redirect(redirectUrl);
+        const role = await resolveRoleForMiddleware(user, supabase);
+
+        if (needsAuth && !isPageAllowedForRole(barePath, role)) {
+          const deniedPath = getAccessDeniedRedirect(barePath, role);
+          if (shouldApplyAccessDeniedRedirect(barePath, deniedPath, role)) {
+            const deniedUrl = request.nextUrl.clone();
+            deniedUrl.pathname = deniedPath;
+            deniedUrl.search = "";
+            return NextResponse.redirect(deniedUrl);
           }
-          if (barePath === "/network" || barePath === "/network/") {
+        }
+
+        if (role === "company" && isCompanyNetworkRedirectSource(barePath)) {
+          const companyTarget = getCompanyNetworkRedirectTarget(barePath);
+          if (companyTarget && companyTarget !== barePath) {
             const redirectUrl = request.nextUrl.clone();
-            redirectUrl.pathname = "/company/dashboard";
-            redirectUrl.search = "";
-            return NextResponse.redirect(redirectUrl);
-          }
-          if (barePath === "/network/jobs") {
-            const redirectUrl = request.nextUrl.clone();
-            redirectUrl.pathname = "/company/dashboard/jobs";
+            redirectUrl.pathname = companyTarget;
             redirectUrl.search = "";
             return NextResponse.redirect(redirectUrl);
           }
