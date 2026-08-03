@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { VoraLogo } from "@/components/brand/VoraLogo";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { SidebarProfileCard } from "@/components/layout/SidebarProfileCard";
+import { NavRouteLink, isValidNavHref } from "@/components/navigation/NavRouteLink";
 import { useSidebar } from "@/providers/SidebarProvider";
 import { useLocale } from "@/providers/LocaleProvider";
 import { usePermissions } from "@/providers/VoraProviders";
@@ -187,7 +187,7 @@ export function Sidebar() {
           )}
 
           {!isLoading &&
-            links.map((item) => {
+            links.filter((item) => isValidNavHref(item.href)).map((item) => {
               const active =
                 pathname === item.href ||
                 (item.href === "/company/dashboard"
@@ -198,16 +198,16 @@ export function Sidebar() {
                       item.href !== "/freelance" &&
                       pathname.startsWith(item.href));
 
+              const isPanelLink =
+                item.labelKey === "nav.adminPanel" || item.labelKey === "nav.ownerPanel";
+
               return (
-                <Link
+                <NavRouteLink
                   key={item.id}
                   href={item.href}
-                  prefetch={
-                    item.labelKey === "nav.adminPanel" || item.labelKey === "nav.ownerPanel"
-                      ? false
-                      : undefined
-                  }
-                  onClick={() => {
+                  hardNavigate={isPanelLink}
+                  prefetch={isPanelLink ? false : undefined}
+                  onNavigate={() => {
                     if (window.innerWidth < 1024) setOpen(false);
                   }}
                   className={cn(
@@ -217,7 +217,7 @@ export function Sidebar() {
                 >
                   <span className="text-base opacity-80">{item.icon}</span>
                   {resolveLabel(item, t, locale)}
-                </Link>
+                </NavRouteLink>
               );
             })}
         </nav>

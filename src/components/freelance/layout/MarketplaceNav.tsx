@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { VoraLogo } from "@/components/brand/VoraLogo";
 import { DualDashboardToggle } from "@/components/navigation/DualDashboardToggle";
+import { NavRouteLink } from "@/components/navigation/NavRouteLink";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -113,8 +114,9 @@ export function FreelanceNav() {
         <DualDashboardToggle />
         <nav className="flex items-center gap-3">
           {isAdminUser && (
-            <Link
+            <NavRouteLink
               href="/admin"
+              hardNavigate
               prefetch={false}
               className={cn(
                 "rounded-lg px-2 py-1 text-xs font-semibold transition-colors",
@@ -123,7 +125,7 @@ export function FreelanceNav() {
             >
               {isOwner ? "👑" : "🛡️"}{" "}
               {t(isOwner ? "nav.ownerPanel" : "nav.adminPanel")}
-            </Link>
+            </NavRouteLink>
           )}
           <NotificationBell variant="dark" />
           <Link href="/freelance/messages" className="text-sm font-medium text-slate-600 hover:text-[#EA580C]">

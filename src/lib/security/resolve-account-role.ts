@@ -1,11 +1,24 @@
 import type { User } from "@supabase/supabase-js";
 import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
+import {
+  fetchAccountRoleByIdEdge,
+  resolveRoleFromAuthMetadata,
+} from "@/lib/security/resolve-account-role-edge";
 import { parseVoraRole } from "@/lib/security/parse-vora-role";
 import { resolveEffectiveRole } from "@/lib/security/roles";
 import type { VoraRole } from "@/types/security";
 
-/** Read role from accounts via service role — same source as server session resolution. */
+export {
+  fetchAccountRoleByIdEdge,
+  isElevatedRole,
+  resolveRoleFromAuthMetadata,
+} from "@/lib/security/resolve-account-role-edge";
+
+/** Read role from accounts — REST first (Edge-safe), Supabase client fallback on Node. */
 export async function fetchAccountRoleById(accountId: string): Promise<VoraRole | null> {
+  const fromRest = await fetchAccountRoleByIdEdge(accountId);
+  if (fromRest) return fromRest;
+
   if (!isAdminClientAvailable()) return null;
 
   try {
@@ -27,13 +40,14 @@ export async function fetchAccountRoleById(accountId: string): Promise<VoraRole 
   }
 }
 
-export function resolveRoleFromAuthMetadata(user: User): VoraRole {
-  const meta = user.user_metadata ?? {};
-  const appMeta = user.app_metadata ?? {};
-  const role = parseVoraRole(meta.role ?? appMeta.role) ?? "registered";
-  return resolveEffectiveRole({ email: user.email ?? "", role });
+export function resolveRoleFromSupabaseUser(user: User): VoraRole {
+  return resolveRoleFromAuthMetadata(user);
 }
 
-export function isElevatedRole(role: VoraRole): boolean {
-  return role === "admin" || role === "owner" || role === "company";
+export function resolveEffectiveRoleFromUser(user: User, dbRole?: VoraRole | null): VoraRole {
+  const email = user.email ?? "";
+  if (dbRole) {
+    return resolveEffectiveRole({ email, role: dbRole });
+  }
+  return resolveRoleFromAuthMetadata(user);
 }

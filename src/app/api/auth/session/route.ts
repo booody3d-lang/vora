@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { resolveAdminCapabilities } from "@/lib/security/roles";
+import { syncAuthUserRoleMetadata } from "@/lib/security/sync-auth-role-metadata";
 import { getRecoveryChannel } from "@/lib/security/auth-store";
 
 export async function GET() {
@@ -8,6 +9,9 @@ export async function GET() {
   if (!auth) {
     return NextResponse.json({ authenticated: false, user: null, isAuthenticated: false });
   }
+
+  // Keep JWT metadata aligned with DB role for Edge middleware RBAC (fire-and-forget).
+  void syncAuthUserRoleMetadata(auth.user.id, auth.session.role);
 
   return NextResponse.json({
     authenticated: true,

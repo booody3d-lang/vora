@@ -1,10 +1,10 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { isOwnerOnlyAdminRoute } from "@/lib/admin/admin-nav";
 import {
-  fetchAccountRoleById,
+  fetchAccountRoleByIdEdge,
   isElevatedRole,
   resolveRoleFromAuthMetadata,
-} from "@/lib/security/resolve-account-role";
+} from "@/lib/security/resolve-account-role-edge";
 import { parseVoraRole } from "@/lib/security/parse-vora-role";
 import {
   canAccessAdminPanel,
@@ -38,7 +38,7 @@ export async function resolveRoleForMiddleware(
 ): Promise<VoraRole> {
   const email = user.email ?? "";
 
-  const fromService = await fetchAccountRoleById(user.id);
+  const fromService = await fetchAccountRoleByIdEdge(user.id);
   if (fromService) {
     return resolveEffectiveRole({ email, role: fromService });
   }

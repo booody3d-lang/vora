@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { VoraLogo } from "@/components/brand/VoraLogo";
 import { DualDashboardToggle } from "@/components/navigation/DualDashboardToggle";
+import { NavRouteLink } from "@/components/navigation/NavRouteLink";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -88,11 +89,14 @@ export function NetworkNav() {
                 ((item.labelKey === "nav.ownerPanel" || item.labelKey === "nav.adminPanel") &&
                   pathname.startsWith("/admin")) ||
                 (item.matchPrefix && href !== "/network" && href !== "/company/dashboard" && pathname.startsWith(href));
+              const isPanelLink =
+                item.labelKey === "nav.adminPanel" || item.labelKey === "nav.ownerPanel";
               return (
-                <Link
+                <NavRouteLink
                   key={item.labelKey}
                   href={href}
-                  prefetch={item.labelKey === "nav.adminPanel" || item.labelKey === "nav.ownerPanel" ? false : undefined}
+                  hardNavigate={isPanelLink}
+                  prefetch={isPanelLink ? false : undefined}
                   className={cn(
                     "flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] font-medium transition-colors",
                     active ? "text-white" : "text-slate-400 hover:text-white"
@@ -100,7 +104,7 @@ export function NetworkNav() {
                 >
                   <span className="text-lg leading-none">{item.icon}</span>
                   {t(item.labelKey)}
-                </Link>
+                </NavRouteLink>
               );
             })}
           </nav>
@@ -113,8 +117,9 @@ export function NetworkNav() {
         <DualDashboardToggle />
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
           {isAdminUser && (
-            <Link
+            <NavRouteLink
               href="/admin"
+              hardNavigate
               prefetch={false}
               className={cn(
                 "flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold transition-colors md:hidden",
@@ -126,7 +131,7 @@ export function NetworkNav() {
             >
               <span className="text-base leading-none">{isOwner ? "👑" : "🛡️"}</span>
               <span className="max-w-[4.5rem] truncate">{t(isOwner ? "nav.ownerPanel" : "nav.adminPanel")}</span>
-            </Link>
+            </NavRouteLink>
           )}
           <LocaleSwitcher variant="light" />
           <NotificationBell variant="light" />

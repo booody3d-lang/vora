@@ -158,10 +158,14 @@ export async function POST(request: Request) {
       role: authUser.role,
     });
 
+    const enrichedUser = enrichAuthUser(authUser);
     const { persistLoginSession } = await import("@/lib/auth/persist-login-session");
     await persistLoginSession(request, authUser.id, data.session?.access_token);
 
-    const response = NextResponse.json({ user: enrichAuthUser(authUser) });
+    const { syncAuthUserRoleMetadata } = await import("@/lib/security/sync-auth-role-metadata");
+    await syncAuthUserRoleMetadata(authUser.id, enrichedUser.role);
+
+    const response = NextResponse.json({ user: enrichedUser });
     clearLegacySessionCookie(response);
     return response;
   } catch (err) {
