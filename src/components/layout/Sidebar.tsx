@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { VoraLogo } from "@/components/brand/VoraLogo";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { SidebarProfileCard } from "@/components/layout/SidebarProfileCard";
-import { NavRouteLink, isValidNavHref } from "@/components/navigation/NavRouteLink";
+import { NavRouteLink, isValidNavHref, shouldHardNavigate } from "@/components/navigation/NavRouteLink";
 import { useSidebar } from "@/providers/SidebarProvider";
 import { useLocale } from "@/providers/LocaleProvider";
 import { usePermissions } from "@/providers/VoraProviders";
@@ -200,13 +200,14 @@ export function Sidebar() {
 
               const isPanelLink =
                 item.labelKey === "nav.adminPanel" || item.labelKey === "nav.ownerPanel";
+              const useHardNav = isPanelLink || shouldHardNavigate(item.href);
 
               return (
                 <NavRouteLink
                   key={item.id}
                   href={item.href}
-                  hardNavigate={isPanelLink}
-                  prefetch={isPanelLink ? false : undefined}
+                  hardNavigate={useHardNav}
+                  prefetch={useHardNav ? false : undefined}
                   onNavigate={() => {
                     if (window.innerWidth < 1024) setOpen(false);
                   }}

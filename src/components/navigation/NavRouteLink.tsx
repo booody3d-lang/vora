@@ -10,6 +10,30 @@ function isValidNavHref(href: string): boolean {
   return href.startsWith("/");
 }
 
+/** Routes gated by middleware RBAC — use full document navigation to avoid silent client redirects. */
+const MIDDLEWARE_GATED_PREFIXES = [
+  "/admin",
+  "/network/messages",
+  "/network/settings",
+  "/network/ai",
+  "/network/connections",
+  "/network/profile/edit",
+  "/freelance/messages",
+  "/freelance/dashboard",
+  "/freelance/orders",
+  "/freelance/manage-store",
+  "/billing",
+  "/company/dashboard",
+  "/company/onboarding",
+];
+
+export function shouldHardNavigate(href: string): boolean {
+  const path = href.split("?")[0].split("#")[0];
+  return MIDDLEWARE_GATED_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+  );
+}
+
 interface NavRouteLinkProps {
   href: string;
   className?: string;

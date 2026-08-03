@@ -1,5 +1,11 @@
 import type { RbacAction, VoraRole } from "@/types/security";
 
+/** Match a path prefix and all subpaths (e.g. /network, /network/messages). */
+function routePrefix(base: string): RegExp {
+  const escaped = base.replace(/\//g, "\\/");
+  return new RegExp(`^${escaped}(\\/.*)?$`);
+}
+
 const ROLE_PERMISSIONS: Record<VoraRole, Set<RbacAction>> = {
   visitor: new Set([
     "browse_public",
@@ -88,7 +94,7 @@ export const ROLE_ROUTE_ACCESS: Record<VoraRole, RegExp[]> = {
   visitor: [
     /^\/$/,
     /^\/auth\//,
-    /^\/freelance(\/|$)/,
+    routePrefix("/freelance"),
     /^\/network\/profile\//,
     /^\/network\/company\//,
     /^\/network\/jobs$/,
@@ -98,29 +104,27 @@ export const ROLE_ROUTE_ACCESS: Record<VoraRole, RegExp[]> = {
   registered: [
     /^\/$/,
     /^\/auth\//,
-    /^\/freelance(\/|$)/,
-    /^\/network(\/|$)/,
-    /^\/profile(\/|$)/,
-    /^\/billing(\/|$)/,
-    /^\/network\/settings\//,
+    routePrefix("/freelance"),
+    routePrefix("/network"),
+    routePrefix("/profile"),
+    routePrefix("/billing"),
     /^\/jobs(\/|$)/,
     /^\/messaging(\/|$)/,
   ],
   professional: [
     /^\/$/,
     /^\/auth\//,
-    /^\/freelance(\/|$)/,
-    /^\/network(\/|$)/,
-    /^\/profile(\/|$)/,
-    /^\/billing(\/|$)/,
+    routePrefix("/freelance"),
+    routePrefix("/network"),
+    routePrefix("/profile"),
+    routePrefix("/billing"),
   ],
   company: [
     /^\/$/,
     /^\/auth\//,
-    /^\/company(\/|$)/,
-    /^\/billing(\/|$)/,
-    /^\/network(\/|$)/,
-    /^\/network\/messages(\/|$)/,
+    routePrefix("/company"),
+    routePrefix("/billing"),
+    routePrefix("/network/messages"),
     /^\/network\/company\//,
     /^\/network\/jobs(\/|$)/,
     /^\/network\/profile\//,
@@ -128,20 +132,21 @@ export const ROLE_ROUTE_ACCESS: Record<VoraRole, RegExp[]> = {
   admin: [
     /^\/$/,
     /^\/auth\//,
-    /^\/admin(\/|$)/,
-    /^\/freelance(\/|$)/,
-    /^\/network(\/|$)/,
-    /^\/profile(\/|$)/,
-    /^\/billing(\/|$)/,
+    routePrefix("/admin"),
+    routePrefix("/freelance"),
+    routePrefix("/network"),
+    routePrefix("/profile"),
+    routePrefix("/billing"),
   ],
   owner: [
     /^\/$/,
     /^\/auth\//,
-    /^\/admin(\/|$)/,
-    /^\/billing(\/|$)/,
-    /^\/freelance(\/|$)/,
-    /^\/network(\/|$)/,
-    /^\/company(\/|$)/,
+    routePrefix("/admin"),
+    routePrefix("/billing"),
+    routePrefix("/freelance"),
+    routePrefix("/network"),
+    routePrefix("/company"),
+    routePrefix("/profile"),
   ],
 };
 

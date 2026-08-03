@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { VoraLogo } from "@/components/brand/VoraLogo";
 import { DualDashboardToggle } from "@/components/navigation/DualDashboardToggle";
-import { NavRouteLink } from "@/components/navigation/NavRouteLink";
+import { NavRouteLink, shouldHardNavigate } from "@/components/navigation/NavRouteLink";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -128,13 +128,23 @@ export function FreelanceNav() {
             </NavRouteLink>
           )}
           <NotificationBell variant="dark" />
-          <Link href="/freelance/messages" className="text-sm font-medium text-slate-600 hover:text-[#EA580C]">
+          <NavRouteLink
+            href="/freelance/messages"
+            hardNavigate
+            prefetch={false}
+            className="text-sm font-medium text-slate-600 hover:text-[#EA580C]"
+          >
             💬 {t("common.messages")}
-          </Link>
+          </NavRouteLink>
           <LocaleSwitcher variant="dark" />
-          <Link href="/freelance/dashboard" className="text-sm font-medium text-[#EA580C] hover:underline">
+          <NavRouteLink
+            href="/freelance/dashboard"
+            hardNavigate={shouldHardNavigate("/freelance/dashboard")}
+            prefetch={false}
+            className="text-sm font-medium text-[#EA580C] hover:underline"
+          >
             {t("common.myStore")}
-          </Link>
+          </NavRouteLink>
           <Link href={profileHref}>
             <UserAvatar
               photoUrl={profilePhotoUrl || avatarUrl}

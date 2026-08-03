@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NavRouteLink, shouldHardNavigate } from "@/components/navigation/NavRouteLink";
 import { usePathname } from "next/navigation";
 import { VoraLogo } from "@/components/brand/VoraLogo";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
@@ -93,10 +94,12 @@ export function CompanySidebar() {
               (!("exact" in item && item.exact) && pathname.startsWith(item.href));
 
             return (
-              <Link
+              <NavRouteLink
                 key={item.href}
                 href={item.href}
-                onClick={() => {
+                hardNavigate={shouldHardNavigate(item.href)}
+                prefetch={shouldHardNavigate(item.href) ? false : undefined}
+                onNavigate={() => {
                   if (window.innerWidth < 1024) setOpen(false);
                 }}
                 className={cn(
@@ -108,7 +111,7 @@ export function CompanySidebar() {
               >
                 <span className="text-base opacity-80">{item.icon}</span>
                 {t(item.labelKey)}
-              </Link>
+              </NavRouteLink>
             );
           })}
 

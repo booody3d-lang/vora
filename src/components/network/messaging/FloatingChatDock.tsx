@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { NavRouteLink } from "@/components/navigation/NavRouteLink";
 import { usePathname } from "next/navigation";
 import { MessagingShell } from "@/components/network/messaging/MessagingShell";
 import { useMessaging } from "@/hooks/useMessaging";
@@ -70,12 +70,14 @@ export function FloatingChatDock() {
               >
                 {isMinimized ? "▲" : "▼"}
               </button>
-              <Link
+              <NavRouteLink
                 href="/network/messages"
+                hardNavigate
+                prefetch={false}
                 className="rounded px-2 py-1 text-xs hover:bg-white/10"
               >
                 ⤢
-              </Link>
+              </NavRouteLink>
               <button
                 type="button"
                 onClick={closeDock}

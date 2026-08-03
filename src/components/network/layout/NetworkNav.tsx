@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { VoraLogo } from "@/components/brand/VoraLogo";
 import { DualDashboardToggle } from "@/components/navigation/DualDashboardToggle";
-import { NavRouteLink } from "@/components/navigation/NavRouteLink";
+import { NavRouteLink, shouldHardNavigate } from "@/components/navigation/NavRouteLink";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -91,12 +91,13 @@ export function NetworkNav() {
                 (item.matchPrefix && href !== "/network" && href !== "/company/dashboard" && pathname.startsWith(href));
               const isPanelLink =
                 item.labelKey === "nav.adminPanel" || item.labelKey === "nav.ownerPanel";
+              const useHardNav = isPanelLink || shouldHardNavigate(href);
               return (
                 <NavRouteLink
                   key={item.labelKey}
                   href={href}
-                  hardNavigate={isPanelLink}
-                  prefetch={isPanelLink ? false : undefined}
+                  hardNavigate={useHardNav}
+                  prefetch={useHardNav ? false : undefined}
                   className={cn(
                     "flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] font-medium transition-colors",
                     active ? "text-white" : "text-slate-400 hover:text-white"
@@ -135,13 +136,15 @@ export function NetworkNav() {
           )}
           <LocaleSwitcher variant="light" />
           <NotificationBell variant="light" />
-          <Link
+          <NavRouteLink
             href="/network/messages"
+            hardNavigate
+            prefetch={false}
             className="relative rounded-full p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
             aria-label={t("nav.messagesAria")}
           >
             💬
-          </Link>
+          </NavRouteLink>
           <Link href={profileHref}>
             <UserAvatar
               photoUrl={profilePhotoUrl || profile?.profilePhotoUrl || avatarUrl}
