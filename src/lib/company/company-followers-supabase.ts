@@ -7,7 +7,7 @@ import {
   markSupabaseDbSyncUnavailable,
 } from "@/lib/supabase/safe-db";
 import type { FollowListEntry, FollowRelationship } from "@/lib/network/social-store";
-import { getProfileByAccountId } from "@/lib/profile/profile-store";
+import { resolveFollowListEntryForAccount } from "@/lib/network/follow-list-resolve";
 
 let companyFollowersTableProbed = false;
 let companyFollowersTableAvailable = false;
@@ -90,17 +90,15 @@ export async function listCompanyFollowersForOwnerFromSupabase(
 
   if (error) throw error;
 
-  return (data ?? []).map((row) => {
-    const profile = getProfileByAccountId(row.follower_id as string);
-    return {
-      accountId: row.follower_id as string,
-      fullName: profile?.fullName ?? "User",
-      headline: profile?.headline ?? "",
-      profileSlug: profile?.slug,
-      status: "accepted" as const,
-      since: row.created_at as string,
-    };
-  });
+  return Promise.all(
+    (data ?? []).map((row) =>
+      resolveFollowListEntryForAccount(
+        row.follower_id as string,
+        "accepted",
+        row.created_at as string
+      )
+    )
+  );
 }
 
 export async function isFollowingCompanyInSupabase(

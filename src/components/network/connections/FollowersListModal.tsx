@@ -36,10 +36,7 @@ export function FollowersListModal({
 
     void (async () => {
       try {
-        const params = new URLSearchParams({
-          targetId,
-          targetType,
-        });
+        const params = new URLSearchParams({ targetId, targetType });
         const res = await fetch(`/api/social/followers?${params.toString()}`, {
           credentials: "include",
         });

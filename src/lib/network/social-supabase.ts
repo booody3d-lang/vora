@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfileByAccountId } from "@/lib/profile/profile-store";
+import { resolveFollowListEntryForAccount } from "@/lib/network/follow-list-resolve";
 import type {
   FollowListEntry,
   FollowRelationship,
@@ -162,24 +163,6 @@ export async function getFollowingUserCountFromSupabase(accountId: string): Prom
   return count ?? 0;
 }
 
-function mapConnectionToFollowListEntry(
-  row: DbConnectionRow,
-  accountIdKey: "requester_id" | "recipient_id"
-): FollowListEntry | null {
-  const accountId = row[accountIdKey];
-  const profile = getProfileByAccountId(accountId);
-  if (!profile) return null;
-
-  return {
-    accountId,
-    fullName: profile.fullName,
-    headline: profile.headline,
-    profileSlug: profile.slug,
-    status: row.status,
-    since: row.status === "accepted" ? row.updated_at : row.created_at,
-  };
-}
-
 export async function listFollowersForOwnerFromSupabase(
   ownerAccountId: string
 ): Promise<FollowListEntry[]> {
@@ -193,9 +176,15 @@ export async function listFollowersForOwnerFromSupabase(
 
   if (error) throw error;
 
-  return (data as DbConnectionRow[])
-    .map((row) => mapConnectionToFollowListEntry(row, "requester_id"))
-    .filter((entry): entry is FollowListEntry => entry !== null);
+  return Promise.all(
+    (data as DbConnectionRow[]).map((row) =>
+      resolveFollowListEntryForAccount(
+        row.requester_id,
+        row.status,
+        row.status === "accepted" ? row.updated_at : row.created_at
+      )
+    )
+  );
 }
 
 export async function listFollowingUsersFromSupabase(
@@ -211,9 +200,15 @@ export async function listFollowingUsersFromSupabase(
 
   if (error) throw error;
 
-  return (data as DbConnectionRow[])
-    .map((row) => mapConnectionToFollowListEntry(row, "recipient_id"))
-    .filter((entry): entry is FollowListEntry => entry !== null);
+  return Promise.all(
+    (data as DbConnectionRow[]).map((row) =>
+      resolveFollowListEntryForAccount(
+        row.recipient_id,
+        row.status,
+        row.status === "accepted" ? row.updated_at : row.created_at
+      )
+    )
+  );
 }
 
 export async function getIncomingPendingFollowsFromSupabase(
@@ -229,9 +224,11 @@ export async function getIncomingPendingFollowsFromSupabase(
 
   if (error) throw error;
 
-  return (data as DbConnectionRow[])
-    .map((row) => mapConnectionToFollowListEntry(row, "requester_id"))
-    .filter((entry): entry is FollowListEntry => entry !== null);
+  return Promise.all(
+    (data as DbConnectionRow[]).map((row) =>
+      resolveFollowListEntryForAccount(row.requester_id, row.status, row.created_at)
+    )
+  );
 }
 
 export async function countConnectionsInSupabase(): Promise<number> {

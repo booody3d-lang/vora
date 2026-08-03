@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FollowListEntry } from "@/lib/network/social-store";
 import { FollowersListModal } from "@/components/network/connections/FollowersListModal";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { useCurrentProfile } from "@/hooks/use-current-profile";
+import { usePermissions } from "@/providers/VoraProviders";
 import { useTranslations } from "@/i18n/use-translations";
 import { cn } from "@/lib/utils";
 
@@ -18,44 +18,24 @@ export function MessagingOwnerFollowersPanel({
   onMessageFollower,
 }: MessagingOwnerFollowersPanelProps) {
   const { t } = useTranslations();
-  const { profile, loading: profileLoading } = useCurrentProfile();
+  const { user, isLoading: sessionLoading } = usePermissions();
   const [followerCount, setFollowerCount] = useState(0);
   const [followers, setFollowers] = useState<FollowListEntry[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
-  const accountId = profile?.accountId ?? profile?.id ?? null;
-
-  useEffect(() => {
-    if (profileLoading) return;
-    void (async () => {
-      try {
-        const res = await fetch("/api/profile/me", { credentials: "include" });
-        const data = await res.json();
-        if (res.ok) {
-          setFollowerCount(data.circle?.followerCount ?? 0);
-        }
-      } catch {
-        setFollowerCount(0);
-      }
-    })();
-  }, [profileLoading]);
+  const accountId = user?.id ?? null;
 
   const loadFollowers = useCallback(async () => {
     if (!accountId) return;
     setListLoading(true);
     try {
-      const params = new URLSearchParams({
-        targetId: accountId,
-        targetType: "user",
-      });
-      const res = await fetch(`/api/social/followers?${params.toString()}`, {
-        credentials: "include",
-      });
+      const res = await fetch("/api/social/followers", { credentials: "include" });
       const data = await res.json();
       if (res.ok) {
         setFollowers(data.followers ?? []);
+        setFollowerCount(data.followerCount ?? data.followers?.length ?? 0);
       }
     } finally {
       setListLoading(false);
@@ -63,14 +43,14 @@ export function MessagingOwnerFollowersPanel({
   }, [accountId]);
 
   useEffect(() => {
-    if (!expanded || compact || !accountId) return;
+    if (sessionLoading || !accountId) return;
     void loadFollowers();
-  }, [expanded, compact, accountId, loadFollowers]);
+  }, [sessionLoading, accountId, loadFollowers]);
 
-  if (profileLoading || !accountId) return null;
+  if (sessionLoading || !accountId) return null;
 
   function handleToggle() {
-    if (compact || followerCount === 0) {
+    if (compact) {
       setShowModal(true);
       return;
     }
@@ -89,7 +69,7 @@ export function MessagingOwnerFollowersPanel({
         <button
           type="button"
           onClick={handleToggle}
-          disabled={followerCount === 0}
+          disabled={followerCount === 0 && !listLoading}
           aria-label={t("network.connections.followersList.viewFollowers")}
           className={cn(
             "flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-start transition-colors",
