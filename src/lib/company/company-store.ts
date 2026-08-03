@@ -2,8 +2,8 @@ import "server-only";
 
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { saveUploadedFile } from "@/lib/profile/profile-store";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
+import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   isMissingRelationError,
   markSupabaseDbSyncUnavailable,
@@ -25,7 +25,6 @@ import {
   type CreateCompanyInput,
 } from "@/lib/company/company-supabase";
 import type { CompanyProfile, CompanySubscription } from "@/types/company";
-import { ANNUAL_SUBSCRIPTION_SAR, FREE_JOBS_LIMIT } from "@/types/company";
 
 const DATA_FILE = "company-data.json";
 const MIGRATION_FLAG = "company-supabase-migrated.json";
@@ -40,7 +39,7 @@ let companyTableProbed = false;
 let companyTableAvailable = false;
 
 export async function isCompanySupabaseReady(): Promise<boolean> {
-  if (!isSupabasePersistenceEnabled()) return false;
+  if (!isSupabaseConfigured() || !isAdminClientAvailable()) return false;
   if (companyTableProbed) return companyTableAvailable;
 
   companyTableProbed = true;
@@ -140,6 +139,21 @@ export function getCompanySlugForAccount(accountId: string): string | null {
   return getAccountLink(accountId);
 }
 
+export async function resolveCompanySlugForAccount(accountId: string): Promise<string | null> {
+  const jsonSlug = getAccountLink(accountId);
+  if (jsonSlug) return jsonSlug;
+
+  if (!(await isCompanySupabaseReady())) return null;
+
+  try {
+    const company = await getCompanyByOwnerFromSupabase(accountId);
+    return company?.slug ?? null;
+  } catch (error) {
+    console.error("[company-store] resolveCompanySlugForAccount failed:", error);
+    return null;
+  }
+}
+
 /** True when the account owns the company identified by slug. */
 export async function isCompanyOwnedByAccount(
   accountId: string,
@@ -177,11 +191,14 @@ export async function getCompanyByAccountId(accountId: string): Promise<CompanyP
 
   await maybeMigrateJsonToSupabase();
 
-  return runOptionalDbSync(
-    "getCompanyByAccountId",
-    () => getCompanyByOwnerFromSupabase(accountId),
-    jsonFallback
-  );
+  try {
+    const fromDb = await getCompanyByOwnerFromSupabase(accountId);
+    if (fromDb) return fromDb;
+  } catch (error) {
+    console.error("[company-store] getCompanyByAccountId supabase failed:", error);
+  }
+
+  return jsonFallback;
 }
 
 function getCompanyByIdFromJson(companyId: string): CompanyProfile | null {
@@ -243,7 +260,10 @@ export async function getCompanySubscriptionForAccount(
 
   return runOptionalDbSync(
     "getCompanySubscriptionForAccount",
-    () => getCompanySubscriptionFromSupabase(company.id),
+    async () => {
+      const fromDb = await getCompanySubscriptionFromSupabase(company.id);
+      return fromDb ?? jsonFallback;
+    },
     jsonFallback
   );
 }
@@ -399,10 +419,32 @@ export async function updateCompanyForAccount(
   accountId: string,
   updates: Partial<CompanyProfile>
 ): Promise<CompanyProfile | null> {
-  const data = readData();
+  if (await isCompanySupabaseReady()) {
+    try {
+      const updated = await upsertCompanyInSupabase(accountId, updates);
+      if (updated) {
+        const data = readData();
+        const slug = data.accountLinks[accountId] ?? updated.slug;
+        data.companies[slug] = {
+          ...data.companies[slug],
+          ...updated,
+          accountId,
+          slug: updated.slug,
+          id: updated.id,
+        };
+        data.accountLinks[accountId] = updated.slug;
+        writeData(data);
+        return updated;
+      }
+    } catch (error) {
+      console.error("[company-store] updateCompanyForAccount supabase failed:", error);
+    }
+  }
+
   const slug = getAccountLink(accountId);
   if (!slug) return null;
 
+  const data = readData();
   data.companies[slug] = {
     ...data.companies[slug],
     ...updates,
@@ -412,16 +454,7 @@ export async function updateCompanyForAccount(
   };
   writeData(data);
 
-  const jsonCompany = getCompanyBySlugFromJson(slug);
-  if (!(await isCompanySupabaseReady())) {
-    return jsonCompany;
-  }
-
-  return runOptionalDbSync(
-    "updateCompanyForAccount",
-    () => upsertCompanyInSupabase(accountId, updates),
-    jsonCompany
-  );
+  return getCompanyBySlugFromJson(slug);
 }
 
 export { saveUploadedFile };

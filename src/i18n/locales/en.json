@@ -539,6 +539,7 @@
     "nav": {
       "portal": "Company Portal",
       "overview": "Overview",
+      "settings": "Settings",
       "companyPage": "Company Page",
       "jobs": "Jobs",
       "postJob": "Post a Job",
@@ -613,6 +614,8 @@
       "saved": "Company page updated successfully",
       "saveFailed": "Failed to save company page",
       "notFound": "Company profile not found",
+      "setupHint": "Create your company profile to unlock the dashboard, settings, and job publishing.",
+      "setupCta": "Set up company profile",
       "branding": "Branding & Images",
       "details": "About & Company Details",
       "name": "Company Name",

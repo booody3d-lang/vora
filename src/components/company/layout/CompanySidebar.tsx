@@ -7,12 +7,13 @@ import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { CompanySidebarCard } from "@/components/company/layout/CompanySidebarCard";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { useCompanySidebar } from "@/providers/CompanySidebarProvider";
+import { usePermissions } from "@/providers/VoraProviders";
 import { useLocale } from "@/providers/LocaleProvider";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/company/dashboard", labelKey: "company.nav.overview", icon: "📊", exact: true },
-  { href: "/company/dashboard/settings", labelKey: "company.nav.companyPage", icon: "🏢" },
+  { href: "/company/dashboard/settings", labelKey: "company.nav.settings", icon: "⚙️" },
   { href: "/company/dashboard/jobs", labelKey: "company.nav.jobs", icon: "💼" },
   { href: "/company/dashboard/jobs/new", labelKey: "company.nav.postJob", icon: "➕" },
   { href: "/company/dashboard/analytics", labelKey: "company.nav.analytics", icon: "📈" },
@@ -23,9 +24,25 @@ export function CompanySidebar() {
   const pathname = usePathname();
   const { isOpen, setOpen } = useCompanySidebar();
   const { t, dir } = useLocale();
+  const { refreshSession } = usePermissions();
   const { companySlug } = useCurrentCompany();
   const isRtl = dir === "rtl";
   const publicPageHref = companySlug ? `/network/company/${companySlug}` : null;
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    try {
+      await refreshSession();
+    } catch {
+      // redirect will reload auth state
+    }
+    window.location.assign("/auth/login");
+  }
 
   return (
     <>
@@ -112,6 +129,14 @@ export function CompanySidebar() {
         </nav>
 
         <div className="border-t border-slate-800 p-4">
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            className="mb-3 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+          >
+            <span className="text-base opacity-80">🚪</span>
+            {t("common.signOut")}
+          </button>
           <LocaleSwitcher variant="light" />
         </div>
       </aside>

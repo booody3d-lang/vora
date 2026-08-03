@@ -10,10 +10,11 @@ import type { JobPosting } from "@/types/company";
 
 export function CompanyDashboardOverview() {
   const { t } = useLocale();
-  const { company, subscription } = useCurrentCompany();
+  const { company, subscription, loading } = useCurrentCompany();
   const [jobs, setJobs] = useState<JobPosting[]>([]);
 
   useEffect(() => {
+    if (!company) return;
     let cancelled = false;
 
     async function load() {
@@ -32,9 +33,30 @@ export function CompanyDashboardOverview() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [company]);
 
-  const companyName = company?.name ?? "Company";
+  if (loading) {
+    return <div className="py-10 text-center text-slate-500">{t("common.loading")}</div>;
+  }
+
+  if (!company) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-16 text-center">
+        <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+          <p className="text-lg font-semibold text-[#0F172A]">{t("company.settings.notFound")}</p>
+          <p className="mt-2 text-sm text-slate-500">{t("company.settings.setupHint")}</p>
+          <Link
+            href="/company/onboarding"
+            className="mt-6 inline-flex rounded-lg bg-[#3B5998] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#2d4373]"
+          >
+            {t("company.settings.setupCta")}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const companyName = company.name;
   const followerCount = company?.followerCount ?? 0;
   const subState = subscription
     ? computeSubscriptionState(subscription)

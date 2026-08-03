@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { useTranslations } from "@/i18n/use-translations";
-import { cn } from "@/lib/utils";
 
 interface CompanySidebarCardProps {
   onNavigate?: () => void;
@@ -13,7 +12,15 @@ export function CompanySidebarCard({ onNavigate }: CompanySidebarCardProps) {
   const { t } = useTranslations();
   const { company, companySlug, loading } = useCurrentCompany();
 
-  if (loading || !company || !companySlug) return null;
+  if (loading) {
+    return (
+      <div className="mx-3 mb-2 animate-pulse rounded-xl bg-slate-800/60 px-3 py-6">
+        <div className="h-14 rounded-lg bg-slate-700" />
+      </div>
+    );
+  }
+
+  if (!company || !companySlug) return null;
 
   const coverStyle = company.coverImageUrl
     ? { backgroundImage: `url(${company.coverImageUrl})` }

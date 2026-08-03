@@ -10,6 +10,12 @@ export interface SupabaseDbErrorLike {
   hint?: string;
 }
 
+export function isMissingColumnError(error: SupabaseDbErrorLike | null | undefined): boolean {
+  if (!error) return false;
+  const message = (error.message ?? error.details ?? "").toLowerCase();
+  return error.code === "PGRST204" || (message.includes("could not find") && message.includes("column"));
+}
+
 export function isMissingRelationError(error: SupabaseDbErrorLike | null | undefined): boolean {
   if (!error) return false;
   const message = (error.message ?? error.details ?? "").toLowerCase();
