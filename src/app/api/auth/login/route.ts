@@ -73,24 +73,32 @@ export async function POST(request: Request) {
         logAuthFailure("login", "supabase-no-user-returned", { email });
       }
 
-      await serverDispatchNotification(
-        buildTriggerNotification({
-          trigger: "failed_login",
-          title: "Failed Login Attempt",
-          body: `Failed login for ${email} from ${ip}`,
-          isCritical: true,
-          href: "/admin/security",
-        }),
-        { ownerEmail: true }
-      );
-      await writeSecurityAuditEvent({
-        accountId: null,
-        action: "security.login.failed",
-        ip,
-        userAgent: request.headers.get("user-agent") ?? "unknown",
-        metadata: { email: maskEmail(email) },
-        severity: "warn",
-      });
+      try {
+        await serverDispatchNotification(
+          buildTriggerNotification({
+            trigger: "failed_login",
+            title: "Failed Login Attempt",
+            body: `Failed login for ${email} from ${ip}`,
+            isCritical: true,
+            href: "/admin/security",
+          }),
+          { ownerEmail: true }
+        );
+        await writeSecurityAuditEvent({
+          accountId: null,
+          action: "security.login.failed",
+          ip,
+          userAgent: request.headers.get("user-agent") ?? "unknown",
+          metadata: { email: maskEmail(email) },
+          severity: "warn",
+        });
+      } catch (sideEffectError) {
+        logAuthFailure("login", "failed-login-side-effect", {
+          email,
+          message:
+            sideEffectError instanceof Error ? sideEffectError.message : String(sideEffectError),
+        });
+      }
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 

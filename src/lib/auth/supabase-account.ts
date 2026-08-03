@@ -1,6 +1,5 @@
 import type { User } from "@supabase/supabase-js";
 import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import {
   isMissingRelationError,
   markSupabaseDbSyncUnavailable,
@@ -19,6 +18,13 @@ import { resolveEffectiveRole } from "@/lib/security/roles";
 import type { UserGender } from "@/types/profile";
 import type { AuthUser, VoraRole } from "@/types/security";
 
+interface ProductionAccountRow {
+  id: string;
+  email: string;
+  account_type: string | null;
+  status: string | null;
+}
+
 interface DbAccountRow {
   id: string;
   email: string;
@@ -33,8 +39,18 @@ interface DbAccountRow {
   has_freelancer_store: boolean | null;
 }
 
-const ACCOUNT_SELECT =
+/** Production PostgREST schema (slim accounts table). */
+const PRODUCTION_ACCOUNT_SELECT = "id, email, account_type, status";
+
+/** Full migration schema when extended account columns exist. */
+const FULL_ACCOUNT_SELECT =
   "id, email, full_name, primary_role, gender, phone, phone_verified, totp_enabled, is_banned, professional_unlocked, has_freelancer_store";
+
+function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  const message = (error.message ?? "").toLowerCase();
+  return error.code === "PGRST204" || (message.includes("could not find") && message.includes("column"));
+}
 
 function parseRole(value: unknown): VoraRole | null {
   const roles: VoraRole[] = ["registered", "professional", "company", "admin", "owner"];
@@ -49,22 +65,76 @@ function parseGender(value: unknown): UserGender | undefined {
   return undefined;
 }
 
-export function mapDbAccount(row: DbAccountRow): AuthUser {
-  const role = row.primary_role ?? "registered";
+function mapRoleToAuthUser(
+  row: Pick<ProductionAccountRow, "id" | "email">,
+  role: VoraRole,
+  extras?: Partial<Pick<DbAccountRow, "full_name" | "gender" | "phone" | "phone_verified" | "totp_enabled" | "is_banned" | "professional_unlocked" | "has_freelancer_store"> & { status?: string | null }>
+): AuthUser {
+  const isBanned =
+    extras?.is_banned ??
+    (typeof extras?.status === "string" ? extras.status !== "active" : false);
+
   return {
     id: row.id,
     email: row.email,
-    fullName: row.full_name ?? "",
+    fullName: extras?.full_name ?? "",
     role,
-    phone: row.phone ?? undefined,
-    phoneVerified: row.phone_verified ?? false,
-    totpEnabled: row.totp_enabled ?? false,
-    isBanned: row.is_banned ?? false,
-    professionalUnlocked: row.professional_unlocked ?? role === "professional",
-    hasFreelancerStore: row.has_freelancer_store ?? false,
+    phone: extras?.phone ?? undefined,
+    phoneVerified: extras?.phone_verified ?? false,
+    totpEnabled: extras?.totp_enabled ?? false,
+    isBanned,
+    professionalUnlocked:
+      extras?.professional_unlocked ?? role === "professional" || role === "owner" || role === "admin",
+    hasFreelancerStore: extras?.has_freelancer_store ?? role === "professional",
     hasProfessionalProfile: role !== "company",
-    gender: row.gender ?? undefined,
+    gender: extras?.gender ?? undefined,
   };
+}
+
+export function mapProductionAccount(row: ProductionAccountRow): AuthUser {
+  const role = parseRole(row.account_type) ?? "registered";
+  return mapRoleToAuthUser(row, role, { status: row.status });
+}
+
+export function mapDbAccount(row: DbAccountRow): AuthUser {
+  const role = row.primary_role ?? "registered";
+  return mapRoleToAuthUser(row, role, row);
+}
+
+async function fetchAccountById(accountId: string): Promise<AuthUser | null> {
+  if (!isAdminClientAvailable()) return null;
+
+  const admin = createAdminClient();
+
+  const production = await admin
+    .from("accounts")
+    .select(PRODUCTION_ACCOUNT_SELECT)
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (!production.error && production.data) {
+    return mapProductionAccount(production.data as ProductionAccountRow);
+  }
+
+  if (production.error && !isMissingColumnError(production.error) && !isMissingRelationError(production.error)) {
+    console.error("[supabase-account] production fetch failed:", production.error.message);
+  }
+
+  const full = await admin
+    .from("accounts")
+    .select(FULL_ACCOUNT_SELECT)
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (!full.error && full.data) {
+    return mapDbAccount(full.data as DbAccountRow);
+  }
+
+  if (full.error && !isMissingRelationError(full.error)) {
+    console.error("[supabase-account] full fetch failed:", full.error.message);
+  }
+
+  return null;
 }
 
 export function buildAuthUserFromMetadata(user: User): AuthUser {
@@ -96,7 +166,7 @@ export async function findAccountByPhoneFromDb(phoneE164: string): Promise<AuthU
       const admin = createAdminClient();
       const { data, error } = await admin
         .from("accounts")
-        .select(ACCOUNT_SELECT)
+        .select(FULL_ACCOUNT_SELECT)
         .eq("phone", phoneE164)
         .maybeSingle();
 
@@ -121,6 +191,16 @@ export async function upsertAccountRow(
 
   await runOptionalDbSyncVoid("upsert account row", async () => {
     const admin = createAdminClient();
+    const productionPayload = {
+      id: authUser.id,
+      email: authUser.email,
+      account_type: authUser.role,
+      status: authUser.isBanned ? "suspended" : "active",
+    };
+
+    const production = await admin.from("accounts").upsert(productionPayload, { onConflict: "id" });
+    if (!production.error) return;
+
     const { error } = await admin.from("accounts").upsert(
       {
         id: authUser.id,
@@ -143,8 +223,10 @@ export async function upsertAccountRow(
     );
 
     if (error) {
-      if (isMissingRelationError(error)) {
-        markSupabaseDbSyncUnavailable("upsert account row", error);
+      if (isMissingRelationError(error) || isMissingColumnError(error)) {
+        if (isMissingColumnError(production.error) && isMissingColumnError(error)) {
+          console.error("[supabase-account] upsert failed:", error.message);
+        }
       } else {
         console.error("[supabase-account] upsert failed:", error.message);
       }
@@ -166,23 +248,9 @@ export function ensureLocalProfile(authUser: AuthUser): void {
 }
 
 export async function resolveAuthUser(user: User): Promise<AuthUser | null> {
-  const supabase = await createClient();
-  const { data: row, error } = await supabase
-    .from("accounts")
-    .select(ACCOUNT_SELECT)
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (error) {
-    if (isMissingRelationError(error)) {
-      markSupabaseDbSyncUnavailable("fetch account row", error);
-    } else {
-      console.error("[supabase-account] fetch failed:", error.message);
-    }
-  }
-
-  const authUser = row ? mapDbAccount(row as DbAccountRow) : buildAuthUserFromMetadata(user);
-  if (!row) {
+  const fromDb = await fetchAccountById(user.id);
+  const authUser = fromDb ?? buildAuthUserFromMetadata(user);
+  if (!fromDb) {
     await upsertAccountRow(authUser);
   }
 
