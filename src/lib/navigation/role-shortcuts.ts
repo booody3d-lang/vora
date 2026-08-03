@@ -201,6 +201,16 @@ export function appendRoleShortcuts(
       labelEn: ctx.role === "owner" ? "Owner Panel" : "Admin Panel",
       labelAr: ctx.role === "owner" ? "مركز القيادة" : "لوحة الإدارة",
     });
+    if (ctx.platform === "freelance") {
+      add({
+        id: "role-admin-back-network",
+        href: "/network",
+        icon: "🏠",
+        labelKey: "nav.home",
+        labelEn: "Network Home",
+        labelAr: "الشبكة",
+      });
+    }
   }
 
   return [...links, ...extras];

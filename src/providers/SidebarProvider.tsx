@@ -43,7 +43,7 @@ async function fetchNavLinks(platform: PlatformContext): Promise<ResolvedNavigat
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { platform, setPlatform } = usePlatform();
-  const { role } = usePermissions();
+  const { role, isLoading: sessionLoading } = usePermissions();
   const { isOpen, toggle, setOpen } = useCollapsibleSidebar("vora_global_sidebar");
   const [links, setLinks] = useState<ResolvedNavigationLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,8 +88,9 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    if (sessionLoading) return;
     void loadLinks(effectivePlatform);
-  }, [effectivePlatform, loadLinks]);
+  }, [effectivePlatform, loadLinks, role, sessionLoading]);
 
   const value = useMemo(
     () => ({ mode, setMode, links, isLoading, error, refreshLinks, isOpen, toggle, setOpen }),

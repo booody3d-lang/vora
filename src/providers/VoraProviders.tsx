@@ -46,12 +46,13 @@ function PermissionsProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const applyAuthUser = useCallback((authUser: AuthUser) => {
-    setUser(authUser);
-    setRole(authUser.role);
+  const applyAuthUser = useCallback((authUser: AuthUser, sessionRole?: VoraRole) => {
+    const effectiveRole = sessionRole ?? authUser.role;
+    setUser({ ...authUser, role: effectiveRole });
+    setRole(effectiveRole);
     setPermissions(
       resolveUserPermissions({
-        tier: roleToTier(authUser.role),
+        tier: roleToTier(effectiveRole),
         isAuthenticated: true,
         professionalUnlocked: authUser.professionalUnlocked,
         hasFreelancerStore: authUser.hasFreelancerStore,
@@ -65,7 +66,7 @@ function PermissionsProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/auth/session", { credentials: "include" });
       const data = await res.json();
       if (data.authenticated && data.user) {
-        applyAuthUser(data.user);
+        applyAuthUser(data.user, data.role ?? data.user.role);
       } else {
         setUser(null);
         setRole("visitor");

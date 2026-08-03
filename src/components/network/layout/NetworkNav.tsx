@@ -74,7 +74,7 @@ export function NetworkNav() {
       <div className="mx-auto flex max-w-[1440px] items-center gap-3 px-4 py-2.5 md:gap-4 md:px-6">
         <div className="flex min-w-0 shrink-0 items-center gap-4 md:gap-6">
           <VoraLogo size="sm" href={logoHref} />
-          <nav className="hidden items-center gap-1 lg:flex">
+          <nav className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => {
               const href = item.href;
               const active =
@@ -92,6 +92,7 @@ export function NetworkNav() {
                 <Link
                   key={item.labelKey}
                   href={href}
+                  prefetch={item.labelKey === "nav.adminPanel" || item.labelKey === "nav.ownerPanel" ? false : undefined}
                   className={cn(
                     "flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] font-medium transition-colors",
                     active ? "text-white" : "text-slate-400 hover:text-white"
@@ -111,6 +112,22 @@ export function NetworkNav() {
 
         <DualDashboardToggle />
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
+          {isAdminUser && (
+            <Link
+              href="/admin"
+              prefetch={false}
+              className={cn(
+                "flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold transition-colors md:hidden",
+                pathname.startsWith("/admin")
+                  ? "bg-red-600/30 text-red-300"
+                  : "text-slate-400 hover:bg-white/10 hover:text-white"
+              )}
+              aria-label={t(isOwner ? "nav.ownerPanel" : "nav.adminPanel")}
+            >
+              <span className="text-base leading-none">{isOwner ? "👑" : "🛡️"}</span>
+              <span className="max-w-[4.5rem] truncate">{t(isOwner ? "nav.ownerPanel" : "nav.adminPanel")}</span>
+            </Link>
+          )}
           <LocaleSwitcher variant="light" />
           <NotificationBell variant="light" />
           <Link

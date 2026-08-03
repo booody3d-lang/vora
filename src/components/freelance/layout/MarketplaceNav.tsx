@@ -10,9 +10,10 @@ import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
 import { useTranslations } from "@/i18n/use-translations";
+import { usePermissions } from "@/providers/VoraProviders";
 import { getCurrentUserProfileUrl } from "@/lib/network/urls";
-import type { MarketplaceService } from "@/types/freelance";
 import { cn } from "@/lib/utils";
+import type { MarketplaceService } from "@/types/freelance";
 
 export function MarketplaceSearch() {
   const router = useRouter();
@@ -99,8 +100,11 @@ export function MarketplaceSearch() {
 
 export function FreelanceNav() {
   const { t } = useTranslations();
+  const { role } = usePermissions();
   const { fullName, avatarUrl, profilePhotoUrl, gender, profileSlug } = useCurrentProfile();
   const profileHref = getCurrentUserProfileUrl(profileSlug);
+  const isOwner = role === "owner";
+  const isAdminUser = role === "admin" || isOwner;
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#EA580C]/10 bg-white shadow-sm">
@@ -108,6 +112,19 @@ export function FreelanceNav() {
         <VoraLogo size="md" href="/freelance" />
         <DualDashboardToggle />
         <nav className="flex items-center gap-3">
+          {isAdminUser && (
+            <Link
+              href="/admin"
+              prefetch={false}
+              className={cn(
+                "rounded-lg px-2 py-1 text-xs font-semibold transition-colors",
+                "text-[#EA580C] hover:bg-orange-50"
+              )}
+            >
+              {isOwner ? "👑" : "🛡️"}{" "}
+              {t(isOwner ? "nav.ownerPanel" : "nav.adminPanel")}
+            </Link>
+          )}
           <NotificationBell variant="dark" />
           <Link href="/freelance/messages" className="text-sm font-medium text-slate-600 hover:text-[#EA580C]">
             💬 {t("common.messages")}

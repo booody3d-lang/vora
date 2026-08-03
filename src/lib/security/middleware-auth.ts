@@ -1,24 +1,24 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { isOwnerOnlyAdminRoute } from "@/lib/admin/admin-nav";
-import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
+import {
+  fetchAccountRoleById,
+  isElevatedRole,
+  resolveRoleFromAuthMetadata,
+} from "@/lib/security/resolve-account-role";
+import { parseVoraRole } from "@/lib/security/parse-vora-role";
+import {
+  canAccessAdminPanel,
+  resolveEffectiveRole,
+} from "@/lib/security/roles";
 import {
   getMinimumRoleForRoute,
   isRouteAllowedForRole,
   roleMeetsMinimum,
 } from "@/lib/security/rbac";
-import { parseVoraRole } from "@/lib/security/parse-vora-role";
-import { resolveEffectiveRole } from "@/lib/security/roles";
 import type { VoraRole } from "@/types/security";
 
-function resolveRoleFromMetadata(user: User): VoraRole {
-  const meta = user.user_metadata ?? {};
-  const appMeta = user.app_metadata ?? {};
-  const role = parseVoraRole(meta.role ?? appMeta.role) ?? "registered";
-  return resolveEffectiveRole({ email: user.email ?? "", role });
-}
-
 export function resolveRoleFromSupabaseUser(user: User): VoraRole {
-  return resolveRoleFromMetadata(user);
+  return resolveRoleFromAuthMetadata(user);
 }
 
 function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
@@ -29,14 +29,19 @@ function isMissingColumnError(error: { message?: string; code?: string } | null)
 
 /**
  * Match server session role resolution (resolveAuthUser / fetchAccountById):
- * production account_type first, then migration primary_role, then JWT metadata.
- * Falls back to service-role read when the user-scoped client cannot resolve role.
+ * service role first, then user-scoped reads, metadata, and company ownership
+ * only as a last resort for unresolved registered users.
  */
 export async function resolveRoleForMiddleware(
   user: User,
   supabase: SupabaseClient
 ): Promise<VoraRole> {
   const email = user.email ?? "";
+
+  const fromService = await fetchAccountRoleById(user.id);
+  if (fromService) {
+    return resolveEffectiveRole({ email, role: fromService });
+  }
 
   const { data: prodRow, error: prodError } = await supabase
     .from("accounts")
@@ -68,28 +73,9 @@ export async function resolveRoleForMiddleware(
     }
   }
 
-  if (isAdminClientAvailable()) {
-    try {
-      const admin = createAdminClient();
-      const { data: adminRow, error: adminError } = await admin
-        .from("accounts")
-        .select("account_type, primary_role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!adminError && adminRow) {
-        const fromAccountType = parseVoraRole(adminRow.account_type);
-        if (fromAccountType) {
-          return resolveEffectiveRole({ email, role: fromAccountType });
-        }
-        const fromPrimary = parseVoraRole(adminRow.primary_role);
-        if (fromPrimary) {
-          return resolveEffectiveRole({ email, role: fromPrimary });
-        }
-      }
-    } catch {
-      // Service role unavailable in edge — fall through to metadata.
-    }
+  const fromMetadata = resolveRoleFromAuthMetadata(user);
+  if (isElevatedRole(fromMetadata)) {
+    return fromMetadata;
   }
 
   const { data: ownedCompany } = await supabase
@@ -103,24 +89,36 @@ export async function resolveRoleForMiddleware(
     return resolveEffectiveRole({ email, role: "company" });
   }
 
-  return resolveRoleFromMetadata(user);
+  return fromMetadata;
 }
 
 export function isCompanyPath(pathname: string): boolean {
   return pathname === "/company" || pathname.startsWith("/company/");
 }
 
-export function isPageAllowedForRole(pathname: string, role: VoraRole): boolean {
-  if (!isRouteAllowedForRole(pathname, role)) {
+export function isPageAllowedForRole(pathname: string, role: VoraRole, email?: string): boolean {
+  const effectiveRole = email ? resolveEffectiveRole({ email, role }) : role;
+
+  if (pathname.startsWith("/admin")) {
+    if (!canAccessAdminPanel({ email: email ?? "", role: effectiveRole })) {
+      return false;
+    }
+    if (isOwnerOnlyAdminRoute(pathname) && effectiveRole !== "owner") {
+      return false;
+    }
+    return true;
+  }
+
+  if (!isRouteAllowedForRole(pathname, effectiveRole)) {
     return false;
   }
 
-  if (isOwnerOnlyAdminRoute(pathname) && role !== "owner") {
+  if (isOwnerOnlyAdminRoute(pathname) && effectiveRole !== "owner") {
     return false;
   }
 
   const minimumRole = getMinimumRoleForRoute(pathname);
-  if (minimumRole && !roleMeetsMinimum(role, minimumRole)) {
+  if (minimumRole && !roleMeetsMinimum(effectiveRole, minimumRole)) {
     return false;
   }
 
@@ -128,7 +126,8 @@ export function isPageAllowedForRole(pathname: string, role: VoraRole): boolean 
 }
 
 export function isPageAllowedForUser(pathname: string, user: User): boolean {
-  return isPageAllowedForRole(pathname, resolveRoleFromSupabaseUser(user));
+  const role = resolveRoleFromSupabaseUser(user);
+  return isPageAllowedForRole(pathname, role, user.email ?? undefined);
 }
 
 export function getAccessDeniedRedirect(pathname: string, role: VoraRole): string {

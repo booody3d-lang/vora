@@ -192,14 +192,21 @@ export function Sidebar() {
                 pathname === item.href ||
                 (item.href === "/company/dashboard"
                   ? pathname === "/company/dashboard"
-                  : item.href !== "/network" &&
-                    item.href !== "/freelance" &&
-                    pathname.startsWith(item.href));
+                  : (item.labelKey === "nav.adminPanel" || item.labelKey === "nav.ownerPanel")
+                    ? pathname.startsWith("/admin")
+                    : item.href !== "/network" &&
+                      item.href !== "/freelance" &&
+                      pathname.startsWith(item.href));
 
               return (
                 <Link
                   key={item.id}
                   href={item.href}
+                  prefetch={
+                    item.labelKey === "nav.adminPanel" || item.labelKey === "nav.ownerPanel"
+                      ? false
+                      : undefined
+                  }
                   onClick={() => {
                     if (window.innerWidth < 1024) setOpen(false);
                   }}

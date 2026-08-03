@@ -96,7 +96,7 @@ export async function middleware(request: NextRequest) {
         if (
           needsAuth &&
           !skipRbacForCompanyOnCompanyPaths &&
-          !isPageAllowedForRole(barePath, role)
+          !isPageAllowedForRole(barePath, role, user.email ?? undefined)
         ) {
           const deniedPath = getAccessDeniedRedirect(barePath, role);
           if (shouldApplyAccessDeniedRedirect(barePath, deniedPath, role)) {
