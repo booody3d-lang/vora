@@ -53,7 +53,7 @@ const STORE_SELECT = `${STORE_SELECT_BASE}, is_active`;
 type StoreQueryResult = { data: DbStoreRow | null; error: { code?: string; message?: string } | null };
 
 async function selectStoreRow(
-  run: (select: string) => Promise<StoreQueryResult>
+  run: (select: string) => PromiseLike<StoreQueryResult>
 ): Promise<StoreQueryResult> {
   const full = await run(STORE_SELECT);
   if (!full.error || !isMissingColumnError(full.error)) return full;
