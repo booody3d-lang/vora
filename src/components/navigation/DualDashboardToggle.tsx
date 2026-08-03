@@ -3,13 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePlatform } from "@/providers/PlatformProvider";
+import { usePermissions } from "@/providers/VoraProviders";
 import { useTranslations } from "@/i18n/use-translations";
 import { cn } from "@/lib/utils";
 
 export function DualDashboardToggle({ className }: { className?: string }) {
   const { platform, setPlatform } = usePlatform();
+  const { role } = usePermissions();
   const router = useRouter();
   const { t } = useTranslations();
+
+  if (role === "company") {
+    return null;
+  }
 
   function switchPlatform(next: "network" | "freelance") {
     setPlatform(next);

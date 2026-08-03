@@ -5,14 +5,17 @@ import { CrossPlatformLink } from "@/components/navigation/DualDashboardToggle";
 import { ProfessionalScoreRing } from "@/components/professional/ProfessionalScoreRing";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
+import { usePermissions } from "@/providers/VoraProviders";
+import { usePublicPageHref } from "@/hooks/use-public-page-href";
 import { useTranslations } from "@/i18n/use-translations";
 import {
-  getCurrentUserProfileUrl,
   getFreelanceStoreUrl,
 } from "@/lib/network/urls";
 
 export function MiniProfileCard() {
   const { t } = useTranslations();
+  const { role } = usePermissions();
+  const publicPageHref = usePublicPageHref();
   const {
     profile,
     profileSlug,
@@ -63,7 +66,7 @@ export function MiniProfileCard() {
   const name = fullName;
   const photo = profilePhotoUrl || avatarUrl;
   const cover = coverImageUrl;
-  const hasStore = profile.hasFreelancerStore;
+  const hasStore = role !== "company" && profile.hasFreelancerStore;
   const storeLinkSlug = storeSlug ?? profile.freelancerStoreSlug;
 
   const coverStyle = cover
@@ -72,7 +75,7 @@ export function MiniProfileCard() {
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <Link href={getCurrentUserProfileUrl(profileSlug)}>
+      <Link href={publicPageHref}>
         <div className="h-14 bg-cover bg-center" style={coverStyle} />
         <div className="relative px-4 pb-4">
           <UserAvatar

@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useCollapsibleSidebar } from "@/hooks/useCollapsibleSidebar";
 import { usePlatform } from "@/providers/PlatformProvider";
+import { usePermissions } from "@/providers/VoraProviders";
 import type { ResolvedNavigationLink } from "@/types/navigation";
 import type { SidebarMode } from "@/types/navigation";
 import type { PlatformContext } from "@/types/vora";
@@ -42,12 +43,14 @@ async function fetchNavLinks(platform: PlatformContext): Promise<ResolvedNavigat
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { platform, setPlatform } = usePlatform();
+  const { role } = usePermissions();
   const { isOpen, toggle, setOpen } = useCollapsibleSidebar("vora_global_sidebar");
   const [links, setLinks] = useState<ResolvedNavigationLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const mode: SidebarMode = platform;
+  const effectivePlatform: PlatformContext = role === "company" ? "network" : platform;
+  const mode: SidebarMode = effectivePlatform;
 
   const loadLinks = useCallback(async (targetPlatform: PlatformContext) => {
     setIsLoading(true);
@@ -64,22 +67,25 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshLinks = useCallback(async () => {
-    await loadLinks(platform);
-  }, [loadLinks, platform]);
+    await loadLinks(effectivePlatform);
+  }, [loadLinks, effectivePlatform]);
 
   const setMode = useCallback(
     (next: SidebarMode, options?: { navigate?: boolean }) => {
+      if (role === "company" && next === "freelance") {
+        return;
+      }
       setPlatform(next);
       if (options?.navigate !== false) {
         router.push(next === "network" ? "/network" : "/freelance");
       }
     },
-    [router, setPlatform]
+    [router, setPlatform, role]
   );
 
   useEffect(() => {
-    void loadLinks(platform);
-  }, [platform, loadLinks]);
+    void loadLinks(effectivePlatform);
+  }, [effectivePlatform, loadLinks]);
 
   const value = useMemo(
     () => ({ mode, setMode, links, isLoading, error, refreshLinks, isOpen, toggle, setOpen }),

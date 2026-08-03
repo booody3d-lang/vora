@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getCompanyByAccountId, getCompanySlugForAccount } from "@/lib/company/company-store";
 import { getNavigationLinksForUser } from "@/lib/navigation/get-nav-links";
 import { isValidPlatform } from "@/lib/navigation/validate";
 import {
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
   let isAuthenticated = false;
   let profileSlug: string | null = null;
   let storeSlug: string | null = null;
+  let companySlug: string | null = null;
 
   try {
     const auth = await getAuthenticatedUser();
@@ -39,28 +41,37 @@ export async function GET(request: Request) {
       const store = await loadStoreForAccount(auth.user.id);
 
       profileSlug = profile?.slug ?? getProfileSlugForAccount(auth.user.id);
-      storeSlug = store?.slug ?? getStoreSlugForAccount(auth.user.id);
 
-      if (!storeSlug) {
-        const ensured = ensureFreelancerStoreForAccount(auth.user.id);
-        storeSlug = ensured?.storeSlug ?? getStoreSlugForAccount(auth.user.id);
-      }
+      if (role === "company") {
+        const company = await getCompanyByAccountId(auth.user.id);
+        companySlug = getCompanySlugForAccount(auth.user.id) ?? company?.slug ?? null;
+      } else {
+        storeSlug = store?.slug ?? getStoreSlugForAccount(auth.user.id);
 
-      if (!storeSlug) {
-        storeSlug = getProfileByAccountId(auth.user.id)?.freelancerStoreSlug ?? null;
+        if (!storeSlug) {
+          const ensured = ensureFreelancerStoreForAccount(auth.user.id);
+          storeSlug = ensured?.storeSlug ?? getStoreSlugForAccount(auth.user.id);
+        }
+
+        if (!storeSlug) {
+          storeSlug = getProfileByAccountId(auth.user.id)?.freelancerStoreSlug ?? null;
+        }
       }
     }
   } catch {
     // Fall back to visitor defaults when auth is unavailable
   }
 
+  const effectivePlatform: PlatformContext = role === "company" ? "network" : platform;
+
   const { links, source } = await getNavigationLinksForUser({
-    platform,
+    platform: effectivePlatform,
     isAuthenticated,
     role,
     profileSlug,
     storeSlug,
+    companySlug,
   });
 
-  return NextResponse.json({ links, source, platform, role, isAuthenticated });
+  return NextResponse.json({ links, source, platform: effectivePlatform, role, isAuthenticated });
 }

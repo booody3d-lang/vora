@@ -3,6 +3,8 @@ import {
   createProfileForAccount,
   getProfileSlugForAccount,
 } from "@/lib/profile/profile-store";
+import { getCompanyByAccountId, getCompanySlugForAccount } from "@/lib/company/company-store";
+import { getCompanyUrl, getProfileUrl } from "@/lib/network/urls";
 import { findAccountById } from "@/lib/security/demo-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import {
@@ -14,6 +16,15 @@ export default async function ProfileMePage() {
   const auth = await getAuthenticatedUser();
   if (!auth) {
     redirect("/auth/login?redirect=/profile/me");
+  }
+
+  if (auth.user.role === "company") {
+    const company = await getCompanyByAccountId(auth.user.id);
+    const companySlug = getCompanySlugForAccount(auth.user.id) ?? company?.slug ?? null;
+    if (companySlug) {
+      redirect(getCompanyUrl(companySlug));
+    }
+    redirect("/company/dashboard");
   }
 
   await ensureSupabaseProfileAndStore(auth.user);
@@ -39,5 +50,5 @@ export default async function ProfileMePage() {
     redirect("/network");
   }
 
-  redirect(`/network/profile/${slug}`);
+  redirect(getProfileUrl(slug));
 }

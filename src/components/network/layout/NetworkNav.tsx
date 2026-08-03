@@ -9,8 +9,8 @@ import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { GlobalSearchBar } from "@/components/search/GlobalSearchBar";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
+import { usePublicPageHref } from "@/hooks/use-public-page-href";
 import { useTranslations } from "@/i18n/use-translations";
-import { getCurrentUserProfileUrl } from "@/lib/network/urls";
 import { cn } from "@/lib/utils";
 
 const NAV_KEYS = [
@@ -23,9 +23,9 @@ const NAV_KEYS = [
 export function NetworkNav() {
   const pathname = usePathname();
   const { t } = useTranslations();
-  const { profileSlug, avatarUrl, gender, profile, fullName, profilePhotoUrl, subscriptionBadge } =
+  const { avatarUrl, gender, profile, fullName, profilePhotoUrl, subscriptionBadge } =
     useCurrentProfile();
-  const profileHref = getCurrentUserProfileUrl(profileSlug);
+  const profileHref = usePublicPageHref();
 
   const navItems = [
     NAV_KEYS[0],
@@ -44,7 +44,9 @@ export function NetworkNav() {
               const active =
                 pathname === href ||
                 (item.labelKey === "nav.profile" &&
-                  (pathname.startsWith("/network/profile/") || pathname === "/profile/me")) ||
+                  (pathname.startsWith("/network/profile/") ||
+                    pathname.startsWith("/network/company/") ||
+                    pathname === "/profile/me")) ||
                 (item.matchPrefix && href !== "/network" && pathname.startsWith(href));
               return (
                 <Link

@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
+import { usePublicPageHref } from "@/hooks/use-public-page-href";
 import { useTranslations } from "@/i18n/use-translations";
-import { getCurrentUserProfileUrl } from "@/lib/network/urls";
 import { cn } from "@/lib/utils";
 import type { SidebarMode } from "@/types/navigation";
 
@@ -21,12 +21,12 @@ export function SidebarProfileCard({ mode, onNavigate }: SidebarProfileCardProps
     profilePhotoUrl,
     coverImageUrl,
     gender,
-    profileSlug,
     loading,
     subscriptionBadge,
   } = useCurrentProfile();
+  const publicPageHref = usePublicPageHref();
 
-  if (loading || !profileSlug || !fullName) return null;
+  if (loading || !fullName || !publicPageHref) return null;
 
   const coverSrc =
     coverImageUrl ||
@@ -34,7 +34,7 @@ export function SidebarProfileCard({ mode, onNavigate }: SidebarProfileCardProps
 
   return (
     <Link
-      href={getCurrentUserProfileUrl(profileSlug)}
+      href={publicPageHref}
       onClick={onNavigate}
       className={cn(
         "mx-3 mb-2 block overflow-hidden rounded-xl transition-colors",

@@ -1,7 +1,10 @@
+import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 
 import { ProfileHeader } from "@/components/network/profile/ProfileHeader";
 import { ProfileTabs } from "@/components/network/profile/ProfileTabs";
+import { getCompanyBySlug } from "@/lib/company/company-store";
+import { getCompanyUrl } from "@/lib/network/urls";
 import { isProfileOwner } from "@/lib/profile/profile-store";
 import { stripPrivateProfileFields } from "@/lib/profile/private-fields";
 import {
@@ -20,6 +23,12 @@ interface ProfilePageProps {
 
 export default async function ProfilePage({ params }: ProfilePageProps) {
   const { slug } = await params;
+
+  const company = await getCompanyBySlug(slug);
+  if (company) {
+    redirect(getCompanyUrl(slug));
+  }
+
   const rawProfile = await loadProfileBySlug(slug);
 
   if (!rawProfile) {

@@ -1,4 +1,4 @@
-import { getCurrentUserProfileUrl } from "@/lib/network/urls";
+import { getCurrentUserPublicPageUrl } from "@/lib/network/urls";
 import type { ResolvedNavigationLink } from "@/types/navigation";
 import type { PlatformContext } from "@/types/vora";
 import type { VoraRole } from "@/types/security";
@@ -9,6 +9,7 @@ interface RoleShortcutContext {
   isAuthenticated: boolean;
   profileSlug?: string | null;
   storeSlug?: string | null;
+  companySlug?: string | null;
 }
 
 function isProfileNavLink(link: ResolvedNavigationLink): boolean {
@@ -152,7 +153,15 @@ export function appendRoleShortcuts(
   if (ctx.platform === "network" && ctx.isAuthenticated) {
     for (const link of links) {
       if (isProfileNavLink(link)) {
-        link.href = getCurrentUserProfileUrl(ctx.profileSlug);
+        link.href = getCurrentUserPublicPageUrl({
+          role: ctx.role,
+          profileSlug: ctx.profileSlug,
+          companySlug: ctx.companySlug,
+        });
+        if (ctx.role === "company") {
+          link.labelEn = "Company Page";
+          link.labelAr = "صفحة الشركة";
+        }
       }
     }
   }

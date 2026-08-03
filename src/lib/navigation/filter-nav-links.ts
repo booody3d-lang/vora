@@ -12,6 +12,17 @@ const ROLE_RANK: Record<VoraRole, number> = {
   owner: 5,
 };
 
+/** Network sidebar links hidden for company (employer) accounts. */
+const COMPANY_HIDDEN_LABEL_KEYS = new Set([
+  "nav.voraAi",
+  "sidebar.freelance.dashboard",
+  "sidebar.freelance.myServices",
+  "sidebar.freelance.orders",
+  "sidebar.freelance.myStore",
+  "storeEdit.editStore",
+  "sidebar.freelance.createManageStore",
+]);
+
 function meetsRoleRequirement(userRole: VoraRole, minRole: VoraRole | null): boolean {
   if (!minRole) return true;
   return ROLE_RANK[userRole] >= ROLE_RANK[minRole];
@@ -19,13 +30,29 @@ function meetsRoleRequirement(userRole: VoraRole, minRole: VoraRole | null): boo
 
 export function personalizeNavHref(
   href: string,
-  context?: { profileSlug?: string | null; storeSlug?: string | null }
+  context?: {
+    profileSlug?: string | null;
+    storeSlug?: string | null;
+    companySlug?: string | null;
+    role?: VoraRole;
+  }
 ): string {
-  let result = resolveProfileNavHref(href, context?.profileSlug);
+  let result = resolveProfileNavHref(href, context?.profileSlug, {
+    role: context?.role,
+    companySlug: context?.companySlug,
+  });
   if (context?.storeSlug) {
     result = result.replace("{storeSlug}", context.storeSlug);
   }
   return result;
+}
+
+function isFreelanceNavLink(link: NavigationLinkRecord): boolean {
+  return (
+    link.platform === "freelance" ||
+    link.href.startsWith("/freelance") ||
+    (link.labelKey?.startsWith("sidebar.freelance.") ?? false)
+  );
 }
 
 export function filterNavigationLinks(
@@ -36,18 +63,21 @@ export function filterNavigationLinks(
     role: VoraRole;
     profileSlug?: string | null;
     storeSlug?: string | null;
+    companySlug?: string | null;
   }
 ): ResolvedNavigationLink[] {
-  const { platform, isAuthenticated, role, profileSlug, storeSlug } = options;
+  const { platform, isAuthenticated, role, profileSlug, storeSlug, companySlug } = options;
 
   return links
     .filter((link) => link.isActive && link.platform === platform && link.placement === "sidebar")
     .filter((link) => !link.requiresAuth || isAuthenticated)
     .filter((link) => meetsRoleRequirement(role, link.minRole))
+    .filter((link) => role !== "company" || !isFreelanceNavLink(link))
+    .filter((link) => role !== "company" || !COMPANY_HIDDEN_LABEL_KEYS.has(link.labelKey ?? ""))
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((link) => ({
       id: link.id,
-      href: personalizeNavHref(link.href, { profileSlug, storeSlug }),
+      href: personalizeNavHref(link.href, { profileSlug, storeSlug, companySlug, role }),
       icon: link.icon ?? "•",
       labelKey: link.labelKey,
       labelEn: link.labelEn,

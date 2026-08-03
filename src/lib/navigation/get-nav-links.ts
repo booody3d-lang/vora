@@ -67,6 +67,7 @@ export async function getNavigationLinksForUser(options: {
   role: VoraRole;
   profileSlug?: string | null;
   storeSlug?: string | null;
+  companySlug?: string | null;
 }): Promise<{ links: ResolvedNavigationLink[]; source: "supabase" | "fallback" }> {
   const dbLinks = await fetchNavigationLinksFromDb();
   if (dbLinks && dbLinks.length > 0) {

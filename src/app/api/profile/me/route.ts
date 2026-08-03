@@ -24,6 +24,7 @@ import {
   getProfileSlugForAccount,
   getStoreSlugForAccount,
 } from "@/lib/profile/profile-store";
+import { getCompanyByAccountId, getCompanySlugForAccount } from "@/lib/company/company-store";
 import { resolveAvatarUrl } from "@/lib/profile/avatar";
 import { getOnboardingProgress, isOnboardingComplete } from "@/lib/profile/onboarding";
 import { getEffectiveSubscription } from "@/lib/subscription/resolve-subscription";
@@ -78,7 +79,16 @@ export async function GET() {
   const profile = await loadProfileForAccount(auth.user.id);
   const store = await loadStoreForAccount(auth.user.id);
   const profileSlug = profile?.slug ?? getProfileSlugForAccount(auth.user.id);
-  const storeSlug = store?.slug ?? getStoreSlugForAccount(auth.user.id);
+  const storeSlug =
+    auth.user.role === "company"
+      ? null
+      : store?.slug ?? getStoreSlugForAccount(auth.user.id);
+  const company =
+    auth.user.role === "company" ? await getCompanyByAccountId(auth.user.id) : null;
+  const companySlug =
+    auth.user.role === "company"
+      ? getCompanySlugForAccount(auth.user.id) ?? company?.slug ?? null
+      : null;
   const gender = profile?.gender ?? getGenderForAccount(auth.user.id);
   const onboardingComplete = profile ? isOnboardingComplete(profile) : false;
   const onboardingProgress = profile ? getOnboardingProgress(profile) : null;
@@ -90,6 +100,7 @@ export async function GET() {
     authenticated: true,
     profileSlug,
     storeSlug,
+    companySlug,
     gender,
     onboardingComplete,
     onboardingProgress,

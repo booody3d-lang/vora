@@ -1,3 +1,5 @@
+import type { VoraRole } from "@/types/security";
+
 export const CURRENT_USER_PROFILE_PATH = "/profile/me";
 
 /** Canonical public profile route under the Network section. */
@@ -16,40 +18,55 @@ export function getCurrentUserProfileUrl(profileSlug?: string | null) {
   return CURRENT_USER_PROFILE_PATH;
 }
 
+export function getCompanyUrl(slug: string) {
+  return `/network/company/${slug}`;
+}
+
+/** Public page for the signed-in user — company page for employers, profile otherwise. */
+export function getCurrentUserPublicPageUrl(options?: {
+  role?: VoraRole | null;
+  profileSlug?: string | null;
+  companySlug?: string | null;
+}): string {
+  if (options?.role === "company" && options.companySlug) {
+    return getCompanyUrl(options.companySlug);
+  }
+  return getCurrentUserProfileUrl(options?.profileSlug);
+}
+
+function isProfileNavHref(href: string): boolean {
+  return href.includes("{profileSlug}") || /^\/network\/profile\/[^/]+$/.test(href);
+}
+
 /** Resolve sidebar/API profile nav hrefs; falls back to the current-user alias. */
-export function resolveProfileNavHref(href: string, profileSlug?: string | null): string {
+export function resolveProfileNavHref(
+  href: string,
+  profileSlug?: string | null,
+  options?: { role?: VoraRole | null; companySlug?: string | null }
+): string {
+  if (options?.role === "company" && options.companySlug && isProfileNavHref(href)) {
+    return getCompanyUrl(options.companySlug);
+  }
+
   if (profileSlug) {
-    if (href.includes("{profileSlug}") || /^\/network\/profile\/[^/]+$/.test(href)) {
+    if (isProfileNavHref(href)) {
       return getProfileUrl(profileSlug);
     }
     return href;
   }
-  if (href.includes("{profileSlug}") || /^\/network\/profile\/[^/]+$/.test(href)) {
+
+  if (isProfileNavHref(href)) {
     return CURRENT_USER_PROFILE_PATH;
   }
+
   return href;
 }
 
-
-
-export function getCompanyUrl(slug: string) {
-
-  return `/network/company/${slug}`;
-
-}
-
-
-
 export function getFreelanceStoreUrl(storeSlug: string) {
-
   return `/freelance/store/${storeSlug}`;
-
 }
-
-
 
 export function getMessagingUrl(options?: { conversationId?: string; targetAccountId?: string }) {
-
   const params = new URLSearchParams();
 
   if (options?.conversationId) params.set("conversation", options.conversationId);
@@ -59,6 +76,4 @@ export function getMessagingUrl(options?: { conversationId?: string; targetAccou
   const query = params.toString();
 
   return query ? `/network/messages?${query}` : "/network/messages";
-
 }
-

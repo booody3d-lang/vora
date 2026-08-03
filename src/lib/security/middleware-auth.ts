@@ -41,7 +41,10 @@ export function getAccessDeniedRedirect(pathname: string, role: VoraRole): strin
     return role === "company" ? "/company/dashboard" : "/network";
   }
   if (pathname.startsWith("/company/dashboard")) {
-    return "/network";
+    return role === "company" ? "/company/dashboard" : "/network";
+  }
+  if (role === "company") {
+    return "/company/dashboard";
   }
   return "/network";
 }
