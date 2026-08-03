@@ -1,9 +1,8 @@
 import { StoreProfileView } from "@/components/freelance/store/StoreProfileView";
 import { recordStoreView } from "@/lib/freelance/analytics-store";
 import { listPublicReviewsForStoreSlug } from "@/lib/freelance/reviews-store";
-import { listPortfolioForStoreSlug } from "@/lib/freelance/store-store";
+import { listPortfolioForStoreSlug, isStoreOwnerLive } from "@/lib/freelance/store-store";
 import { listPublicServicesForStoreSlug } from "@/lib/freelance/services-store";
-import { isStoreOwner } from "@/lib/profile/profile-store";
 import { buildStoreMetadata } from "@/lib/seo/metadata";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import {
@@ -39,7 +38,7 @@ export default async function FreelanceStorePage({ params }: StorePageProps) {
   ]);
   void recordStoreView(slug);
   const auth = await getAuthenticatedUser();
-  const isOwnStore = auth ? isStoreOwner(auth.user.id, slug) : false;
+  const isOwnStore = auth ? await isStoreOwnerLive(auth.user.id, slug) : false;
   const storeOwnerAccountId = await resolveAccountIdForStoreSlug(slug);
 
   return (

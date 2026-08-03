@@ -1,9 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { SubscriptionFeature, SubscriptionTier } from "@/types/subscription";
+import type {
+  EffectiveSubscription,
+  ManualSubscriptionOverride,
+  SubscriptionFeature,
+  SubscriptionTier,
+} from "@/types/subscription";
 import { checkoutPlansForTier } from "@/lib/billing/plan-catalog";
 import { useTranslations } from "@/i18n/use-translations";
+
+interface OverrideLookup {
+  effective: EffectiveSubscription | null;
+  override: ManualSubscriptionOverride | null;
+}
 
 export function AdminSubscriptionManager() {
   const { t } = useTranslations();
@@ -11,9 +21,12 @@ export function AdminSubscriptionManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [overrideAccountId, setOverrideAccountId] = useState("");
   const [overrideTierId, setOverrideTierId] = useState("premium-user");
   const [overrideReason, setOverrideReason] = useState("Lifetime premium grant");
+  const [lookup, setLookup] = useState<OverrideLookup | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
   const [draft, setDraft] = useState<Partial<SubscriptionTier> | null>(null);
 
   const loadTiers = useCallback(async () => {
@@ -65,6 +78,7 @@ export function AdminSubscriptionManager() {
     if (!overrideAccountId.trim()) return;
     setSaving(true);
     setError("");
+    setSuccess("");
     try {
       const res = await fetch(
         `/api/admin/subscription/overrides/${encodeURIComponent(overrideAccountId.trim())}`,
@@ -80,9 +94,55 @@ export function AdminSubscriptionManager() {
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Override failed");
-      setOverrideAccountId("");
+      setSuccess(t("admin.subscriptions.grantSuccess"));
+      setLookup({ effective: data.effective ?? null, override: data.override ?? null });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Override failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function lookupOverride(accountId = overrideAccountId.trim()) {
+    if (!accountId) return;
+    setLookupLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(
+        `/api/admin/subscription/overrides/${encodeURIComponent(accountId)}`,
+        { credentials: "include" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Lookup failed");
+      setLookup({ effective: data.effective ?? null, override: data.override ?? null });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lookup failed");
+      setLookup(null);
+    } finally {
+      setLookupLoading(false);
+    }
+  }
+
+  async function revokeOverride() {
+    const accountId = overrideAccountId.trim();
+    if (!accountId) return;
+    if (!window.confirm(t("admin.subscriptions.revokeConfirm"))) return;
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(
+        `/api/admin/subscription/overrides/${encodeURIComponent(accountId)}`,
+        { method: "DELETE", credentials: "include" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Revoke failed");
+      setSuccess(t("admin.subscriptions.revokeSuccess"));
+      setLookup({ effective: data.effective ?? null, override: null });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Revoke failed");
     } finally {
       setSaving(false);
     }
@@ -147,6 +207,9 @@ export function AdminSubscriptionManager() {
       </div>
 
       {error && <p className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>}
+      {success && (
+        <p className="rounded-lg bg-emerald-500/10 px-4 py-2 text-sm text-emerald-300">{success}</p>
+      )}
 
       <section className="rounded-2xl border border-slate-800 bg-[#0F172A] p-5">
         <h2 className="mb-4 text-lg font-semibold text-white">
@@ -177,14 +240,57 @@ export function AdminSubscriptionManager() {
             className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
           />
         </div>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => void grantOverride()}
-          className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {t("admin.subscriptions.grantLifetime")}
-        </button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void grantOverride()}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {t("admin.subscriptions.grantLifetime")}
+          </button>
+          <button
+            type="button"
+            disabled={lookupLoading || !overrideAccountId.trim()}
+            onClick={() => void lookupOverride()}
+            className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 disabled:opacity-50"
+          >
+            {lookupLoading ? t("common.loading") : t("admin.subscriptions.lookupOverride")}
+          </button>
+          <button
+            type="button"
+            disabled={saving || !overrideAccountId.trim()}
+            onClick={() => void revokeOverride()}
+            className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {t("admin.subscriptions.revokePremium")}
+          </button>
+        </div>
+
+        {lookup && (
+          <div className="mt-4 rounded-lg border border-slate-700 bg-slate-900/60 p-4 text-sm text-slate-300">
+            <p className="font-semibold text-white">{t("admin.subscriptions.currentStatus")}</p>
+            <p className="mt-2">
+              {t("admin.subscriptions.effectiveTier")}:{" "}
+              <span className="text-white">{lookup.effective?.tier?.nameEn ?? "—"}</span>
+              {lookup.effective?.isPremium ? (
+                <span className="ms-2 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-300">
+                  Premium
+                </span>
+              ) : null}
+            </p>
+            <p className="mt-1">
+              {t("admin.subscriptions.currentOverride")}:{" "}
+              {lookup.override ? (
+                <span className="text-white">
+                  {lookup.override.tierId} — {lookup.override.reason}
+                </span>
+              ) : (
+                <span className="text-slate-500">{t("admin.subscriptions.noOverride")}</span>
+              )}
+            </p>
+          </div>
+        )}
       </section>
 
       {draft && (

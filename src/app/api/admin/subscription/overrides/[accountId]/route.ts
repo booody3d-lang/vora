@@ -61,7 +61,11 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   }
 
   const { accountId } = await params;
-  await removeManualOverride(accountId);
+  await ensureSubscriptionCacheHydrated();
+  const removed = await removeManualOverride(accountId);
+  if (!removed) {
+    return NextResponse.json({ error: "No revocable manual premium grant found" }, { status: 404 });
+  }
   await ensureSubscriptionCacheHydrated();
   return NextResponse.json({ effective: getEffectiveSubscription(accountId, "user") });
 }

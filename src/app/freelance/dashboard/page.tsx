@@ -1,18 +1,16 @@
 import { redirect } from "next/navigation";
-import {
-  ensureFreelancerStoreForAccount,
-  getStoreSlugForAccount,
-} from "@/lib/profile/profile-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
+import {
+  ensureSupabaseProfileAndStore,
+  loadStoreForAccount,
+} from "@/lib/supabase/profile-persistence";
 
 export default async function FreelanceDashboardPage() {
   const auth = await getAuthenticatedUser();
   if (auth) {
-    let storeSlug = getStoreSlugForAccount(auth.user.id);
-    if (!storeSlug) {
-      const link = ensureFreelancerStoreForAccount(auth.user.id);
-      storeSlug = link?.storeSlug ?? null;
-    }
+    await ensureSupabaseProfileAndStore(auth.user);
+    const store = await loadStoreForAccount(auth.user.id);
+    const storeSlug = store?.slug ?? auth.user.storeSlug ?? null;
     if (storeSlug) {
       redirect(`/freelance/store/${storeSlug}/manage`);
     }

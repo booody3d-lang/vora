@@ -91,7 +91,16 @@ export async function fetchStoreRowBySlug(slug: string): Promise<DbStoreRow | nu
     .maybeSingle();
 
   if (error) throw error;
-  return (data as DbStoreRow | null) ?? null;
+  if (data) return data as DbStoreRow;
+
+  const { data: bySeo, error: seoError } = await admin
+    .from("freelancer_stores")
+    .select(STORE_SELECT)
+    .eq("seo_slug", slug)
+    .maybeSingle();
+
+  if (seoError) throw seoError;
+  return (bySeo as DbStoreRow | null) ?? null;
 }
 
 export async function getStoreByAccountFromSupabase(

@@ -347,7 +347,14 @@ export async function ensureSupabaseProfileAndStore(authUser: AuthUser): Promise
 
     await upsertSupabaseProfile(authUser.id, profile);
 
-    if (authUser.hasFreelancerStore || getAccountLink(authUser.id)?.storeSlug) {
+    const shouldEnsureStore =
+      authUser.hasFreelancerStore ||
+      authUser.role === "admin" ||
+      authUser.role === "owner" ||
+      authUser.role === "professional" ||
+      Boolean(getAccountLink(authUser.id)?.storeSlug);
+
+    if (shouldEnsureStore) {
       ensureFreelancerStoreForAccount(authUser.id);
       await getStoreForAccount(authUser.id);
     }

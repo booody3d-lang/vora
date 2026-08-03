@@ -193,6 +193,41 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- 5. Freelancer stores — owner, limited admin, premium user
+--    Canonical slugs match profile slug + "-store" (see docs/PRODUCTION_ACCOUNTS.md).
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  rec RECORD;
+BEGIN
+  FOR rec IN
+    SELECT * FROM (VALUES
+      ('booody3d@gmail.com', 'abdullah-saeed-albakkar-store', 'Abdullah Store'),
+      ('b.3d@live.com', 'saeed-bakka-store', 'Saeed Store'),
+      ('abod.s.bakkar@hotmail.com', 'bakkar-3d-store', 'Bakkar Store')
+    ) AS t(email, store_slug, store_name)
+  LOOP
+    DECLARE v_id UUID := _vora_account_id(rec.email);
+    BEGIN
+      IF v_id IS NULL THEN
+        RAISE NOTICE 'SKIP store: % — auth user not found', rec.email;
+        CONTINUE;
+      END IF;
+
+      INSERT INTO public.freelancer_stores (
+        account_id, slug, store_name, is_active, updated_at
+      )
+      VALUES (v_id, rec.store_slug, rec.store_name, TRUE, NOW())
+      ON CONFLICT (account_id) DO UPDATE SET
+        slug = EXCLUDED.slug,
+        store_name = EXCLUDED.store_name,
+        is_active = TRUE,
+        updated_at = NOW();
+    END;
+  END LOOP;
+END $$;
+
+-- ---------------------------------------------------------------------------
 -- Verification
 -- ---------------------------------------------------------------------------
 SELECT

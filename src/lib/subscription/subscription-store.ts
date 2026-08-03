@@ -376,13 +376,33 @@ export async function setManualOverride(
 export async function removeManualOverride(accountId: string): Promise<boolean> {
   await ensureSubscriptionCacheHydrated();
   const data = getSnapshot();
-  if (!data.overrides[accountId]) return false;
+  const hadOverride = Boolean(data.overrides[accountId]);
+  const assignment = data.assignments[accountId] ?? null;
+  const hadManualPremium =
+    hadOverride ||
+    (assignment?.tierId === "premium-user" &&
+      assignment.status === "active" &&
+      !assignment.stripeSubscriptionId);
+
+  if (!hadManualPremium) return false;
+
   delete data.overrides[accountId];
+
+  if (assignment && !assignment.stripeSubscriptionId) {
+    data.assignments[accountId] = {
+      ...assignment,
+      tierId: "free-user",
+      status: "cancelled",
+      expiresAt: undefined,
+      source: "free",
+    };
+  }
+
   setSnapshot({ ...data });
 
   if (await isSubscriptionSupabaseReady()) {
     await runOptionalDbSyncVoid("removeManualOverride", () =>
-      removeManualOverrideInSupabase(accountId, data.tiers, data.assignments[accountId] ?? null)
+      removeManualOverrideInSupabase(accountId, data.tiers, assignment)
     );
   }
 

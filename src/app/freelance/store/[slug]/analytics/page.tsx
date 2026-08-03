@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SellerDashboard } from "@/components/freelance/dashboard/SellerDashboard";
 import { getSellerAnalyticsForStoreSlug } from "@/lib/freelance/analytics-store";
-import { isStoreOwner } from "@/lib/profile/profile-store";
+import { isStoreOwnerLive } from "@/lib/freelance/store-store";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import { loadStoreBySlug } from "@/lib/supabase/profile-persistence";
 import { notFound, redirect } from "next/navigation";
@@ -16,7 +16,7 @@ export default async function StoreAnalyticsPage({ params }: StoreAnalyticsPageP
   if (!store) notFound();
 
   const auth = await getAuthenticatedUser();
-  if (!auth || !isStoreOwner(auth.user.id, slug)) {
+  if (!auth || !(await isStoreOwnerLive(auth.user.id, slug))) {
     redirect(`/freelance/store/${slug}`);
   }
 

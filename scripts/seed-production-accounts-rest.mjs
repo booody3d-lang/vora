@@ -40,6 +40,7 @@ const ACCOUNTS = [
     account_type: "owner",
     full_name: "Abdullah saeed alBakkar",
     company: null,
+    store: { slug: "abdullah-saeed-albakkar-store", name: "Abdullah Store" },
     overrideReason: "Platform owner — lifetime premium",
   },
   {
@@ -47,6 +48,7 @@ const ACCOUNTS = [
     account_type: "company",
     full_name: "AlBakkar",
     company: { slug: "albakkar", name: "AlBakkar" },
+    store: null,
     overrideReason: "Company account — premium badge",
   },
   {
@@ -54,6 +56,7 @@ const ACCOUNTS = [
     account_type: "admin",
     full_name: "Saeed Bakka",
     company: null,
+    store: { slug: "saeed-bakka-store", name: "Saeed Store" },
     overrideReason: "Limited admin — premium badge",
   },
   {
@@ -61,6 +64,7 @@ const ACCOUNTS = [
     account_type: "professional",
     full_name: "Bakkar.3d",
     company: null,
+    store: { slug: "bakkar-3d-store", name: "Bakkar Store" },
     overrideReason: "Lifetime free premium — founder account",
   },
 ];
@@ -134,6 +138,32 @@ async function upsertCompany(baseUrl, apiKey, ownerId, { slug, name }) {
       owner_account_id: ownerId,
       slug,
       name,
+      updated_at: new Date().toISOString(),
+    },
+    prefer: "return=minimal",
+  });
+}
+
+async function upsertStore(baseUrl, apiKey, accountId, { slug, name }) {
+  const existing = await rest(
+    baseUrl,
+    apiKey,
+    `freelancer_stores?select=id&account_id=eq.${accountId}&limit=1`,
+  );
+  if (existing.ok && Array.isArray(existing.body) && existing.body.length > 0) {
+    return rest(baseUrl, apiKey, `freelancer_stores?account_id=eq.${accountId}`, {
+      method: "PATCH",
+      body: { slug, store_name: name, is_active: true, updated_at: new Date().toISOString() },
+      prefer: "return=minimal",
+    });
+  }
+  return rest(baseUrl, apiKey, "freelancer_stores", {
+    method: "POST",
+    body: {
+      account_id: accountId,
+      slug,
+      store_name: name,
+      is_active: true,
       updated_at: new Date().toISOString(),
     },
     prefer: "return=minimal",
@@ -235,6 +265,16 @@ async function main() {
     if (spec.company) {
       const compRes = await upsertCompany(baseUrl, apiKey, acct.id, spec.company);
       steps.push({ step: "companies", ok: compRes.ok, status: compRes.status, error: compRes.ok ? null : compRes.body });
+    }
+
+    if (spec.store) {
+      const storeRes = await upsertStore(baseUrl, apiKey, acct.id, spec.store);
+      steps.push({
+        step: "freelancer_stores",
+        ok: storeRes.ok,
+        status: storeRes.status,
+        error: storeRes.ok ? null : storeRes.body,
+      });
     }
 
     const subRes = await upsertSubscription(baseUrl, apiKey, acct.id, spec.overrideReason);

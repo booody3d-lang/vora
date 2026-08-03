@@ -29,6 +29,7 @@ import {
   getProfileByAccountId,
   getStoreByAccountId,
   getStoreBySlug,
+  isStoreOwner,
   listLinkedAccounts,
   syncJsonCacheFromSupabase,
   updateStoreForAccount,
@@ -246,6 +247,13 @@ export async function resolveAccountIdForStoreSlugLive(slug: string): Promise<st
     },
     jsonAccountId
   );
+}
+
+export async function isStoreOwnerLive(accountId: string, slug: string): Promise<boolean> {
+  if (isStoreOwner(accountId, slug)) return true;
+
+  const ownerId = await resolveAccountIdForStoreSlugLive(slug);
+  return ownerId === accountId;
 }
 
 export async function listPortfolioForStoreSlug(storeSlug: string): Promise<PortfolioItem[]> {

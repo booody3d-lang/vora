@@ -113,7 +113,10 @@ export function appendRoleShortcuts(
   }
 
   if (
-    (ctx.role === "registered" || ctx.role === "professional") &&
+    (ctx.role === "registered" ||
+      ctx.role === "professional" ||
+      ctx.role === "admin" ||
+      ctx.role === "owner") &&
     ctx.platform === "freelance"
   ) {
     add({

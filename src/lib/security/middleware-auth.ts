@@ -1,5 +1,6 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { isOwnerOnlyAdminRoute } from "@/lib/admin/admin-nav";
+import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
 import {
   getMinimumRoleForRoute,
   isRouteAllowedForRole,
@@ -29,6 +30,7 @@ function isMissingColumnError(error: { message?: string; code?: string } | null)
 /**
  * Match server session role resolution (resolveAuthUser / fetchAccountById):
  * production account_type first, then migration primary_role, then JWT metadata.
+ * Falls back to service-role read when the user-scoped client cannot resolve role.
  */
 export async function resolveRoleForMiddleware(
   user: User,
@@ -63,6 +65,30 @@ export async function resolveRoleForMiddleware(
     const fromPrimary = parseVoraRole(fullRow.primary_role);
     if (fromPrimary) {
       return resolveEffectiveRole({ email, role: fromPrimary });
+    }
+  }
+
+  if (isAdminClientAvailable()) {
+    try {
+      const admin = createAdminClient();
+      const { data: adminRow, error: adminError } = await admin
+        .from("accounts")
+        .select("account_type, primary_role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!adminError && adminRow) {
+        const fromAccountType = parseVoraRole(adminRow.account_type);
+        if (fromAccountType) {
+          return resolveEffectiveRole({ email, role: fromAccountType });
+        }
+        const fromPrimary = parseVoraRole(adminRow.primary_role);
+        if (fromPrimary) {
+          return resolveEffectiveRole({ email, role: fromPrimary });
+        }
+      }
+    } catch {
+      // Service role unavailable in edge — fall through to metadata.
     }
   }
 

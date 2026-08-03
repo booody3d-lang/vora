@@ -289,7 +289,7 @@ export async function setManualOverrideInSupabase(
 export async function removeManualOverrideInSupabase(
   accountId: string,
   _tiers: SubscriptionTier[],
-  _assignment: AccountSubscriptionAssignment | null
+  assignment: AccountSubscriptionAssignment | null
 ): Promise<void> {
   const admin = createAdminClient();
   const { error } = await admin
@@ -297,6 +297,23 @@ export async function removeManualOverrideInSupabase(
     .delete()
     .eq("account_id", accountId);
   if (error) throw error;
+
+  // Downgrade manual/lifetime grants — preserve active Stripe billing subscriptions.
+  if (!assignment?.stripeSubscriptionId) {
+    const { error: assignmentError } = await admin
+      .from("account_subscription_assignments")
+      .upsert(
+        {
+          account_id: accountId,
+          tier_id: "free-user",
+          status: "cancelled",
+          expires_at: null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "account_id" }
+      );
+    if (assignmentError) throw assignmentError;
+  }
 }
 
 export async function setStripeCustomerMappingInSupabase(

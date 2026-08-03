@@ -29,6 +29,7 @@ const QUICK_LINKS: Array<{
 }> = [
   { href: "/admin/finance", labelKey: "admin.nav.financialSuite", descKey: "admin.overview.quickFinance", ownerOnly: true },
   { href: "/admin/users", labelKey: "admin.nav.userManagement", descKey: "admin.overview.quickUsers" },
+  { href: "/admin/subscriptions", labelKey: "admin.nav.subscriptions", descKey: "admin.overview.quickSubscriptions" },
   { href: "/admin/companies", labelKey: "admin.nav.companyOversight", descKey: "admin.overview.quickCompanies" },
   { href: "/admin/moderation", labelKey: "admin.nav.moderation", descKey: "admin.overview.quickModeration" },
   { href: "/admin/verification", labelKey: "admin.nav.verificationDesk", descKey: "admin.overview.quickVerification" },
