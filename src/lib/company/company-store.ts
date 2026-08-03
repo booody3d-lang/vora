@@ -3,9 +3,11 @@ import "server-only";
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { saveUploadedFile } from "@/lib/profile/profile-store";
 import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
+import { createPublicReadClient, isPublicReadAvailable } from "@/lib/supabase/public-read";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   isMissingRelationError,
+  isSupabaseDbSyncEnabled,
   markSupabaseDbSyncUnavailable,
   runOptionalDbSync,
   runOptionalDbSyncVoid,
@@ -17,7 +19,10 @@ import {
   expireCompanySubscriptionInSupabase,
   getCompanyByIdFromSupabase,
   getCompanyByOwnerFromSupabase,
+  getCompanyByOwnerFromServerClient,
+  getCompanyBySlugFromPublicClient,
   getCompanyBySlugFromSupabase,
+  getCompanyByIdFromPublicClient,
   getCompanySubscriptionFromSupabase,
   incrementJobsPublishedCountInSupabase,
   migrateJsonCompanyToSupabase,
@@ -39,25 +44,98 @@ let companyTableProbed = false;
 let companyTableAvailable = false;
 
 export async function isCompanySupabaseReady(): Promise<boolean> {
-  if (!isSupabaseConfigured() || !isAdminClientAvailable()) return false;
+  if (!isSupabaseConfigured()) return false;
   if (companyTableProbed) return companyTableAvailable;
 
   companyTableProbed = true;
-  try {
-    const admin = createAdminClient();
-    const { error } = await admin.from("companies").select("id").limit(1);
-    if (error) {
+
+  if (isAdminClientAvailable()) {
+    try {
+      const admin = createAdminClient();
+      const { error } = await admin.from("companies").select("id").limit(1);
+      if (!error) {
+        companyTableAvailable = true;
+        return true;
+      }
       if (isMissingRelationError(error)) {
         markSupabaseDbSyncUnavailable("companies missing", error);
       }
-      companyTableAvailable = false;
-      return false;
+    } catch {
+      // fall through to public read probe
     }
-    companyTableAvailable = true;
-    return true;
-  } catch {
-    companyTableAvailable = false;
-    return false;
+  }
+
+  if (isPublicReadAvailable()) {
+    try {
+      const client = createPublicReadClient();
+      const { error } = await client.from("companies").select("id").limit(1);
+      if (!error) {
+        companyTableAvailable = true;
+        return true;
+      }
+      if (isMissingRelationError(error)) {
+        markSupabaseDbSyncUnavailable("companies missing", error);
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  companyTableAvailable = false;
+  return false;
+}
+
+async function fetchCompanyBySlugFromDb(slug: string): Promise<CompanyProfile | null> {
+  if (isAdminClientAvailable() && isSupabaseDbSyncEnabled()) {
+    try {
+      const fromAdmin = await getCompanyBySlugFromSupabase(slug);
+      if (fromAdmin) return fromAdmin;
+    } catch (error) {
+      console.error("[company-store] getCompanyBySlug admin failed:", error);
+    }
+  }
+
+  try {
+    return await getCompanyBySlugFromPublicClient(slug);
+  } catch (error) {
+    console.error("[company-store] getCompanyBySlug public read failed:", error);
+    return null;
+  }
+}
+
+async function fetchCompanyByOwnerFromDb(accountId: string): Promise<CompanyProfile | null> {
+  if (isAdminClientAvailable() && isSupabaseDbSyncEnabled()) {
+    try {
+      const fromAdmin = await getCompanyByOwnerFromSupabase(accountId);
+      if (fromAdmin) return fromAdmin;
+    } catch (error) {
+      console.error("[company-store] getCompanyByAccountId admin failed:", error);
+    }
+  }
+
+  try {
+    return await getCompanyByOwnerFromServerClient(accountId);
+  } catch (error) {
+    console.error("[company-store] getCompanyByAccountId server session failed:", error);
+    return null;
+  }
+}
+
+async function fetchCompanyByIdFromDb(companyId: string): Promise<CompanyProfile | null> {
+  if (isAdminClientAvailable() && isSupabaseDbSyncEnabled()) {
+    try {
+      const fromAdmin = await getCompanyByIdFromSupabase(companyId);
+      if (fromAdmin) return fromAdmin;
+    } catch (error) {
+      console.error("[company-store] getCompanyById admin failed:", error);
+    }
+  }
+
+  try {
+    return await getCompanyByIdFromPublicClient(companyId);
+  } catch (error) {
+    console.error("[company-store] getCompanyById public read failed:", error);
+    return null;
   }
 }
 
@@ -146,7 +224,7 @@ export async function resolveCompanySlugForAccount(accountId: string): Promise<s
   if (!(await isCompanySupabaseReady())) return null;
 
   try {
-    const company = await getCompanyByOwnerFromSupabase(accountId);
+    const company = await fetchCompanyByOwnerFromDb(accountId);
     return company?.slug ?? null;
   } catch (error) {
     console.error("[company-store] resolveCompanySlugForAccount failed:", error);
@@ -168,34 +246,23 @@ export function getCompanyBySlugSync(slug: string): CompanyProfile | null {
 }
 
 export async function getCompanyBySlug(slug: string): Promise<CompanyProfile | null> {
-  if (!(await isCompanySupabaseReady())) {
-    return getCompanyBySlugFromJson(slug);
+  if (await isCompanySupabaseReady()) {
+    await maybeMigrateJsonToSupabase();
+    const fromDb = await fetchCompanyBySlugFromDb(slug);
+    if (fromDb) return fromDb;
   }
 
-  await maybeMigrateJsonToSupabase();
-
-  return runOptionalDbSync(
-    "getCompanyBySlug",
-    () => getCompanyBySlugFromSupabase(slug),
-    getCompanyBySlugFromJson(slug)
-  );
+  return getCompanyBySlugFromJson(slug);
 }
 
 export async function getCompanyByAccountId(accountId: string): Promise<CompanyProfile | null> {
   const slug = getAccountLink(accountId);
   const jsonFallback = slug ? getCompanyBySlugFromJson(slug) : null;
 
-  if (!(await isCompanySupabaseReady())) {
-    return jsonFallback;
-  }
-
-  await maybeMigrateJsonToSupabase();
-
-  try {
-    const fromDb = await getCompanyByOwnerFromSupabase(accountId);
+  if (await isCompanySupabaseReady()) {
+    await maybeMigrateJsonToSupabase();
+    const fromDb = await fetchCompanyByOwnerFromDb(accountId);
     if (fromDb) return fromDb;
-  } catch (error) {
-    console.error("[company-store] getCompanyByAccountId supabase failed:", error);
   }
 
   return jsonFallback;
@@ -222,17 +289,13 @@ export function isKnownCompanyId(companyId: string): boolean {
 export async function getCompanyById(companyId: string): Promise<CompanyProfile | null> {
   const jsonFallback = getCompanyByIdFromJson(companyId);
 
-  if (!(await isCompanySupabaseReady())) {
-    return jsonFallback;
+  if (await isCompanySupabaseReady()) {
+    await maybeMigrateJsonToSupabase();
+    const fromDb = await fetchCompanyByIdFromDb(companyId);
+    if (fromDb) return fromDb;
   }
 
-  await maybeMigrateJsonToSupabase();
-
-  return runOptionalDbSync(
-    "getCompanyById",
-    () => getCompanyByIdFromSupabase(companyId),
-    jsonFallback
-  );
+  return jsonFallback;
 }
 
 function getSubscriptionFromJson(accountId: string): CompanySubscription | null {

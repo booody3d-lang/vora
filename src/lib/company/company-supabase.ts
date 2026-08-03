@@ -1,6 +1,8 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createPublicReadClient } from "@/lib/supabase/public-read";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 import { slugifyName, uniqueSlug } from "@/lib/profile/slugify";
 import { isMissingColumnError } from "@/lib/supabase/safe-db";
 import type { CompanyBranch, CompanyProfile, CompanySubscription } from "@/types/company";
@@ -292,6 +294,22 @@ export async function getCompanyBySlugFromSupabase(
   return mapCompanyRow(data as DbCompanyRow);
 }
 
+/** Public read via anon key — works without SUPABASE_SERVICE_ROLE_KEY. */
+export async function getCompanyBySlugFromPublicClient(
+  slug: string
+): Promise<CompanyProfile | null> {
+  const client = createPublicReadClient();
+  const { data, error } = await client
+    .from("companies")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return mapCompanyRow(data as DbCompanyRow);
+}
+
 export async function getCompanyByOwnerFromSupabase(
   ownerAccountId: string
 ): Promise<CompanyProfile | null> {
@@ -300,6 +318,42 @@ export async function getCompanyByOwnerFromSupabase(
     .from("companies")
     .select("*")
     .eq("owner_account_id", ownerAccountId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return mapCompanyRow(data as DbCompanyRow);
+}
+
+/** Owner lookup via authenticated server session (RLS owner_account_id = auth.uid()). */
+export async function getCompanyByOwnerFromServerClient(
+  ownerAccountId: string
+): Promise<CompanyProfile | null> {
+  const client = await createServerClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user || user.id !== ownerAccountId) return null;
+
+  const { data, error } = await client
+    .from("companies")
+    .select("*")
+    .eq("owner_account_id", ownerAccountId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return mapCompanyRow(data as DbCompanyRow);
+}
+
+export async function getCompanyByIdFromPublicClient(
+  companyId: string
+): Promise<CompanyProfile | null> {
+  const client = createPublicReadClient();
+  const { data, error } = await client
+    .from("companies")
+    .select("*")
+    .eq("id", companyId)
     .maybeSingle();
 
   if (error) throw error;

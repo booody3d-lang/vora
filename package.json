@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "verify:features": "node scripts/verify-latest-features.mjs",
+    "verify:company-routes": "node scripts/verify-company-routes.mjs",
     "smoke:production": "node scripts/smoke-production.mjs"
   },
   "dependencies": {

@@ -92,6 +92,29 @@ async function run() {
     }
   }
 
+  const companySlug = process.env.COMPANY_SLUG ?? "albakkar";
+  try {
+    const companyPage = await fetch(`${BASE_URL}/network/company/${companySlug}`, { redirect: "follow" });
+    if (companyPage.ok) {
+      pass(`company page /network/company/${companySlug}`, `HTTP ${companyPage.status}`);
+    } else {
+      fail(`company page /network/company/${companySlug}`, `HTTP ${companyPage.status}`);
+    }
+  } catch (error) {
+    fail(`company page /network/company/${companySlug}`, error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    const companyApi = await fetchJson(`/api/company/${companySlug}`);
+    if (companyApi.response.ok && companyApi.json?.company?.slug === companySlug) {
+      pass(`company API /api/company/${companySlug}`, companyApi.json.company.name);
+    } else {
+      fail(`company API /api/company/${companySlug}`, `HTTP ${companyApi.response.status}`);
+    }
+  } catch (error) {
+    fail(`company API /api/company/${companySlug}`, error instanceof Error ? error.message : String(error));
+  }
+
   try {
     const signup = await fetchJson("/api/auth/signup", {
       method: "POST",
