@@ -4,21 +4,14 @@ import {
   isRouteAllowedForRole,
   roleMeetsMinimum,
 } from "@/lib/security/rbac";
+import { parseVoraRole } from "@/lib/security/parse-vora-role";
 import { resolveEffectiveRole } from "@/lib/security/roles";
 import type { VoraRole } from "@/types/security";
-
-function parseRole(value: unknown): VoraRole {
-  const roles: VoraRole[] = ["registered", "professional", "company", "admin", "owner"];
-  if (typeof value === "string" && roles.includes(value as VoraRole)) {
-    return value as VoraRole;
-  }
-  return "registered";
-}
 
 function resolveRoleFromMetadata(user: User): VoraRole {
   const meta = user.user_metadata ?? {};
   const appMeta = user.app_metadata ?? {};
-  const role = parseRole(meta.role ?? appMeta.role);
+  const role = parseVoraRole(meta.role ?? appMeta.role) ?? "registered";
   return resolveEffectiveRole({ email: user.email ?? "", role });
 }
 
@@ -48,9 +41,11 @@ export async function resolveRoleForMiddleware(
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!prodError && prodRow?.account_type) {
-    const role = parseRole(prodRow.account_type);
-    return resolveEffectiveRole({ email, role });
+  if (!prodError && prodRow) {
+    const fromAccountType = parseVoraRole(prodRow.account_type);
+    if (fromAccountType) {
+      return resolveEffectiveRole({ email, role: fromAccountType });
+    }
   }
 
   if (prodError && !isMissingColumnError(prodError)) {
@@ -63,9 +58,22 @@ export async function resolveRoleForMiddleware(
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!fullError && fullRow?.primary_role) {
-    const role = parseRole(fullRow.primary_role);
-    return resolveEffectiveRole({ email, role });
+  if (!fullError && fullRow) {
+    const fromPrimary = parseVoraRole(fullRow.primary_role);
+    if (fromPrimary) {
+      return resolveEffectiveRole({ email, role: fromPrimary });
+    }
+  }
+
+  const { data: ownedCompany } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("owner_account_id", user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (ownedCompany) {
+    return resolveEffectiveRole({ email, role: "company" });
   }
 
   return resolveRoleFromMetadata(user);
@@ -130,12 +138,19 @@ export function shouldApplyAccessDeniedRedirect(
 
 /** Only the network feed root is redirected for company accounts (single middleware rule). */
 export function isCompanyNetworkRedirectSource(pathname: string): boolean {
-  return pathname === "/network" || pathname === "/network/";
+  return (
+    pathname === "/network" ||
+    pathname === "/network/" ||
+    pathname === "/network/jobs"
+  );
 }
 
 export function getCompanyNetworkRedirectTarget(pathname: string): string | null {
   if (pathname === "/network" || pathname === "/network/") {
     return "/company/dashboard";
+  }
+  if (pathname === "/network/jobs") {
+    return "/company/dashboard/jobs";
   }
   return null;
 }

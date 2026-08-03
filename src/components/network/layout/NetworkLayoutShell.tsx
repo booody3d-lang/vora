@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { NetworkNav } from "@/components/network/layout/NetworkNav";
+import { CompanyNetworkGuard } from "@/components/company/layout/CompanyNetworkGuard";
 import { CompanyPublicNav } from "@/components/company/layout/CompanyPublicNav";
 import type { CompanyProfile } from "@/types/company";
 
@@ -44,6 +45,7 @@ export function NetworkLayoutShell({ children }: { children: React.ReactNode }) 
 
   return (
     <>
+      <CompanyNetworkGuard />
       <NetworkNav />
       {children}
     </>

@@ -15,6 +15,7 @@ import {
 } from "@/lib/profile/profile-store";
 import { ensureSupabaseProfileAndStore } from "@/lib/supabase/profile-persistence";
 import { resolveEffectiveRole } from "@/lib/security/roles";
+import { parseVoraRole } from "@/lib/security/parse-vora-role";
 import type { UserGender } from "@/types/profile";
 import type { AuthUser, VoraRole } from "@/types/security";
 
@@ -53,11 +54,7 @@ function isMissingColumnError(error: { message?: string; code?: string } | null)
 }
 
 function parseRole(value: unknown): VoraRole | null {
-  const roles: VoraRole[] = ["registered", "professional", "company", "admin", "owner"];
-  if (typeof value === "string" && roles.includes(value as VoraRole)) {
-    return value as VoraRole;
-  }
-  return null;
+  return parseVoraRole(value);
 }
 
 function parseGender(value: unknown): UserGender | undefined {
