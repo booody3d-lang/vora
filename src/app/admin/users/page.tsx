@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ADMIN_USERS } from "@/lib/admin/mock-data";
-import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import type { AdminUserRecord, BanType, UserAccountRole } from "@/types/admin";
 import { useTranslations } from "@/i18n/use-translations";
 import { cn } from "@/lib/utils";
@@ -17,7 +15,7 @@ const ROLE_KEYS: Record<UserAccountRole, string> = {
 
 export default function AdminUsersPage() {
   const { t } = useTranslations();
-  const [users, setUsers] = useState<AdminUserRecord[]>(isDemoDataEnabled() ? ADMIN_USERS : []);
+  const [users, setUsers] = useState<AdminUserRecord[]>([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<UserAccountRole | "all">("all");
   const [banModal, setBanModal] = useState<AdminUserRecord | null>(null);

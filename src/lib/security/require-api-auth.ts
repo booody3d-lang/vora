@@ -2,7 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/security/session";
-import { canAccessAdminPanel } from "@/lib/security/roles";
+import { canAccessAdminPanel, isPlatformOwner } from "@/lib/security/roles";
 import type { AuthUser } from "@/types/security";
 
 export async function requireAuthenticatedApiUser(): Promise<
@@ -23,6 +23,19 @@ export async function requireAdminApiUser(): Promise<
 
   if (!canAccessAdminPanel(result.auth.user)) {
     return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+
+  return result;
+}
+
+export async function requireOwnerApiUser(): Promise<
+  { auth: { user: AuthUser } } | { response: NextResponse }
+> {
+  const result = await requireAdminApiUser();
+  if ("response" in result) return result;
+
+  if (!isPlatformOwner(result.auth.user)) {
+    return { response: NextResponse.json({ error: "Owner access required" }, { status: 403 }) };
   }
 
   return result;

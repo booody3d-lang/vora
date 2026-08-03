@@ -15,6 +15,7 @@ import {
   unbanUserInSupabase,
   updateUserRoleInSupabase,
 } from "@/lib/admin/admin-users-supabase";
+import { isDemoDataEnabled } from "@/lib/env/demo-mode";
 import { ADMIN_USERS } from "@/lib/admin/mock-data";
 import type { AdminUserRecord, BanType, UserAccountRole } from "@/types/admin";
 
@@ -50,9 +51,13 @@ export async function isAdminUsersSupabaseReady(): Promise<boolean> {
   }
 }
 
+function demoFallbackUsers(): AdminUserRecord[] {
+  return isDemoDataEnabled() ? ADMIN_USERS : [];
+}
+
 function readUsersData(): AdminUsersDataFile {
   return readJsonStore(USERS_FILE, () => ({
-    users: ADMIN_USERS,
+    users: demoFallbackUsers(),
   }));
 }
 
@@ -61,17 +66,23 @@ function writeUsersData(data: AdminUsersDataFile) {
 }
 
 export async function listUsersForAdmin(limit = 200): Promise<AdminUserRecord[]> {
-  const jsonFallback = readUsersData().users;
+  const jsonFallback = readUsersData().users.slice(0, limit);
 
   if (!(await isAdminUsersSupabaseReady())) {
-    return jsonFallback.slice(0, limit);
+    return jsonFallback;
   }
 
-  return runOptionalDbSync(
+  const supabaseUsers = await runOptionalDbSync(
     "listUsersForAdmin",
     () => listUsersForAdminFromSupabase(limit),
-    jsonFallback.slice(0, limit)
+    jsonFallback
   );
+
+  if (!isDemoDataEnabled() && supabaseUsers.length > 0) {
+    return supabaseUsers;
+  }
+
+  return supabaseUsers.length > 0 ? supabaseUsers : jsonFallback;
 }
 
 export async function updateUserRoleForAdmin(

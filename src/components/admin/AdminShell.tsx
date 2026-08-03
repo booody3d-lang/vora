@@ -3,31 +3,25 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAdminAuth } from "@/components/admin/AdminAuthGate";
+import { useAdminCapabilities } from "@/components/admin/useAdminCapabilities";
 import { VoraLogo } from "@/components/brand/VoraLogo";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import { useTranslations } from "@/i18n/use-translations";
+import { getAdminNavItems } from "@/lib/admin/admin-nav";
 import { getUrgentDisputeCount } from "@/lib/admin/mock-data";
 import { cn } from "@/lib/utils";
-
-const NAV_KEYS = [
-  { href: "/admin", labelKey: "admin.nav.commandCenter", icon: "⬡" },
-  { href: "/admin/finance", labelKey: "admin.nav.financialSuite", icon: "◈" },
-  { href: "/admin/users", labelKey: "admin.nav.userManagement", icon: "◎" },
-  { href: "/admin/subscriptions", labelKey: "admin.nav.subscriptions", icon: "★" },
-  { href: "/admin/companies", labelKey: "admin.nav.companyOversight", icon: "🏢" },
-  { href: "/admin/verification", labelKey: "admin.nav.verificationDesk", icon: "✓" },
-  { href: "/admin/moderation", labelKey: "admin.nav.moderation", icon: "⚑" },
-  { href: "/admin/disputes", labelKey: "admin.nav.disputeHub", icon: "⚠", badge: true },
-  { href: "/admin/security", labelKey: "admin.nav.securityAudit", icon: "⛨" },
-  { href: "/admin/analytics", labelKey: "admin.nav.analytics", icon: "◉" },
-  { href: "/admin/ai", labelKey: "admin.nav.predictiveAi", icon: "✨" },
-] as const;
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { logout } = useAdminAuth();
   const { t } = useTranslations();
+  const { isOwner, isLimitedAdmin, userEmail, userName, isLoading } = useAdminCapabilities();
   const urgentCount = getUrgentDisputeCount();
+  const navItems = getAdminNavItems(isOwner);
+
+  const suiteLabel = isOwner ? t("admin.superAdminSuite") : t("admin.limitedAdminSuite");
+  const roleLabel = isOwner ? t("admin.platformOwner") : t("admin.limitedAdminRole");
+  const privilegeBadge = isOwner ? t("admin.highPrivilege") : t("admin.limitedPrivilege");
 
   return (
     <div className="flex min-h-screen bg-[#0B1120]">
@@ -38,13 +32,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             href="/admin"
             linkClassName="block transition-opacity hover:opacity-90"
           />
-          <p className="mt-2 text-[10px] uppercase tracking-widest text-slate-500">
-            {t("admin.superAdminSuite")}
-          </p>
+          <p className="mt-2 text-[10px] uppercase tracking-widest text-slate-500">{suiteLabel}</p>
         </div>
 
         <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-y-contain p-3">
-          {NAV_KEYS.map((item) => {
+          {navItems.map((item) => {
             const active =
               pathname === item.href ||
               (item.href !== "/admin" && pathname.startsWith(item.href));
@@ -79,11 +71,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-600/20 text-sm">
-              👤
+              {isOwner ? "👑" : "🛡️"}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-semibold text-white">{t("admin.platformOwner")}</p>
-              <p className="text-[10px] text-slate-500">{t("admin.superAdminRole")}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-white">
+                {userName || roleLabel}
+              </p>
+              <p className="truncate text-[10px] text-slate-500">
+                {userEmail ?? (isLoading ? "…" : roleLabel)}
+              </p>
             </div>
           </div>
           <button
@@ -96,18 +92,37 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="ps-64 flex-1">
+      <div className="flex-1 ps-64">
         <header className="sticky top-0 z-30 border-b border-slate-800 bg-[#0B1120]/95 backdrop-blur">
           <div className="flex items-center justify-between px-8 py-3">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              <span className="text-xs text-slate-400">{t("admin.liveOperational")}</span>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/network"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+              >
+                <span aria-hidden>←</span>
+                {t("admin.backToNetwork")}
+              </Link>
+              <div className="hidden items-center gap-2 sm:flex">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                <span className="text-xs text-slate-400">{t("admin.liveOperational")}</span>
+              </div>
             </div>
             <div className="flex items-center gap-4 text-xs text-slate-500">
               <span>{t("common.currencySar")}</span>
-              <span className="rounded-full bg-red-600/20 px-2 py-0.5 font-bold text-red-400">
-                {t("admin.highPrivilege")}
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 font-bold",
+                  isOwner
+                    ? "bg-red-600/20 text-red-400"
+                    : "bg-amber-600/20 text-amber-400"
+                )}
+              >
+                {privilegeBadge}
               </span>
+              {isLimitedAdmin && (
+                <span className="hidden text-slate-500 md:inline">{t("admin.limitedAdminHint")}</span>
+              )}
             </div>
           </div>
         </header>

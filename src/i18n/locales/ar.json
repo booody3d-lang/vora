@@ -35,7 +35,9 @@
     "voraAi": "VORA AI",
     "settings": "الإعدادات",
     "messagesAria": "الرسائل",
-    "yourProfile": "ملفك الشخصي"
+    "yourProfile": "ملفك الشخصي",
+    "ownerPanel": "مركز القيادة",
+    "adminPanel": "لوحة الإدارة"
   },
   "sidebar": {
     "navigation": "التنقل الرئيسي",
@@ -800,8 +802,13 @@
     "demoHint": "تجريبي: owner@vora.sa أو admin@vora.sa / Vora@2026!",
     "ownerBrand": "Owner",
     "superAdminSuite": "مجموعة المسؤول الأعلى",
+    "limitedAdminSuite": "عمليات الإدارة",
     "platformOwner": "مالك المنصة",
     "superAdminRole": "مسؤول أعلى",
+    "limitedAdminRole": "مسؤول محدود",
+    "limitedPrivilege": "صلاحيات إدارية",
+    "limitedAdminHint": "مسؤول محدود — بدون صلاحيات مالية",
+    "backToNetwork": "العودة للشبكة",
     "liveOperational": "مباشر · جميع الأنظمة تعمل",
     "highPrivilege": "صلاحيات عالية",
     "growthThisWeek": "{percent}% هذا الأسبوع",
@@ -834,6 +841,8 @@
       "quickUsers": "الأدوار والحظر والدليل",
       "quickSecurity": "سجل التدقيق والتنبيهات",
       "quickCompanies": "الوظائف وإشراف الشركات",
+      "quickModeration": "المتاجر والخدمات والبلاغات",
+      "quickVerification": "قائمة الهوية والتراخيص",
       "userBreakdown": "{basic} أساسي · {professional} مهني"
     },
     "users": {

@@ -35,7 +35,9 @@
     "voraAi": "VORA AI",
     "settings": "Settings",
     "messagesAria": "Messages",
-    "yourProfile": "Your profile"
+    "yourProfile": "Your profile",
+    "ownerPanel": "Owner Panel",
+    "adminPanel": "Admin Panel"
   },
   "sidebar": {
     "navigation": "Main navigation",
@@ -800,8 +802,13 @@
     "demoHint": "Demo: owner@vora.sa or admin@vora.sa / Vora@2026!",
     "ownerBrand": "Owner",
     "superAdminSuite": "Super Admin Suite",
+    "limitedAdminSuite": "Admin Operations",
     "platformOwner": "Platform Owner",
     "superAdminRole": "Super Admin",
+    "limitedAdminRole": "Limited Admin",
+    "limitedPrivilege": "ADMIN ACCESS",
+    "limitedAdminHint": "Limited admin — no financial access",
+    "backToNetwork": "Back to Network",
     "liveOperational": "Live · All systems operational",
     "highPrivilege": "HIGH PRIVILEGE",
     "growthThisWeek": "{percent}% this week",
@@ -834,6 +841,8 @@
       "quickUsers": "Roles, bans, directory",
       "quickSecurity": "Audit trail & alerts",
       "quickCompanies": "Jobs & employer oversight",
+      "quickModeration": "Stores, services, reports",
+      "quickVerification": "Identity & license queue",
       "userBreakdown": "{basic} Basic · {professional} Professional"
     },
     "users": {

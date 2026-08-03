@@ -27,6 +27,13 @@ const COMPANY_NAV_KEYS = [
   { href: "/company/dashboard/jobs", labelKey: "company.nav.jobs", icon: "💼", matchPrefix: true },
 ] as const;
 
+type NavItem = {
+  href: string;
+  labelKey: string;
+  icon: string;
+  matchPrefix: boolean;
+};
+
 export function NetworkNav() {
   const pathname = usePathname();
   const { t } = useTranslations();
@@ -35,21 +42,30 @@ export function NetworkNav() {
     useCurrentProfile();
   const profileHref = usePublicPageHref();
   const isCompany = role === "company";
+  const isOwner = role === "owner";
+  const isAdminUser = role === "admin" || isOwner;
 
   const baseNavKeys = isCompany ? COMPANY_NAV_KEYS : PROFESSIONAL_NAV_KEYS;
 
-  const navItems = [
+  const navItems: NavItem[] = [
     baseNavKeys[0],
     {
       href: profileHref,
-      labelKey: (isCompany ? "company.nav.companyPage" : "nav.profile") as
-        | "company.nav.companyPage"
-        | "nav.profile",
+      labelKey: isCompany ? "company.nav.companyPage" : "nav.profile",
       icon: isCompany ? "🏢" : "👤",
       matchPrefix: true,
     },
     ...baseNavKeys.slice(1),
   ];
+
+  if (isAdminUser) {
+    navItems.push({
+      href: "/admin",
+      labelKey: isOwner ? "nav.ownerPanel" : "nav.adminPanel",
+      icon: isOwner ? "👑" : "🛡️",
+      matchPrefix: true,
+    });
+  }
 
   const logoHref = isCompany ? "/company/dashboard" : "/network";
 
@@ -69,6 +85,8 @@ export function NetworkNav() {
                     pathname === "/profile/me")) ||
                 (item.labelKey === "company.nav.portal" && pathname === "/company/dashboard") ||
                 (item.labelKey === "company.nav.jobs" && pathname.startsWith("/company/dashboard/jobs")) ||
+                ((item.labelKey === "nav.ownerPanel" || item.labelKey === "nav.adminPanel") &&
+                  pathname.startsWith("/admin")) ||
                 (item.matchPrefix && href !== "/network" && href !== "/company/dashboard" && pathname.startsWith(href));
               return (
                 <Link

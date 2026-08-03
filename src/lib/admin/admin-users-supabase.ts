@@ -1,9 +1,25 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { slugifyName } from "@/lib/profile/slugify";
+import { isPlatformOwnerEmail } from "@/lib/security/roles";
+import { noteSupabaseDbSyncAvailable } from "@/lib/supabase/safe-db";
 import type { AdminUserRecord, BanType, UserAccountRole } from "@/types/admin";
 
-interface DbAccountRow {
+interface ProductionAccountRow {
+  id: string;
+  email: string;
+  account_type: string | null;
+  status: string | null;
+}
+
+interface ProductionProfileRow {
+  id: string;
+  full_name: string | null;
+  updated_at: string | null;
+}
+
+interface FullAccountRow {
   id: string;
   email: string;
   full_name: string | null;
@@ -19,18 +35,25 @@ interface DbAccountRow {
   updated_at: string;
 }
 
-interface DbProfileRow {
+interface FullProfileRow {
   account_id: string;
   slug: string;
   is_verified: boolean | null;
   is_premium: boolean | null;
 }
 
-const ACCOUNT_SELECT =
+const FULL_ACCOUNT_SELECT =
   "id, email, full_name, tier, primary_role, professional_unlocked, has_freelancer_store, is_banned, ban_reason, banned_until, created_at, last_login_at, updated_at";
 
-function mapVoraRoleToAdminRole(role: string | null): UserAccountRole {
-  switch (role) {
+function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  const message = (error.message ?? "").toLowerCase();
+  return error.code === "PGRST204" || (message.includes("could not find") && message.includes("column"));
+}
+
+function mapAccountTypeToAdminRole(accountType: string | null, email: string): UserAccountRole {
+  if (isPlatformOwnerEmail(email)) return "admin";
+  switch (accountType) {
     case "professional":
       return "professional";
     case "company":
@@ -56,19 +79,78 @@ export function mapAdminRoleToVoraRole(role: UserAccountRole): string {
   }
 }
 
+function mapVoraRoleToAdminRole(role: string | null): UserAccountRole {
+  switch (role) {
+    case "professional":
+      return "professional";
+    case "company":
+      return "company";
+    case "admin":
+    case "owner":
+      return "admin";
+    default:
+      return "user";
+  }
+}
+
 function deriveBanType(isBanned: boolean, bannedUntil: string | null): BanType {
   if (!isBanned) return "none";
   if (bannedUntil) return "temporary";
   return "permanent";
 }
 
-function formatJoinedAt(iso: string): string {
+function formatJoinedAt(iso: string | null | undefined): string {
+  if (!iso) return "—";
   return iso.slice(0, 10);
 }
 
-function mapAccountToAdminUser(
-  account: DbAccountRow,
-  profile: DbProfileRow | undefined,
+function isPremiumTier(tierId: string | null | undefined): boolean {
+  if (!tierId) return false;
+  const normalized = tierId.toLowerCase();
+  return normalized.includes("premium") || normalized === "premium-user";
+}
+
+function mapProductionAccountToAdminUser(
+  account: ProductionAccountRow,
+  profile: ProductionProfileRow | undefined,
+  hasCompany: boolean,
+  isPremium: boolean,
+  companySlug?: string
+): AdminUserRecord {
+  const fullName =
+    profile?.full_name?.trim() || account.email.split("@")[0] || "User";
+  const slug = companySlug ?? slugifyName(fullName);
+  const isBanned = account.status != null && account.status !== "active";
+
+  return {
+    id: account.id,
+    slug,
+    fullName,
+    email: account.email,
+    role: mapAccountTypeToAdminRole(account.account_type, account.email),
+    tier:
+      account.account_type === "professional" ||
+      account.account_type === "admin" ||
+      account.account_type === "owner"
+        ? "professional"
+        : "basic",
+    isVerified: false,
+    isPremium,
+    isBanned,
+    banType: isBanned ? "permanent" : "none",
+    joinedAt: formatJoinedAt(profile?.updated_at),
+    lastActiveAt: profile?.updated_at ?? new Date().toISOString(),
+    hasStore:
+      account.account_type === "professional" ||
+      account.account_type === "admin" ||
+      account.account_type === "owner",
+    hasCompany,
+  };
+}
+
+function mapFullAccountToAdminUser(
+  account: FullAccountRow,
+  profile: FullProfileRow | undefined,
   hasCompany: boolean
 ): AdminUserRecord {
   const isBanned = account.is_banned ?? false;
@@ -96,11 +178,68 @@ function mapAccountToAdminUser(
   };
 }
 
-export async function listUsersForAdminFromSupabase(limit = 200): Promise<AdminUserRecord[]> {
+async function listUsersFromProductionSchema(limit: number): Promise<AdminUserRecord[]> {
+  const admin = createAdminClient();
+
+  const [accountsRes, profilesRes, companiesRes, subsRes, overridesRes] = await Promise.all([
+    admin
+      .from("accounts")
+      .select("id, email, account_type, status")
+      .order("email", { ascending: true })
+      .limit(limit),
+    admin.from("profiles").select("id, full_name, updated_at"),
+    admin.from("companies").select("owner_account_id, slug"),
+    admin.from("account_subscription_assignments").select("account_id, tier_id, status"),
+    admin.from("subscription_manual_overrides").select("account_id, tier_id"),
+  ]);
+
+  if (accountsRes.error) throw accountsRes.error;
+  if (profilesRes.error && !isMissingColumnError(profilesRes.error)) throw profilesRes.error;
+  if (companiesRes.error && !isMissingColumnError(companiesRes.error)) throw companiesRes.error;
+
+  const profilesById = new Map<string, ProductionProfileRow>();
+  for (const row of profilesRes.data ?? []) {
+    profilesById.set(row.id as string, row as ProductionProfileRow);
+  }
+
+  const companyByOwner = new Map<string, string>();
+  for (const row of companiesRes.data ?? []) {
+    companyByOwner.set(row.owner_account_id as string, row.slug as string);
+  }
+
+  const premiumAccounts = new Set<string>();
+  for (const row of subsRes.data ?? []) {
+    if (isPremiumTier(row.tier_id as string)) {
+      premiumAccounts.add(row.account_id as string);
+    }
+  }
+  for (const row of overridesRes.data ?? []) {
+    if (isPremiumTier(row.tier_id as string)) {
+      premiumAccounts.add(row.account_id as string);
+    }
+  }
+
+  noteSupabaseDbSyncAvailable();
+
+  return (accountsRes.data ?? []).map((row) => {
+    const account = row as ProductionAccountRow;
+    const profile = profilesById.get(account.id);
+    const companySlug = companyByOwner.get(account.id);
+    return mapProductionAccountToAdminUser(
+      account,
+      profile,
+      companyByOwner.has(account.id),
+      premiumAccounts.has(account.id),
+      companySlug
+    );
+  });
+}
+
+async function listUsersFromFullSchema(limit: number): Promise<AdminUserRecord[]> {
   const admin = createAdminClient();
 
   const [accountsRes, profilesRes, companiesRes] = await Promise.all([
-    admin.from("accounts").select(ACCOUNT_SELECT).order("created_at", { ascending: false }).limit(limit),
+    admin.from("accounts").select(FULL_ACCOUNT_SELECT).order("created_at", { ascending: false }).limit(limit),
     admin.from("professional_profiles").select("account_id, slug, is_verified, is_premium"),
     admin.from("companies").select("owner_account_id"),
   ]);
@@ -109,18 +248,39 @@ export async function listUsersForAdminFromSupabase(limit = 200): Promise<AdminU
   if (profilesRes.error) throw profilesRes.error;
   if (companiesRes.error) throw companiesRes.error;
 
-  const profilesByAccount = new Map<string, DbProfileRow>();
+  const profilesByAccount = new Map<string, FullProfileRow>();
   for (const row of profilesRes.data ?? []) {
-    profilesByAccount.set(row.account_id as string, row as DbProfileRow);
+    profilesByAccount.set(row.account_id as string, row as FullProfileRow);
   }
 
   const companyOwners = new Set(
     (companiesRes.data ?? []).map((row) => row.owner_account_id as string)
   );
 
+  noteSupabaseDbSyncAvailable();
+
   return (accountsRes.data ?? []).map((row) =>
-    mapAccountToAdminUser(row as DbAccountRow, profilesByAccount.get(row.id as string), companyOwners.has(row.id as string))
+    mapFullAccountToAdminUser(
+      row as FullAccountRow,
+      profilesByAccount.get(row.id as string),
+      companyOwners.has(row.id as string)
+    )
   );
+}
+
+export async function listUsersForAdminFromSupabase(limit = 200): Promise<AdminUserRecord[]> {
+  const admin = createAdminClient();
+
+  const probe = await admin.from("accounts").select("id, email, account_type, status").limit(1);
+  if (!probe.error) {
+    return listUsersFromProductionSchema(limit);
+  }
+
+  if (isMissingColumnError(probe.error)) {
+    return listUsersFromFullSchema(limit);
+  }
+
+  throw probe.error;
 }
 
 export async function updateUserRoleInSupabase(
@@ -129,8 +289,20 @@ export async function updateUserRoleInSupabase(
 ): Promise<AdminUserRecord | null> {
   const admin = createAdminClient();
   const voraRole = mapAdminRoleToVoraRole(role);
-  const professionalUnlocked = role === "professional" || role === "admin";
 
+  const production = await admin
+    .from("accounts")
+    .update({ account_type: voraRole === "registered" ? "registered" : voraRole })
+    .eq("id", userId);
+
+  if (!production.error) {
+    const users = await listUsersForAdminFromSupabase();
+    return users.find((user) => user.id === userId) ?? null;
+  }
+
+  if (!isMissingColumnError(production.error)) throw production.error;
+
+  const professionalUnlocked = role === "professional" || role === "admin";
   const { error } = await admin
     .from("accounts")
     .update({
@@ -153,6 +325,19 @@ export async function banUserInSupabase(
   reason: string
 ): Promise<AdminUserRecord | null> {
   const admin = createAdminClient();
+
+  const production = await admin
+    .from("accounts")
+    .update({ status: "banned" })
+    .eq("id", userId);
+
+  if (!production.error) {
+    const users = await listUsersForAdminFromSupabase();
+    return users.find((user) => user.id === userId) ?? null;
+  }
+
+  if (!isMissingColumnError(production.error)) throw production.error;
+
   const bannedUntil =
     banType === "temporary"
       ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -176,6 +361,18 @@ export async function banUserInSupabase(
 
 export async function unbanUserInSupabase(userId: string): Promise<AdminUserRecord | null> {
   const admin = createAdminClient();
+
+  const production = await admin
+    .from("accounts")
+    .update({ status: "active" })
+    .eq("id", userId);
+
+  if (!production.error) {
+    const users = await listUsersForAdminFromSupabase();
+    return users.find((user) => user.id === userId) ?? null;
+  }
+
+  if (!isMissingColumnError(production.error)) throw production.error;
 
   const { error } = await admin
     .from("accounts")

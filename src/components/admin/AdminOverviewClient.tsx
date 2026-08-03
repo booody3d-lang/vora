@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MetricCard } from "@/components/admin/MetricCard";
+import { useAdminCapabilities } from "@/components/admin/useAdminCapabilities";
 import { OwnerAlertFeed } from "@/components/notifications/OwnerAlertFeed";
 import { useTranslations } from "@/i18n/use-translations";
 import {
@@ -20,8 +21,23 @@ interface OverviewApiResponse {
   persistence?: "supabase" | "demo" | "mixed";
 }
 
+const QUICK_LINKS: Array<{
+  href: string;
+  labelKey: string;
+  descKey: string;
+  ownerOnly?: boolean;
+}> = [
+  { href: "/admin/finance", labelKey: "admin.nav.financialSuite", descKey: "admin.overview.quickFinance", ownerOnly: true },
+  { href: "/admin/users", labelKey: "admin.nav.userManagement", descKey: "admin.overview.quickUsers" },
+  { href: "/admin/companies", labelKey: "admin.nav.companyOversight", descKey: "admin.overview.quickCompanies" },
+  { href: "/admin/moderation", labelKey: "admin.nav.moderation", descKey: "admin.overview.quickModeration" },
+  { href: "/admin/verification", labelKey: "admin.nav.verificationDesk", descKey: "admin.overview.quickVerification" },
+  { href: "/admin/security", labelKey: "admin.nav.securityAudit", descKey: "admin.overview.quickSecurity", ownerOnly: true },
+];
+
 export function AdminOverviewClient() {
   const { t } = useTranslations();
+  const { isOwner, canViewFinance } = useAdminCapabilities();
   const [overview, setOverview] = useState<PlatformOverview>(ADMIN_PLATFORM_OVERVIEW);
   const [finance, setFinance] = useState<FinancialSummary>(ADMIN_FINANCIAL_SUMMARY);
   const [urgentCount, setUrgentCount] = useState(0);
@@ -29,17 +45,22 @@ export function AdminOverviewClient() {
     null
   );
 
+  const quickLinks = useMemo(
+    () => QUICK_LINKS.filter((link) => !link.ownerOnly || isOwner),
+    [isOwner]
+  );
+
   const loadOverview = useCallback(() => {
     fetch("/api/admin/overview")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: OverviewApiResponse | null) => {
         if (data?.overview) setOverview(data.overview);
-        if (data?.finance) setFinance(data.finance);
+        if (data?.finance && canViewFinance) setFinance(data.finance);
         if (typeof data?.urgentDisputeCount === "number") setUrgentCount(data.urgentDisputeCount);
         if (data?.latestDispute !== undefined) setLatestDispute(data.latestDispute);
       })
       .catch(() => {});
-  }, []);
+  }, [canViewFinance]);
 
   useEffect(() => {
     loadOverview();
@@ -52,7 +73,7 @@ export function AdminOverviewClient() {
         <p className="text-sm text-slate-400">{t("admin.overview.subtitle")}</p>
       </div>
 
-      <OwnerAlertFeed />
+      {isOwner && <OwnerAlertFeed />}
 
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
@@ -102,37 +123,39 @@ export function AdminOverviewClient() {
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
-          {t("admin.overview.financialSnapshot")}
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            label={t("admin.overview.grossRevenue")}
-            value={formatSar(finance.grossPlatformRevenue)}
-            growthPercent={finance.revenueGrowthPercent}
-            accent="emerald"
-          />
-          <MetricCard
-            label={t("admin.overview.subscriptionRevenue")}
-            value={formatSar(finance.netSubscriptionRevenue)}
-            sublabel={t("admin.overview.subscriptionSublabel")}
-            accent="blue"
-          />
-          <MetricCard
-            label={t("admin.overview.commissionRevenue")}
-            value={formatSar(finance.netCommissionRevenue)}
-            accent="orange"
-          />
-          <MetricCard
-            label={t("admin.overview.escrowLiquidity")}
-            value={formatSar(finance.activeEscrowLiquidity)}
-            accent="amber"
-          />
-        </div>
-      </section>
+      {canViewFinance && (
+        <section>
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
+            {t("admin.overview.financialSnapshot")}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              label={t("admin.overview.grossRevenue")}
+              value={formatSar(finance.grossPlatformRevenue)}
+              growthPercent={finance.revenueGrowthPercent}
+              accent="emerald"
+            />
+            <MetricCard
+              label={t("admin.overview.subscriptionRevenue")}
+              value={formatSar(finance.netSubscriptionRevenue)}
+              sublabel={t("admin.overview.subscriptionSublabel")}
+              accent="blue"
+            />
+            <MetricCard
+              label={t("admin.overview.commissionRevenue")}
+              value={formatSar(finance.netCommissionRevenue)}
+              accent="orange"
+            />
+            <MetricCard
+              label={t("admin.overview.escrowLiquidity")}
+              value={formatSar(finance.activeEscrowLiquidity)}
+              accent="amber"
+            />
+          </div>
+        </section>
+      )}
 
-      {urgentCount > 0 && latestDispute && (
+      {isOwner && urgentCount > 0 && latestDispute && (
         <Link
           href="/admin/disputes"
           className="block rounded-2xl border border-red-500/30 bg-red-500/10 p-5 transition-colors hover:bg-red-500/15"
@@ -157,13 +180,8 @@ export function AdminOverviewClient() {
         </Link>
       )}
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { href: "/admin/finance", labelKey: "admin.nav.financialSuite", descKey: "admin.overview.quickFinance" },
-          { href: "/admin/users", labelKey: "admin.nav.userManagement", descKey: "admin.overview.quickUsers" },
-          { href: "/admin/companies", labelKey: "admin.nav.companyOversight", descKey: "admin.overview.quickCompanies" },
-          { href: "/admin/security", labelKey: "admin.nav.securityAudit", descKey: "admin.overview.quickSecurity" },
-        ].map((link) => (
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {quickLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}

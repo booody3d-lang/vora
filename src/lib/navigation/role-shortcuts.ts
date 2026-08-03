@@ -189,5 +189,16 @@ export function appendRoleShortcuts(
     }
   }
 
+  if (ctx.role === "owner" || ctx.role === "admin") {
+    add({
+      id: "role-admin-panel",
+      href: "/admin",
+      icon: ctx.role === "owner" ? "👑" : "🛡️",
+      labelKey: ctx.role === "owner" ? "nav.ownerPanel" : "nav.adminPanel",
+      labelEn: ctx.role === "owner" ? "Owner Panel" : "Admin Panel",
+      labelAr: ctx.role === "owner" ? "مركز القيادة" : "لوحة الإدارة",
+    });
+  }
+
   return [...links, ...extras];
 }

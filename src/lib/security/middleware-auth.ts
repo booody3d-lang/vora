@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { isOwnerOnlyAdminRoute } from "@/lib/admin/admin-nav";
 import {
   getMinimumRoleForRoute,
   isRouteAllowedForRole,
@@ -85,6 +86,10 @@ export function isCompanyPath(pathname: string): boolean {
 
 export function isPageAllowedForRole(pathname: string, role: VoraRole): boolean {
   if (!isRouteAllowedForRole(pathname, role)) {
+    return false;
+  }
+
+  if (isOwnerOnlyAdminRoute(pathname) && role !== "owner") {
     return false;
   }
 
