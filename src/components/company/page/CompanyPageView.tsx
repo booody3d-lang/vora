@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { FollowButton } from "@/components/network/connections/FollowButton";
+import { FollowersListModal } from "@/components/network/connections/FollowersListModal";
+import { FollowersStatCard } from "@/components/network/connections/FollowerCountDisplay";
 import { useTranslations } from "@/i18n/use-translations";
 import type { CompanyProfile, CompanyTab } from "@/types/company";
 import type { CompanyPost, JobPosting } from "@/types/company";
@@ -34,6 +36,7 @@ export function CompanyPageView({
 }: CompanyPageViewProps) {
   const { t } = useTranslations();
   const [activeTab, setActiveTab] = useState<CompanyTab>("home");
+  const [showFollowers, setShowFollowers] = useState(false);
 
   return (
     <div className="mx-auto max-w-[900px] px-4 py-4 md:px-6 md:py-6">
@@ -142,12 +145,28 @@ export function CompanyPageView({
           ))}
         </nav>
         <div className="p-5">
-          {activeTab === "home" && <HomeTab company={company} t={t} />}
+          {activeTab === "home" && (
+            <HomeTab
+              company={company}
+              t={t}
+              isOwner={isOwner}
+              onViewFollowers={isOwner ? () => setShowFollowers(true) : undefined}
+            />
+          )}
           {activeTab === "about" && <AboutTab about={company.about ?? ""} />}
           {activeTab === "posts" && <PostsTab posts={posts} t={t} />}
           {activeTab === "jobs" && <JobsTab jobs={jobs} t={t} />}
         </div>
       </div>
+
+      {showFollowers && isOwner && (
+        <FollowersListModal
+          open={showFollowers}
+          onClose={() => setShowFollowers(false)}
+          targetId={company.id}
+          targetType="company"
+        />
+      )}
     </div>
   );
 }
@@ -155,9 +174,13 @@ export function CompanyPageView({
 function HomeTab({
   company,
   t,
+  isOwner = false,
+  onViewFollowers,
 }: {
   company: CompanyProfile;
   t: (key: string) => string;
+  isOwner?: boolean;
+  onViewFollowers?: () => void;
 }) {
   const preview = company.about
     ? company.about.length > 300
@@ -206,7 +229,13 @@ function HomeTab({
       )}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <StatCard label={t("company.page.employees")} value={company.employeeCount.toLocaleString()} />
-        <StatCard label={t("company.page.followers")} value={company.followerCount.toLocaleString()} />
+        <FollowersStatCard
+          label={t("company.page.followers")}
+          value={company.followerCount.toLocaleString()}
+          clickable={isOwner && company.followerCount > 0}
+          onClick={onViewFollowers}
+          viewListLabel={t("network.connections.followersList.viewFollowers")}
+        />
         <StatCard label={t("company.page.offices")} value={String(company.branches.length + 1)} />
       </div>
     </div>

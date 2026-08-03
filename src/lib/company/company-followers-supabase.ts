@@ -6,7 +6,8 @@ import {
   isMissingRelationError,
   markSupabaseDbSyncUnavailable,
 } from "@/lib/supabase/safe-db";
-import type { FollowRelationship } from "@/lib/network/social-store";
+import type { FollowListEntry, FollowRelationship } from "@/lib/network/social-store";
+import { getProfileByAccountId } from "@/lib/profile/profile-store";
 
 let companyFollowersTableProbed = false;
 let companyFollowersTableAvailable = false;
@@ -75,6 +76,31 @@ export async function getCompanyFollowerCountFromSupabase(companyId: string): Pr
 
   if (error) throw error;
   return count ?? 0;
+}
+
+export async function listCompanyFollowersForOwnerFromSupabase(
+  companyId: string
+): Promise<FollowListEntry[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("company_followers")
+    .select("follower_id, created_at")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => {
+    const profile = getProfileByAccountId(row.follower_id as string);
+    return {
+      accountId: row.follower_id as string,
+      fullName: profile?.fullName ?? "User",
+      headline: profile?.headline ?? "",
+      profileSlug: profile?.slug,
+      status: "accepted" as const,
+      since: row.created_at as string,
+    };
+  });
 }
 
 export async function isFollowingCompanyInSupabase(

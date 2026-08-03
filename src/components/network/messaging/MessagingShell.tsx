@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MessageAttachment } from "@/types/network";
 import { ConversationList } from "@/components/network/messaging/ConversationList";
 import { MessageThread } from "@/components/network/messaging/MessageThread";
+import { MessagingOwnerFollowersPanel } from "@/components/network/messaging/MessagingOwnerFollowersPanel";
 import { NewConversationPanel } from "@/components/network/messaging/NewConversationPanel";
 import { useMessaging } from "@/hooks/useMessaging";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
@@ -95,6 +96,12 @@ export function MessagingShell({
           onSelect={async (targetAccountId) => {
             await startConversation(targetAccountId);
             setNewOpen(false);
+          }}
+        />
+        <MessagingOwnerFollowersPanel
+          compact={compact}
+          onMessageFollower={(targetAccountId) => {
+            void startConversation(targetAccountId);
           }}
         />
         <ConversationList

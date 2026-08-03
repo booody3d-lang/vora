@@ -255,6 +255,12 @@
         "followers": "Followers",
         "following": "Following",
         "pending": "Pending"
+      },
+      "followersList": {
+        "title": "Followers",
+        "empty": "No followers yet.",
+        "viewFollowers": "View followers list",
+        "messagingHint": "Tap to view followers and start a conversation"
       }
     },
     "messagingSubtitle": "Connected professionals & company recruiters only",

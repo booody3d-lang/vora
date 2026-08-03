@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { computeSubscriptionState } from "@/lib/company/mock-data";
 import { CompanyPostsPanel } from "@/components/company/dashboard/CompanyPostsPanel";
+import { FollowersListModal } from "@/components/network/connections/FollowersListModal";
+import { FollowersStatCard } from "@/components/network/connections/FollowerCountDisplay";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { useLocale } from "@/providers/LocaleProvider";
 import type { JobPosting } from "@/types/company";
@@ -12,6 +14,7 @@ export function CompanyDashboardOverview() {
   const { t } = useLocale();
   const { company, subscription, loading } = useCurrentCompany();
   const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [showFollowers, setShowFollowers] = useState(false);
 
   useEffect(() => {
     if (!company) return;
@@ -84,9 +87,12 @@ export function CompanyDashboardOverview() {
           value={String(activeJobsCount)}
         />
         <StatCard label={t("company.dashboard.totalApplications")} value="42" />
-        <StatCard
+        <FollowersStatCard
           label={t("company.dashboard.followers")}
           value={followerCount.toLocaleString()}
+          clickable={followerCount > 0}
+          onClick={() => setShowFollowers(true)}
+          viewListLabel={t("network.connections.followersList.viewFollowers")}
         />
         <StatCard
           label={t("company.dashboard.freeJobsLeft")}
@@ -163,6 +169,13 @@ export function CompanyDashboardOverview() {
       <div className="mt-6">
         <CompanyPostsPanel />
       </div>
+
+      <FollowersListModal
+        open={showFollowers}
+        onClose={() => setShowFollowers(false)}
+        targetId={company.id}
+        targetType="company"
+      />
     </div>
   );
 }

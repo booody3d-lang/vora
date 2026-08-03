@@ -7,6 +7,8 @@ import { PremiumBadge } from "@/components/billing/PremiumBadge";
 import { ProfessionalScoreRing } from "@/components/professional/ProfessionalScoreRing";
 import { ConnectButton } from "@/components/network/connections/ConnectButton";
 import { FollowButton } from "@/components/network/connections/FollowButton";
+import { FollowerCountDisplay } from "@/components/network/connections/FollowerCountDisplay";
+import { FollowersListModal } from "@/components/network/connections/FollowersListModal";
 import { MessageButton } from "@/components/network/connections/MessageButton";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { getCompanyUrl, getFreelanceStoreUrl } from "@/lib/network/urls";
@@ -29,6 +31,7 @@ export function ProfileHeader({
   hasIncomingPending = false,
 }: ProfileHeaderProps) {
   const [showContact, setShowContact] = useState(false);
+  const [showFollowers, setShowFollowers] = useState(false);
   const { t } = useLocale();
 
   const targetAccountId = profile.accountId ?? profile.id;
@@ -98,9 +101,13 @@ export function ProfileHeader({
               )}
               <p className="mt-1 text-xs text-slate-400">📍 {profile.location}</p>
               {typeof profile.followerCount === "number" && (
-                <p className="mt-1 text-xs text-slate-500">
-                  {profile.followerCount.toLocaleString()} {t("profile.header.followers")}
-                </p>
+                <FollowerCountDisplay
+                  count={profile.followerCount}
+                  label={t("profile.header.followers")}
+                  canViewList={Boolean(isOwnProfile)}
+                  onViewList={isOwnProfile ? () => setShowFollowers(true) : undefined}
+                  viewListLabel={t("network.connections.followersList.viewFollowers")}
+                />
               )}
             </div>
           </div>
@@ -174,6 +181,15 @@ export function ProfileHeader({
           )}
         </div>
       </div>
+
+      {showFollowers && isOwnProfile && (
+        <FollowersListModal
+          open={showFollowers}
+          onClose={() => setShowFollowers(false)}
+          targetId={targetAccountId}
+          targetType="user"
+        />
+      )}
 
       {showContact && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

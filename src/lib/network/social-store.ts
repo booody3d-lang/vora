@@ -27,6 +27,7 @@ import {
   isCompanyFollowersSupabaseReady,
   migrateJsonCompanyFollowsToSupabase,
   unfollowCompanyInSupabase,
+  listCompanyFollowersForOwnerFromSupabase,
 } from "@/lib/company/company-followers-supabase";
 import { getCompanyByIdSync, isKnownCompanyId } from "@/lib/company/company-store";
 import { findAccountById } from "@/lib/security/demo-store";
@@ -543,6 +544,40 @@ export async function listFollowersForOwner(ownerAccountId: string): Promise<Fol
     );
   }
   return listFollowersForOwnerJson(ownerAccountId);
+}
+
+export async function listCompanyFollowersForOwner(companyId: string): Promise<FollowListEntry[]> {
+  if (await isCompanyFollowersSupabaseReady()) {
+    await maybeMigrateCompanyFollowsToSupabase();
+    return runOptionalDbSync(
+      "listCompanyFollowersForOwner",
+      () => listCompanyFollowersForOwnerFromSupabase(companyId),
+      listCompanyFollowersForOwnerJson(companyId)
+    );
+  }
+  return listCompanyFollowersForOwnerJson(companyId);
+}
+
+function listCompanyFollowersForOwnerJson(companyId: string): FollowListEntry[] {
+  const data = readData();
+  return data.follows
+    .filter(
+      (follow) =>
+        follow.targetId === companyId &&
+        follow.targetType === "company" &&
+        follow.status === "accepted"
+    )
+    .map((follow) => {
+      const profile = getProfileByAccountId(follow.followerAccountId);
+      return {
+        accountId: follow.followerAccountId,
+        fullName: profile?.fullName ?? "User",
+        headline: profile?.headline ?? "",
+        profileSlug: profile?.slug,
+        status: follow.status,
+        since: follow.acceptedAt ?? follow.createdAt,
+      };
+    });
 }
 
 function listFollowersForOwnerJson(ownerAccountId: string): FollowListEntry[] {
