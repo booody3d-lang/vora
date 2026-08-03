@@ -1,7 +1,10 @@
 ﻿import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import dns from "node:dns";
 import pg from "pg";
+
+dns.setDefaultResultOrder("ipv4first");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -62,12 +65,17 @@ function poolerConnectionCandidates(connectionString) {
   const candidates = [];
   for (const region of regions) {
     for (const username of [`postgres.${ref}`, "postgres"]) {
-      const url = new URL(connectionString);
-      url.username = username;
-      url.password = password;
-      url.hostname = `aws-0-${region}.pooler.supabase.com`;
-      url.port = "5432";
-      candidates.push({ label: `${region}/${username.split(".")[0]}`, url: url.toString() });
+      for (const port of ["5432", "6543"]) {
+        const url = new URL(connectionString);
+        url.username = username;
+        url.password = password;
+        url.hostname = `aws-0-${region}.pooler.supabase.com`;
+        url.port = port;
+        candidates.push({
+          label: `${region}/${username.split(".")[0]}:${port}`,
+          url: url.toString(),
+        });
+      }
     }
   }
   return candidates;
@@ -110,10 +118,14 @@ async function main() {
   }
 
   const fileEnv = loadEnv();
-  const connectionString =
-    process.env.DATABASE_URL || fileEnv.DATABASE_URL || fileEnv.DIRECT_URL;
+  const connectionCandidates = [
+    process.env.DIRECT_URL,
+    fileEnv.DIRECT_URL,
+    process.env.DATABASE_URL,
+    fileEnv.DATABASE_URL,
+  ].filter(Boolean);
 
-  if (!connectionString) {
+  if (connectionCandidates.length === 0) {
     console.error("DATABASE_URL (or DIRECT_URL) not set in .env.local");
     process.exit(1);
   }
@@ -127,10 +139,20 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Target: ${maskDatabaseUrl(connectionString)}`);
   console.log(`File: ${sqlArg} (${sql.length} bytes)`);
 
-  const attempts = [{ label: "direct", url: connectionString }, ...poolerConnectionCandidates(connectionString)];
+  const attempts = [];
+  const seen = new Set();
+  for (const connectionString of connectionCandidates) {
+    for (const attempt of [
+      { label: "direct", url: connectionString },
+      ...poolerConnectionCandidates(connectionString),
+    ]) {
+      if (seen.has(attempt.url)) continue;
+      seen.add(attempt.url);
+      attempts.push(attempt);
+    }
+  }
 
   let lastErr;
   for (const attempt of attempts) {
