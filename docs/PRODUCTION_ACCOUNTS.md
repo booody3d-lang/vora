@@ -25,7 +25,7 @@ and set bootstrap passwords only in `.env.local` (local) or Vercel env (never co
 Supabase Auth allows **one auth user per email address**. Company and admin are now
 **separate accounts**:
 
-- **`abadi.5g@outlook.com`** — Company portal (`/company/dashboard`), AlBakkar entity, premium badge. No freelancer store.
+- **`abadi.5g@outlook.com`** — Company portal (`/company/dashboard`), AlBakkar entity, premium badge. No freelancer store. Password was rotated in Supabase Auth (Aug 2026); set only in Supabase Dashboard or via Admin API — never in this repo.
 - **`b.3d@live.com`** — Limited admin panel (`/admin`), freelancer store creation, premium badge.
 
 ---

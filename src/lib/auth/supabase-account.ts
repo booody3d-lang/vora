@@ -84,8 +84,11 @@ function mapRoleToAuthUser(
     totpEnabled: extras?.totp_enabled ?? false,
     isBanned,
     professionalUnlocked:
-      extras?.professional_unlocked ?? role === "professional" || role === "owner" || role === "admin",
-    hasFreelancerStore: extras?.has_freelancer_store ?? role === "professional",
+      extras?.professional_unlocked ??
+      (role === "professional" || role === "owner" || role === "admin"),
+    hasFreelancerStore:
+      extras?.has_freelancer_store ??
+      (role === "professional" || role === "owner" || role === "admin"),
     hasProfessionalProfile: role !== "company",
     gender: extras?.gender ?? undefined,
   };
@@ -151,7 +154,8 @@ export function buildAuthUserFromMetadata(user: User): AuthUser {
     totpEnabled: false,
     isBanned: false,
     professionalUnlocked: role === "professional" || role === "owner" || role === "admin",
-    hasFreelancerStore: role === "professional",
+    hasFreelancerStore:
+      role === "professional" || role === "owner" || role === "admin",
     hasProfessionalProfile: role !== "company",
     gender: parseGender(meta.gender),
   };
