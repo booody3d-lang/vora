@@ -38,6 +38,31 @@ interface SearchIndexFile {
   builtAt: string;
 }
 
+type ProfileRow = {
+  id?: string;
+  full_name?: string | null;
+  slug?: string | null;
+  headline?: string | null;
+};
+type CompanyRow = {
+  id?: string;
+  name?: string | null;
+  slug?: string | null;
+  tagline?: string | null;
+  industry?: string | null;
+  headquarters?: string | null;
+};
+type JobRow = {
+  id?: string;
+  slug?: string | null;
+  title?: string | null;
+  location?: string | null;
+  employment_type?: string | null;
+  company_id?: string | null;
+  status?: string | null;
+  is_public?: boolean | null;
+};
+
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
@@ -57,50 +82,157 @@ function buildTokenIndex(entries: SearchIndexEntry[]): Record<string, string[]> 
   return tokenIndex;
 }
 
+function profileEntryFromRow(row: ProfileRow): SearchIndexEntry | null {
+  const id = String(row.id ?? "").trim();
+  const fullName = String(row.full_name ?? "").trim();
+  let slug = String(row.slug ?? "").trim();
+  if (!id || !fullName) return null;
+  if (!slug) slug = id.slice(0, 8);
+  const headline = String(row.headline ?? "").trim();
+  return {
+    id: `profile-${id}`,
+    type: "profile",
+    slug,
+    title: fullName,
+    subtitle: headline,
+    href: `/network/profile/${slug}`,
+    keywords: [fullName, slug, headline].filter(Boolean).join(" "),
+  };
+}
+
+function companyEntryFromRow(row: CompanyRow): SearchIndexEntry | null {
+  const id = String(row.id ?? "").trim();
+  const name = String(row.name ?? "").trim();
+  const slug = String(row.slug ?? "").trim();
+  if (!id || !name || !slug) return null;
+  const tagline = String(row.tagline ?? "").trim();
+  const industry = String(row.industry ?? "").trim();
+  return {
+    id: `company-${id}`,
+    type: "company",
+    slug,
+    title: name,
+    subtitle: tagline || industry,
+    href: `/network/company/${slug}`,
+    keywords: [name, tagline, industry, row.headquarters].filter(Boolean).join(" "),
+  };
+}
+
+function jobEntryFromRow(row: JobRow, companyName = ""): SearchIndexEntry | null {
+  const id = String(row.id ?? "").trim();
+  const title = String(row.title ?? "").trim();
+  const slug = String(row.slug ?? "").trim();
+  if (!id || !title || !slug) return null;
+  const location = String(row.location ?? "").trim();
+  return {
+    id: `job-${id}`,
+    type: "job",
+    slug,
+    title,
+    subtitle: [companyName, location].filter(Boolean).join(" · "),
+    href: `/network/jobs/${slug}`,
+    keywords: [title, companyName, location, row.employment_type].filter(Boolean).join(" "),
+  };
+}
+
 async function collectProfilesFromSupabase(): Promise<SearchIndexEntry[]> {
-  // Bypass isSupabasePersistenceEnabled()/dbSyncAvailable — search must always
-  // read production profiles when the admin client is configured.
   if (!isAdminClientAvailable()) return [];
 
   try {
     const admin = createAdminClient();
-    let { data, error } = await admin
+    const withHeadline = await admin
       .from("profiles")
-      .select("id, full_name, slug")
-      .limit(1000);
+      .select("id, full_name, slug, headline")
+      .limit(2000);
+    let rows: ProfileRow[] = [];
 
-    if (error && isMissingColumnError(error)) {
-      ({ data, error } = await admin.from("profiles").select("id, full_name").limit(1000));
+    if (!withHeadline.error && withHeadline.data) {
+      rows = withHeadline.data as ProfileRow[];
+    } else if (withHeadline.error && isMissingColumnError(withHeadline.error)) {
+      const withSlug = await admin.from("profiles").select("id, full_name, slug").limit(2000);
+      if (!withSlug.error && withSlug.data) {
+        rows = withSlug.data as ProfileRow[];
+      } else if (withSlug.error && isMissingColumnError(withSlug.error)) {
+        const slim = await admin.from("profiles").select("id, full_name").limit(2000);
+        if (!slim.error && slim.data) rows = slim.data as ProfileRow[];
+      }
+    } else if (withHeadline.error && !isMissingRelationError(withHeadline.error)) {
+      console.error("[search-index] profiles query failed:", withHeadline.error.message);
+      return [];
     }
+
+    return rows
+      .map((row) => profileEntryFromRow(row))
+      .filter((entry): entry is SearchIndexEntry => Boolean(entry));
+  } catch (error) {
+    console.error("[search-index] collectProfilesFromSupabase failed:", error);
+    return [];
+  }
+}
+
+async function collectCompaniesFromSupabase(): Promise<SearchIndexEntry[]> {
+  if (!isAdminClientAvailable()) return [];
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("companies")
+      .select("id, name, slug, tagline, industry, headquarters")
+      .limit(2000);
 
     if (error) {
       if (!isMissingRelationError(error)) {
-        console.error("[search-index] profiles query failed:", error.message);
+        console.error("[search-index] companies query failed:", error.message);
       }
       return [];
     }
 
-    const entries: SearchIndexEntry[] = [];
-    for (const row of data ?? []) {
-      const id = String((row as { id?: string }).id ?? "");
-      const fullName = String((row as { full_name?: string | null }).full_name ?? "").trim();
-      let slug = String((row as { slug?: string | null }).slug ?? "").trim();
-      if (!id || !fullName) continue;
-      if (!slug) slug = id.slice(0, 8);
-
-      entries.push({
-        id: `profile-${id}`,
-        type: "profile",
-        slug,
-        title: fullName,
-        subtitle: "",
-        href: `/network/profile/${slug}`,
-        keywords: [fullName, slug].filter(Boolean).join(" "),
-      });
-    }
-    return entries;
+    return ((data ?? []) as CompanyRow[])
+      .map((row) => companyEntryFromRow(row))
+      .filter((entry): entry is SearchIndexEntry => Boolean(entry));
   } catch (error) {
-    console.error("[search-index] collectProfilesFromSupabase failed:", error);
+    console.error("[search-index] collectCompaniesFromSupabase failed:", error);
+    return [];
+  }
+}
+
+async function collectJobsFromSupabase(): Promise<SearchIndexEntry[]> {
+  if (!isAdminClientAvailable()) return [];
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("jobs")
+      .select("id, slug, title, location, employment_type, company_id, status, is_public")
+      .eq("is_public", true)
+      .eq("status", "active")
+      .limit(2000);
+
+    if (error) {
+      if (!isMissingRelationError(error)) {
+        console.error("[search-index] jobs query failed:", error.message);
+      }
+      return [];
+    }
+
+    const rows = (data ?? []) as JobRow[];
+    const companyIds = [...new Set(rows.map((row) => row.company_id).filter(Boolean))] as string[];
+    const companyNames = new Map<string, string>();
+
+    if (companyIds.length > 0) {
+      const companies = await admin.from("companies").select("id, name").in("id", companyIds);
+      if (!companies.error && companies.data) {
+        for (const company of companies.data as Array<{ id?: string; name?: string | null }>) {
+          if (company.id && company.name) companyNames.set(company.id, company.name);
+        }
+      }
+    }
+
+    return rows
+      .map((row) => jobEntryFromRow(row, row.company_id ? companyNames.get(row.company_id) ?? "" : ""))
+      .filter((entry): entry is SearchIndexEntry => Boolean(entry));
+  } catch (error) {
+    console.error("[search-index] collectJobsFromSupabase failed:", error);
     return [];
   }
 }
@@ -108,7 +240,6 @@ async function collectProfilesFromSupabase(): Promise<SearchIndexEntry[]> {
 async function collectProfiles(): Promise<SearchIndexEntry[]> {
   const byId = new Map<string, SearchIndexEntry>();
 
-  // Production source of truth: Supabase profiles (all registered users).
   for (const entry of await collectProfilesFromSupabase()) {
     byId.set(entry.id, entry);
   }
@@ -124,7 +255,6 @@ async function collectProfiles(): Promise<SearchIndexEntry[]> {
     const profile = getProfileBySlug(slug) ?? (isDemoDataEnabled() ? DEMO_PROFILES[slug] : undefined);
     if (!profile) continue;
     const id = `profile-${profile.accountId ?? profile.id}`;
-    // Prefer richer local/demo fields when available, but never drop Supabase-only users.
     byId.set(id, {
       id,
       type: "profile",
@@ -143,14 +273,15 @@ async function collectProfiles(): Promise<SearchIndexEntry[]> {
 }
 
 async function collectJobs(): Promise<SearchIndexEntry[]> {
-  const entries: SearchIndexEntry[] = [];
-  const seen = new Set<string>();
+  const byId = new Map<string, SearchIndexEntry>();
+
+  for (const entry of await collectJobsFromSupabase()) {
+    byId.set(entry.id, entry);
+  }
 
   const liveJobs = await listActivePublicJobListings();
   for (const job of liveJobs) {
-    if (seen.has(job.slug)) continue;
-    seen.add(job.slug);
-    entries.push({
+    byId.set(`job-${job.id}`, {
       id: `job-${job.id}`,
       type: "job",
       slug: job.slug,
@@ -163,10 +294,10 @@ async function collectJobs(): Promise<SearchIndexEntry[]> {
 
   if (isDemoDataEnabled()) {
     for (const job of DEMO_JOBS) {
-      if (seen.has(job.slug)) continue;
-      seen.add(job.slug);
-      entries.push({
-        id: `job-${job.id}`,
+      const id = `job-${job.id}`;
+      if (byId.has(id)) continue;
+      byId.set(id, {
+        id,
         type: "job",
         slug: job.slug,
         title: job.title,
@@ -177,18 +308,19 @@ async function collectJobs(): Promise<SearchIndexEntry[]> {
     }
   }
 
-  return entries;
+  return [...byId.values()];
 }
 
 async function collectCompanies(): Promise<SearchIndexEntry[]> {
-  const companies = await listAllCompanies();
-  const seen = new Set<string>();
-  const entries: SearchIndexEntry[] = [];
+  const byId = new Map<string, SearchIndexEntry>();
 
+  for (const entry of await collectCompaniesFromSupabase()) {
+    byId.set(entry.id, entry);
+  }
+
+  const companies = await listAllCompanies();
   for (const company of companies) {
-    if (seen.has(company.slug)) continue;
-    seen.add(company.slug);
-    entries.push({
+    byId.set(`company-${company.id}`, {
       id: `company-${company.id}`,
       type: "company",
       slug: company.slug,
@@ -201,7 +333,7 @@ async function collectCompanies(): Promise<SearchIndexEntry[]> {
     });
   }
 
-  return entries;
+  return [...byId.values()];
 }
 
 async function collectStores(): Promise<SearchIndexEntry[]> {
@@ -279,10 +411,147 @@ async function readIndex(): Promise<SearchIndexFile> {
   }));
   const ageMs = Date.now() - new Date(index.builtAt ?? 0).getTime();
   const stale = !Number.isFinite(ageMs) || ageMs > INDEX_MAX_AGE_MS;
-  // On serverless JSON is ephemeral — always rebuild when empty or stale so new signups appear.
   if (!index.entries?.length || stale) return rebuildSearchIndex();
   if (!index.tokenIndex) index.tokenIndex = buildTokenIndex(index.entries);
   return index;
+}
+
+async function liveSearchAllTypes(
+  trimmed: string,
+  limit: number,
+  type?: SearchResultType
+): Promise<SearchIndexEntry[]> {
+  if (!isAdminClientAvailable()) return [];
+
+  const admin = createAdminClient();
+  const pattern = `%${trimmed}%`;
+  const byId = new Map<string, SearchIndexEntry>();
+  const wantProfiles = !type || type === "profile";
+  const wantCompanies = !type || type === "company";
+  const wantJobs = !type || type === "job";
+
+  if (wantProfiles) {
+    const mergeProfiles = (rows: ProfileRow[]) => {
+      for (const row of rows) {
+        const entry = profileEntryFromRow(row);
+        if (entry) byId.set(entry.id, entry);
+      }
+    };
+
+    const byName = await admin
+      .from("profiles")
+      .select("id, full_name, slug, headline")
+      .ilike("full_name", pattern)
+      .limit(limit);
+    if (!byName.error && byName.data) {
+      mergeProfiles(byName.data as ProfileRow[]);
+    } else if (byName.error && isMissingColumnError(byName.error)) {
+      const withSlug = await admin
+        .from("profiles")
+        .select("id, full_name, slug")
+        .ilike("full_name", pattern)
+        .limit(limit);
+      if (!withSlug.error && withSlug.data) {
+        mergeProfiles(withSlug.data as ProfileRow[]);
+      } else if (withSlug.error && isMissingColumnError(withSlug.error)) {
+        const slim = await admin
+          .from("profiles")
+          .select("id, full_name")
+          .ilike("full_name", pattern)
+          .limit(limit);
+        if (!slim.error && slim.data) mergeProfiles(slim.data as ProfileRow[]);
+      }
+    }
+
+    const bySlug = await admin
+      .from("profiles")
+      .select("id, full_name, slug, headline")
+      .ilike("slug", pattern)
+      .limit(limit);
+    if (!bySlug.error && bySlug.data) {
+      mergeProfiles(bySlug.data as ProfileRow[]);
+    } else if (bySlug.error && isMissingColumnError(bySlug.error)) {
+      const withSlug = await admin
+        .from("profiles")
+        .select("id, full_name, slug")
+        .ilike("slug", pattern)
+        .limit(limit);
+      if (!withSlug.error && withSlug.data) mergeProfiles(withSlug.data as ProfileRow[]);
+    }
+
+    // Job title / headline on profiles (optional column in some schemas)
+    const byHeadline = await admin
+      .from("profiles")
+      .select("id, full_name, slug, headline")
+      .ilike("headline", pattern)
+      .limit(limit);
+    if (!byHeadline.error && byHeadline.data) {
+      mergeProfiles(byHeadline.data as ProfileRow[]);
+    }
+  }
+
+  if (wantCompanies) {
+    const mergeCompanies = (rows: CompanyRow[]) => {
+      for (const row of rows) {
+        const entry = companyEntryFromRow(row);
+        if (entry) byId.set(entry.id, entry);
+      }
+    };
+
+    const byName = await admin
+      .from("companies")
+      .select("id, name, slug, tagline, industry, headquarters")
+      .ilike("name", pattern)
+      .limit(limit);
+    if (!byName.error && byName.data) mergeCompanies(byName.data as CompanyRow[]);
+
+    const bySlug = await admin
+      .from("companies")
+      .select("id, name, slug, tagline, industry, headquarters")
+      .ilike("slug", pattern)
+      .limit(limit);
+    if (!bySlug.error && bySlug.data) mergeCompanies(bySlug.data as CompanyRow[]);
+
+    const byIndustry = await admin
+      .from("companies")
+      .select("id, name, slug, tagline, industry, headquarters")
+      .ilike("industry", pattern)
+      .limit(limit);
+    if (!byIndustry.error && byIndustry.data) mergeCompanies(byIndustry.data as CompanyRow[]);
+  }
+
+  if (wantJobs) {
+    const jobs = await admin
+      .from("jobs")
+      .select("id, slug, title, location, employment_type, company_id, status, is_public")
+      .eq("is_public", true)
+      .eq("status", "active")
+      .ilike("title", pattern)
+      .limit(limit);
+
+    if (!jobs.error && jobs.data) {
+      const rows = jobs.data as JobRow[];
+      const companyIds = [...new Set(rows.map((row) => row.company_id).filter(Boolean))] as string[];
+      const companyNames = new Map<string, string>();
+      if (companyIds.length > 0) {
+        const companies = await admin.from("companies").select("id, name").in("id", companyIds);
+        if (!companies.error && companies.data) {
+          for (const company of companies.data as Array<{ id?: string; name?: string | null }>) {
+            if (company.id && company.name) companyNames.set(company.id, company.name);
+          }
+        }
+      }
+      for (const row of rows) {
+        const entry = jobEntryFromRow(
+          row,
+          row.company_id ? companyNames.get(row.company_id) ?? "" : ""
+        );
+        if (entry) byId.set(entry.id, entry);
+      }
+    }
+  }
+
+  return [...byId.values()].slice(0, limit);
 }
 
 export async function searchIndex(
@@ -336,60 +605,17 @@ export async function searchIndex(
     if (options?.type) results = results.filter((entry) => entry.type === options.type);
   }
 
-  // Live DB fallback for profile name/slug search (covers new signups before index rebuild).
-  if (
-    results.length === 0 &&
-    (!options?.type || options.type === "profile") &&
-    isAdminClientAvailable()
-  ) {
-    try {
-      const admin = createAdminClient();
-      const pattern = `%${trimmed}%`;
-      const byId = new Map<string, SearchIndexEntry>();
-
-      const mergeRows = (rows: unknown[]) => {
-        for (const row of rows) {
-          const id = String((row as { id?: string }).id ?? "");
-          const fullName = String((row as { full_name?: string | null }).full_name ?? "").trim();
-          let slug = String((row as { slug?: string | null }).slug ?? "").trim();
-          if (!id || !fullName) continue;
-          if (!slug) slug = id.slice(0, 8);
-          byId.set(id, {
-            id: `profile-${id}`,
-            type: "profile",
-            slug,
-            title: fullName,
-            subtitle: "",
-            href: `/network/profile/${slug}`,
-            keywords: [fullName, slug].join(" "),
-          });
-        }
-      };
-
-      const byName = await admin
-        .from("profiles")
-        .select("id, full_name, slug")
-        .ilike("full_name", pattern)
-        .limit(limit);
-      if (!byName.error && byName.data) mergeRows(byName.data);
-      else if (byName.error && isMissingColumnError(byName.error)) {
-        const slim = await admin.from("profiles").select("id, full_name").ilike("full_name", pattern).limit(limit);
-        if (!slim.error && slim.data) mergeRows(slim.data);
-      } else if (byName.error && !isMissingRelationError(byName.error)) {
-        console.error("[search-index] live name search failed:", byName.error.message);
-      }
-
-      const bySlug = await admin
-        .from("profiles")
-        .select("id, full_name, slug")
-        .ilike("slug", pattern)
-        .limit(limit);
-      if (!bySlug.error && bySlug.data) mergeRows(bySlug.data);
-
-      results = [...byId.values()].slice(0, limit);
-    } catch (error) {
-      console.error("[search-index] live profile search failed:", error);
+  // Always enrich with live Supabase hits so every registered user/company/job is findable.
+  try {
+    const live = await liveSearchAllTypes(trimmed, limit, options?.type);
+    if (live.length > 0) {
+      const merged = new Map<string, SearchIndexEntry>();
+      for (const entry of results) merged.set(entry.id, entry);
+      for (const entry of live) merged.set(entry.id, entry);
+      results = [...merged.values()];
     }
+  } catch (error) {
+    console.error("[search-index] live search failed:", error);
   }
 
   const finalResults = results.slice(0, limit);
