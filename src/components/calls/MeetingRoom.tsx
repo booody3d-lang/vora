@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 import {
   IconCheck,
   IconClose,
+  IconFlipCamera,
   IconMic,
   IconMicOff,
   IconMinimize,
   IconPhoneEnd,
-  IconSwap,
   IconVideo,
   IconVideoOff,
 } from "@/components/calls/CallIcons";
@@ -36,6 +36,7 @@ interface MeetingRoomProps {
   onEnd: () => void;
   onToggleMute: () => void;
   onToggleCamera: () => void;
+  onFlipCamera: () => void;
   onDismissSummary: () => void;
 }
 
@@ -75,7 +76,7 @@ function AvatarOrb({
       {pulsing && <span className="absolute inset-[-12px] animate-ping rounded-full bg-white/15" />}
       <div
         className={cn(
-          "flex items-center justify-center rounded-full bg-gradient-to-b from-[#5A7FBF] to-[#2F4A86] font-semibold text-white ring-1 ring-white/25",
+          "flex items-center justify-center rounded-full bg-gradient-to-b from-[#6B8FC4] to-[#2F4A86] font-semibold text-white ring-1 ring-white/25",
           sizeClass
         )}
       >
@@ -99,15 +100,18 @@ function RoundControl({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       aria-label={label}
       title={label}
       className={cn(
-        "flex h-14 w-14 items-center justify-center rounded-full transition active:scale-95",
-        tone === "glass" && "bg-white/15 text-white ring-1 ring-white/20 backdrop-blur-md hover:bg-white/25",
+        "flex h-[3.35rem] w-[3.35rem] items-center justify-center rounded-full transition active:scale-95",
+        tone === "glass" && "bg-black/35 text-white ring-1 ring-white/25 backdrop-blur-md",
         tone === "active" && "bg-white text-slate-900",
-        tone === "danger" && "bg-[#FF3B30] text-white hover:bg-[#ff5248]",
-        tone === "success" && "bg-[#34C759] text-white hover:bg-[#3dd368]"
+        tone === "danger" && "bg-[#FF3B30] text-white",
+        tone === "success" && "bg-[#34C759] text-white"
       )}
     >
       {icon}
@@ -132,16 +136,19 @@ export function MeetingRoom({
   onEnd,
   onToggleMute,
   onToggleCamera,
+  onFlipCamera,
   onDismissSummary,
 }: MeetingRoomProps) {
   const { t } = useTranslations();
   const [minimized, setMinimized] = useState(false);
   const [swapped, setSwapped] = useState(false);
+  const [chromeVisible, setChromeVisible] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -151,6 +158,7 @@ export function MeetingRoom({
     if (!open) {
       setMinimized(false);
       setSwapped(false);
+      setChromeVisible(true);
     }
   }, [open]);
 
@@ -165,6 +173,24 @@ export function MeetingRoom({
       document.body.style.overflow = prev;
     };
   }, [open, minimized]);
+
+  // Auto-hide chrome during active call (keep visible for ringing / calling / error)
+  useEffect(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    if (!open || minimized) return;
+    if (status === "ringing" || status === "calling" || status === "error") {
+      setChromeVisible(true);
+      return;
+    }
+    if (!chromeVisible || status !== "in-call") return;
+    hideTimerRef.current = setTimeout(() => setChromeVisible(false), 3500);
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [chromeVisible, open, minimized, status]);
 
   useEffect(() => {
     attach(remoteAudioRef.current, remoteStream, false);
@@ -182,7 +208,7 @@ export function MeetingRoom({
     kick(remoteAudioRef.current);
     kick(remoteVideoRef.current);
     kick(localVideoRef.current);
-  }, [minimized, swapped, mode, remoteStream, localStream, status]);
+  }, [minimized, swapped, mode, remoteStream, localStream, status, chromeVisible]);
 
   if (!open || !mounted) return null;
 
@@ -190,10 +216,10 @@ export function MeetingRoom({
     const ok = summary.kind === "ended";
     return createPortal(
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black p-4"
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0c0c10]/95 p-4 backdrop-blur-sm"
         style={{ width: "100vw", height: "100dvh" }}
       >
-        <div className="w-full max-w-sm overflow-hidden rounded-[28px] bg-[#121212] ring-1 ring-white/10">
+        <div className="w-full max-w-sm overflow-hidden rounded-[28px] bg-[#16161c] ring-1 ring-white/10">
           <div className="flex flex-col items-center px-6 pb-2 pt-10">
             <div
               className={cn(
@@ -219,7 +245,7 @@ export function MeetingRoom({
             <button
               type="button"
               onClick={onDismissSummary}
-              className="w-full rounded-full bg-white py-3.5 text-sm font-semibold text-slate-900 hover:bg-white/90"
+              className="w-full rounded-full bg-white py-3.5 text-sm font-semibold text-slate-900"
             >
               {t("calls.summaryClose")}
             </button>
@@ -254,9 +280,24 @@ export function MeetingRoom({
   const hasLocalVideo = Boolean(
     !isCameraOff && localStream?.getVideoTracks().some((tr) => tr.readyState === "live")
   );
-
-  const showFullscreenAvatar =
+  const showStageAvatar =
     (!isVideo && !minimized) || (isVideo && remotePrimary && !hasRemoteVideo && !minimized);
+
+  function revealChrome() {
+    setChromeVisible(true);
+  }
+
+  function onStageTap() {
+    if (minimized) return;
+    if (status === "ringing" || status === "calling" || status === "error") return;
+    setChromeVisible((v) => !v);
+  }
+
+  const pipClass =
+    "absolute z-20 h-[9.5rem] w-[7rem] overflow-hidden rounded-[22px] bg-black shadow-xl ring-1 ring-white/30 sm:h-44 sm:w-32";
+  const pipPos = chromeVisible
+    ? "top-[max(4.75rem,calc(env(safe-area-inset-top)+3.25rem))] end-3"
+    : "top-[max(1rem,env(safe-area-inset-top))] end-3";
 
   return createPortal(
     <>
@@ -264,50 +305,57 @@ export function MeetingRoom({
 
       <div
         className={cn(
-          "overflow-hidden bg-black text-white",
+          "overflow-hidden text-white",
           minimized
             ? "fixed bottom-[max(5.5rem,env(safe-area-inset-bottom))] end-3 z-[9999] h-[13.5rem] w-[9.75rem] rounded-[26px] shadow-2xl ring-1 ring-white/25 sm:bottom-6"
             : "fixed inset-0 z-[9999]"
         )}
         style={minimized ? undefined : { width: "100vw", height: "100dvh" }}
+        onClick={onStageTap}
       >
-        {/* Opaque full-bleed stage — never let the page show through */}
-        <div className="absolute inset-0 bg-black">
-          {isVideo && (
-            <>
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className={cn(
-                  "absolute bg-black object-cover transition-all duration-200",
-                  minimized || remotePrimary
-                    ? "inset-0 h-full w-full"
-                    : "bottom-4 end-3 h-[7.5rem] w-[5.5rem] rounded-2xl ring-1 ring-white/30"
-                )}
-              />
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className={cn(
-                  "scale-x-[-1] bg-black object-cover transition-all duration-200",
-                  minimized || !isVideo
-                    ? SR_MEDIA
-                    : !remotePrimary
-                      ? "absolute inset-0 h-full w-full"
-                      : "absolute bottom-4 end-3 z-20 h-[7.5rem] w-[5.5rem] rounded-2xl ring-1 ring-white/30"
-                )}
-              />
-            </>
+        {/* Full-bleed stage */}
+        <div
+          className={cn(
+            "absolute inset-0",
+            isVideo
+              ? "bg-[#111]"
+              : "bg-[radial-gradient(circle_at_30%_20%,#24365f_0%,#12141c_45%,#0a0b10_100%)]"
           )}
-          {!isVideo && <video ref={remoteVideoRef} autoPlay playsInline muted className={SR_MEDIA} />}
-          {!isVideo && <video ref={localVideoRef} autoPlay playsInline muted className={SR_MEDIA} />}
+        >
+          {/* Always mount both videos so refs stay stable across audio/video */}
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className={cn(
+              "bg-black object-cover transition-all duration-200",
+              !isVideo || minimized
+                ? hasRemoteVideo && minimized
+                  ? "absolute inset-0 h-full w-full"
+                  : SR_MEDIA
+                : remotePrimary
+                  ? "absolute inset-0 h-full w-full"
+                  : cn(pipClass, pipPos)
+            )}
+          />
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className={cn(
+              "scale-x-[-1] bg-black object-cover transition-all duration-200",
+              !isVideo || minimized
+                ? SR_MEDIA
+                : !remotePrimary
+                  ? "absolute inset-0 h-full w-full"
+                  : cn(pipClass, pipPos)
+            )}
+          />
 
-          {showFullscreenAvatar && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-[#0a0a0a]">
+          {showStageAvatar && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
               <AvatarOrb
                 name={peerLabel}
                 size="xl"
@@ -315,13 +363,13 @@ export function MeetingRoom({
               />
               <div className="text-center">
                 <p className="text-2xl font-semibold">{peerLabel}</p>
-                <p className="mt-2 text-sm text-white/50">{subtitle}</p>
+                <p className="mt-2 text-sm text-white/55">{subtitle}</p>
               </div>
             </div>
           )}
 
           {minimized && !hasRemoteVideo && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#12141c]">
               <AvatarOrb name={peerLabel} size="md" pulsing={status !== "in-call"} />
             </div>
           )}
@@ -330,11 +378,15 @@ export function MeetingRoom({
         {minimized ? (
           <button
             type="button"
-            onClick={() => setMinimized(false)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMinimized(false);
+              revealChrome();
+            }}
             className="absolute inset-0 z-30"
             aria-label={t("calls.expand")}
           >
-            <div className="absolute inset-x-0 bottom-0 bg-black/80 px-2.5 pb-2.5 pt-8 text-start">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-2.5 pb-2.5 pt-10 text-start">
               <p className="truncate text-[11px] font-semibold">{peerLabel}</p>
               <p className="font-mono text-[10px] text-emerald-300">
                 {status === "in-call" ? formatDuration(durationSec) : subtitle}
@@ -346,147 +398,175 @@ export function MeetingRoom({
           </button>
         ) : (
           <>
+            {/* PiP tap target — swap local/remote */}
             {isVideo && (
               <button
                 type="button"
-                onClick={() => setSwapped((v) => !v)}
-                className="absolute bottom-4 end-3 z-30 h-[7.5rem] w-[5.5rem] rounded-2xl"
-                aria-label={t("calls.swapCameras")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSwapped((v) => !v);
+                  revealChrome();
+                }}
+                className={cn(pipClass, pipPos, "bg-transparent")}
+                aria-label={t("calls.swapViews")}
               >
-                <span className="absolute inset-x-0 bottom-0 rounded-b-2xl bg-black/70 py-1 text-center text-[10px] font-medium">
+                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent py-1.5 text-center text-[10px] font-medium">
                   {remotePrimary ? t("calls.you") : peerLabel}
                 </span>
+                {remotePrimary && !hasLocalVideo && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/70">
+                    <AvatarOrb name={t("calls.you")} size="sm" />
+                  </span>
+                )}
                 {!remotePrimary && !hasRemoteVideo && (
                   <span className="absolute inset-0 flex items-center justify-center bg-black/70">
                     <AvatarOrb name={peerLabel} size="sm" />
                   </span>
                 )}
-                {remotePrimary && !hasLocalVideo && (
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/80">
-                    <AvatarOrb name={t("calls.you")} size="sm" />
-                  </span>
-                )}
               </button>
             )}
 
-            <div className="absolute inset-x-0 top-0 z-40 bg-black/80 px-4 pb-10 pt-[max(1rem,env(safe-area-inset-top))]">
-              <div className="flex items-start justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => setMinimized(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/15"
+            {/* Floating chrome — no solid black bars */}
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-0 z-40 transition-opacity duration-200",
+                chromeVisible ? "opacity-100" : "opacity-0"
+              )}
+            >
+              <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/55 via-black/15 to-transparent px-4 pb-16 pt-[max(0.85rem,env(safe-area-inset-top))]">
+                <div
+                  className={cn(
+                    "pointer-events-auto flex items-start justify-between gap-3",
+                    !chromeVisible && "pointer-events-none"
+                  )}
                 >
-                  <IconMinimize size={14} />
-                  {t("calls.minimize")}
-                </button>
-                <div className="min-w-0 text-center">
-                  <p className="truncate text-sm font-semibold">{title}</p>
-                  <p
-                    className={cn(
-                      "mt-0.5 font-mono text-xs",
-                      status === "in-call" ? "text-emerald-300" : "text-white/55"
-                    )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMinimized(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/15 backdrop-blur-md"
                   >
-                    {subtitle}
-                  </p>
-                </div>
-                <span className="rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/75 ring-1 ring-white/15">
-                  {isVideo ? t("calls.videoMode") : t("calls.audioMode")}
-                </span>
-              </div>
-            </div>
-
-            {error && (
-              <p className="absolute inset-x-0 bottom-40 z-40 px-6 text-center text-sm text-red-300">
-                {error}
-              </p>
-            )}
-
-            <div className="absolute inset-x-0 bottom-0 z-40 bg-black px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-10">
-              <div className="mx-auto flex max-w-md items-end justify-center gap-5">
-                {status === "ringing" ? (
-                  <>
-                    <div className="flex flex-col items-center gap-2">
-                      <RoundControl
-                        tone="danger"
-                        icon={<IconPhoneEnd size={22} />}
-                        label={t("calls.decline")}
-                        onClick={onReject}
-                      />
-                      <span className="text-[11px] text-white/55">{t("calls.decline")}</span>
-                    </div>
-                    <div className="flex flex-col items-center gap-2">
-                      <RoundControl
-                        tone="success"
-                        icon={<IconCheck size={24} />}
-                        label={t("calls.accept")}
-                        onClick={onAccept}
-                      />
-                      <span className="text-[11px] text-white/55">{t("calls.accept")}</span>
-                    </div>
-                  </>
-                ) : status === "error" ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <RoundControl
-                      tone="glass"
-                      icon={<IconClose size={20} />}
-                      label={t("calls.summaryClose")}
-                      onClick={onEnd}
-                    />
-                    <span className="text-[11px] text-white/55">{t("calls.summaryClose")}</span>
+                    <IconMinimize size={14} />
+                    {t("calls.minimize")}
+                  </button>
+                  <div className="min-w-0 text-center drop-shadow">
+                    <p className="truncate text-sm font-semibold">{title}</p>
+                    <p
+                      className={cn(
+                        "mt-0.5 font-mono text-xs",
+                        status === "in-call" ? "text-emerald-300" : "text-white/70"
+                      )}
+                    >
+                      {subtitle}
+                    </p>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex flex-col items-center gap-2">
-                      <RoundControl
-                        tone={isMuted ? "active" : "glass"}
-                        icon={isMuted ? <IconMicOff size={22} /> : <IconMic size={22} />}
-                        label={isMuted ? t("calls.unmute") : t("calls.mute")}
-                        onClick={onToggleMute}
-                      />
-                      <span className="text-[11px] text-white/55">
-                        {isMuted ? t("calls.unmute") : t("calls.mute")}
-                      </span>
-                    </div>
-                    {isVideo && (
-                      <div className="flex flex-col items-center gap-2">
+                  <span className="rounded-full bg-black/30 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/80 ring-1 ring-white/15 backdrop-blur-md">
+                    {isVideo ? t("calls.videoMode") : t("calls.audioMode")}
+                  </span>
+                </div>
+              </div>
+
+              {error && (
+                <p className="pointer-events-none absolute inset-x-0 bottom-36 px-6 text-center text-sm text-red-300 drop-shadow">
+                  {error}
+                </p>
+              )}
+
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent px-4 pb-[max(1.1rem,env(safe-area-inset-bottom))] pt-20">
+                <div
+                  className={cn(
+                    "pointer-events-auto mx-auto flex max-w-md items-end justify-center gap-4",
+                    !chromeVisible && "pointer-events-none"
+                  )}
+                >
+                  {status === "ringing" ? (
+                    <>
+                      <div className="flex flex-col items-center gap-1.5">
                         <RoundControl
-                          tone={isCameraOff ? "active" : "glass"}
-                          icon={
-                            isCameraOff ? <IconVideoOff size={22} /> : <IconVideo size={22} />
-                          }
-                          label={isCameraOff ? t("calls.cameraOn") : t("calls.cameraOff")}
-                          onClick={onToggleCamera}
+                          tone="danger"
+                          icon={<IconPhoneEnd size={22} />}
+                          label={t("calls.decline")}
+                          onClick={onReject}
                         />
-                        <span className="text-[11px] text-white/55">
-                          {isCameraOff ? t("calls.cameraOn") : t("calls.cameraOff")}
-                        </span>
+                        <span className="text-[11px] text-white/80 drop-shadow">{t("calls.decline")}</span>
                       </div>
-                    )}
-                    {isVideo && (
-                      <div className="flex flex-col items-center gap-2">
+                      <div className="flex flex-col items-center gap-1.5">
                         <RoundControl
-                          tone="glass"
-                          icon={<IconSwap size={22} />}
-                          label={t("calls.swapCameras")}
-                          onClick={() => setSwapped((v) => !v)}
+                          tone="success"
+                          icon={<IconCheck size={24} />}
+                          label={t("calls.accept")}
+                          onClick={onAccept}
                         />
-                        <span className="text-[11px] text-white/55">{t("calls.swapCameras")}</span>
+                        <span className="text-[11px] text-white/80 drop-shadow">{t("calls.accept")}</span>
                       </div>
-                    )}
-                    <div className="flex flex-col items-center gap-2">
+                    </>
+                  ) : status === "error" ? (
+                    <div className="flex flex-col items-center gap-1.5">
                       <RoundControl
-                        tone="danger"
-                        icon={<IconPhoneEnd size={22} />}
-                        label={status === "calling" ? t("calls.cancel") : t("calls.leave")}
+                        tone="glass"
+                        icon={<IconClose size={20} />}
+                        label={t("calls.summaryClose")}
                         onClick={onEnd}
                       />
-                      <span className="text-[11px] text-white/55">
-                        {status === "calling" ? t("calls.cancel") : t("calls.leave")}
-                      </span>
+                      <span className="text-[11px] text-white/80">{t("calls.summaryClose")}</span>
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <RoundControl
+                          tone={isMuted ? "active" : "glass"}
+                          icon={isMuted ? <IconMicOff size={22} /> : <IconMic size={22} />}
+                          label={isMuted ? t("calls.unmute") : t("calls.mute")}
+                          onClick={onToggleMute}
+                        />
+                        <span className="text-[11px] text-white/80 drop-shadow">
+                          {isMuted ? t("calls.unmute") : t("calls.mute")}
+                        </span>
+                      </div>
+                      {isVideo && (
+                        <div className="flex flex-col items-center gap-1.5">
+                          <RoundControl
+                            tone={isCameraOff ? "active" : "glass"}
+                            icon={
+                              isCameraOff ? <IconVideoOff size={22} /> : <IconVideo size={22} />
+                            }
+                            label={isCameraOff ? t("calls.cameraOn") : t("calls.cameraOff")}
+                            onClick={onToggleCamera}
+                          />
+                          <span className="text-[11px] text-white/80 drop-shadow">
+                            {isCameraOff ? t("calls.cameraOn") : t("calls.cameraOff")}
+                          </span>
+                        </div>
+                      )}
+                      {isVideo && (
+                        <div className="flex flex-col items-center gap-1.5">
+                          <RoundControl
+                            tone="glass"
+                            icon={<IconFlipCamera size={22} />}
+                            label={t("calls.flipCamera")}
+                            onClick={onFlipCamera}
+                          />
+                          <span className="text-[11px] text-white/80 drop-shadow">
+                            {t("calls.flipCamera")}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex flex-col items-center gap-1.5">
+                        <RoundControl
+                          tone="danger"
+                          icon={<IconPhoneEnd size={22} />}
+                          label={status === "calling" ? t("calls.cancel") : t("calls.leave")}
+                          onClick={onEnd}
+                        />
+                        <span className="text-[11px] text-white/80 drop-shadow">
+                          {status === "calling" ? t("calls.cancel") : t("calls.leave")}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </>

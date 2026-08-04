@@ -31,10 +31,12 @@ const COVER_KINDS: ProfileUploadKind[] = ["cover", "store-cover", "company-cover
 const MEDIA_KINDS: ProfileUploadKind[] = ["post-media", "message-attachment", "video-intro"];
 
 function parseDataUrl(dataUrl: string): { buffer: Buffer; mime: string } {
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  // Supports mime params from MediaRecorder, e.g. data:audio/webm;codecs=opus;base64,...
+  const match = dataUrl.match(/^data:([^,]*?);base64,([\s\S]+)$/);
   if (!match) throw new Error("Invalid image data format");
+  const mime = (match[1].split(";")[0] || "application/octet-stream").trim();
   return {
-    mime: match[1],
+    mime,
     buffer: Buffer.from(match[2], "base64"),
   };
 }

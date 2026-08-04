@@ -85,6 +85,18 @@ export function IconSwap(props: IconProps) {
   );
 }
 
+/** Front / rear camera flip */
+export function IconFlipCamera(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M16 4h2.5A1.5 1.5 0 0 1 20 5.5v13A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5v-13A1.5 1.5 0 0 1 5.5 4H8" />
+      <path d="M9 4 12 2l3 2" />
+      <path d="M8.5 12a3.5 3.5 0 1 0 6.2-2.2" />
+      <path d="M15 9.5h2.5V7" />
+    </svg>
+  );
+}
+
 export function IconMinimize(props: IconProps) {
   return (
     <svg {...base(props)}>

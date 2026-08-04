@@ -156,10 +156,11 @@ export function MessageInput({ onSend, disabled = false }: MessageInputProps) {
 
     clearTimer();
     setRecording(false);
+    const recorderMime = (recorder.mimeType || "").split(";")[0] || "audio/mp4";
 
     const blob = await new Promise<Blob | null>((resolve) => {
       recorder.onstop = () => {
-        const type = recorder.mimeType || "audio/webm";
+        const type = (recorder.mimeType || recorderMime).split(";")[0] || "audio/mp4";
         resolve(new Blob(chunksRef.current, { type }));
       };
       recorder.stop();
@@ -179,10 +180,19 @@ export function MessageInput({ onSend, disabled = false }: MessageInputProps) {
     setError(null);
 
     try {
-      const ext = blob.type.includes("mp4") || blob.type.includes("aac") ? "m4a" : "webm";
-      const file = new File([blob], `voice-${Date.now()}.${ext}`, {
-        type: blob.type || "audio/webm",
-      });
+      const rawType = (blob.type || recorderMime || "audio/mp4").split(";")[0];
+      const mimeType = rawType.startsWith("audio/")
+        ? rawType
+        : rawType.includes("mp4")
+          ? "audio/mp4"
+          : "audio/webm";
+      const ext =
+        mimeType.includes("mp4") || mimeType.includes("aac") || mimeType.includes("m4a")
+          ? "m4a"
+          : mimeType.includes("ogg")
+            ? "ogg"
+            : "webm";
+      const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: mimeType });
       const durationSeconds =
         (await getAudioDurationSeconds(file)) ?? Math.min(elapsed, MAX_VOICE_MESSAGE_SECONDS);
 

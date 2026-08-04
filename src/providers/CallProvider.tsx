@@ -76,6 +76,7 @@ interface CallContextValue {
   endCall: () => Promise<void>;
   toggleMute: () => void;
   toggleCamera: () => void;
+  flipCamera: () => Promise<void>;
   dismissSummary: () => void;
   registerConversation: (conversationId: string) => void;
 }
@@ -135,6 +136,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const acceptingRef = useRef(false);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const facingModeRef = useRef<"user" | "environment">("user");
   const mediaChannelRef = useRef<RealtimeChannel | null>(null);
   const userChannelRef = useRef<RealtimeChannel | null>(null);
   const conversationChannelsRef = useRef<Map<string, RealtimeChannel>>(new Map());
@@ -655,6 +657,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
               : false,
         });
         localStreamRef.current = stream;
+        facingModeRef.current = "user";
         setLocalStream(stream);
         setIsMuted(false);
         setIsCameraOff(false);
@@ -769,11 +772,22 @@ export function CallProvider({ children }: { children: ReactNode }) {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
         },
-        video: modeRef.current === "video",
+        video:
+          modeRef.current === "video"
+            ? {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: "user",
+              }
+            : false,
       });
       localStreamRef.current = stream;
+      facingModeRef.current = "user";
       setLocalStream(stream);
+      setIsMuted(false);
+      setIsCameraOff(false);
 
       const mediaChannel = await mediaChannelPromise;
 
@@ -908,6 +922,65 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setIsCameraOff((v) => !v);
   }, []);
 
+  const flipCamera = useCallback(async () => {
+    if (modeRef.current !== "video") return;
+    const current = localStreamRef.current;
+    const pc = pcRef.current;
+    if (!current) return;
+
+    const nextFacing = facingModeRef.current === "user" ? "environment" : "user";
+    const oldTrack = current.getVideoTracks()[0];
+    const wasEnabled = oldTrack?.enabled ?? true;
+
+    try {
+      let fresh: MediaStream;
+      try {
+        fresh = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { exact: nextFacing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+      } catch {
+        fresh = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: nextFacing,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+      }
+
+      const newTrack = fresh.getVideoTracks()[0];
+      if (!newTrack) {
+        fresh.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      newTrack.enabled = wasEnabled;
+
+      const sender = pc?.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) {
+        await sender.replaceTrack(newTrack);
+      }
+
+      if (oldTrack) {
+        current.removeTrack(oldTrack);
+        oldTrack.stop();
+      }
+      current.addTrack(newTrack);
+      facingModeRef.current = nextFacing;
+      localStreamRef.current = current;
+      setLocalStream(new MediaStream(current.getTracks()));
+      setIsCameraOff(!wasEnabled);
+    } catch (err) {
+      console.error("[calls] flipCamera failed", err);
+      setError("تعذر تبديل الكاميرا على هذا الجهاز");
+    }
+  }, []);
+
   const dismissSummary = useCallback(() => {
     setSummary(null);
     resetToIdle();
@@ -944,6 +1017,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       endCall,
       toggleMute,
       toggleCamera,
+      flipCamera,
       dismissSummary,
       registerConversation,
     }),
@@ -954,6 +1028,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       durationSec,
       endCall,
       error,
+      flipCamera,
       isCameraOff,
       isMuted,
       localStream,
@@ -998,6 +1073,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
           onEnd={() => void endCall()}
           onToggleMute={toggleMute}
           onToggleCamera={toggleCamera}
+          onFlipCamera={() => void flipCamera()}
           onDismissSummary={dismissSummary}
         />
       )}

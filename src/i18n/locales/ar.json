@@ -1268,7 +1268,9 @@
     "summaryClose": "إغلاق",
     "minimize": "تصغير",
     "expand": "تكبير المكالمة",
-    "swapCameras": "تبديل",
+    "swapCameras": "تبديل العرض",
+    "swapViews": "تبديل العرض",
+    "flipCamera": "قلب الكاميرا",
     "event": {
       "started": "بدأت المكالمة",
       "ended": "انتهت المكالمة",

@@ -19,6 +19,12 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+function normalizeUploadFile(file: File): File {
+  const baseMime = file.type.split(";")[0]?.trim() || file.type;
+  if (!baseMime || baseMime === file.type) return file;
+  return new File([file], file.name, { type: baseMime, lastModified: file.lastModified });
+}
+
 export async function uploadMediaFile(
   file: File,
   kind: ProfileUploadKind,
@@ -28,14 +34,42 @@ export async function uploadMediaFile(
     throw new Error("File must be under 25MB");
   }
 
+  const uploadFile = normalizeUploadFile(file);
+
   let durationSeconds: number | undefined;
-  if (file.type.startsWith("video/") && options?.validateVideo !== false) {
-    durationSeconds = await validateShortVideo(file);
-  } else if (file.type.startsWith("audio/")) {
-    durationSeconds = await getAudioDurationSeconds(file);
+  if (uploadFile.type.startsWith("video/") && options?.validateVideo !== false) {
+    durationSeconds = await validateShortVideo(uploadFile);
+  } else if (uploadFile.type.startsWith("audio/")) {
+    durationSeconds = await getAudioDurationSeconds(uploadFile);
   }
 
-  const dataUrl = await fileToDataUrl(file);
+  // Voice notes: multipart avoids brittle data-URL mime params from MediaRecorder.
+  if (uploadFile.type.startsWith("audio/")) {
+    const form = new FormData();
+    form.append("kind", kind);
+    form.append("file", uploadFile, uploadFile.name);
+    if (durationSeconds != null) {
+      form.append("durationSeconds", String(durationSeconds));
+    }
+    const res = await fetch("/api/profile/upload", {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error((data.error as string) ?? "Upload failed");
+    }
+    return {
+      url: data.url as string,
+      width: Number(data.width) || undefined,
+      height: Number(data.height) || undefined,
+      mimeType: data.mimeType as string | undefined,
+      durationSeconds: (data.durationSeconds as number | undefined) ?? durationSeconds,
+    };
+  }
+
+  const dataUrl = await fileToDataUrl(uploadFile);
   const res = await fetch("/api/profile/upload", {
     method: "POST",
     credentials: "include",
@@ -43,7 +77,7 @@ export async function uploadMediaFile(
     body: JSON.stringify({
       kind,
       dataUrl,
-      filename: `${kind}-${Date.now()}.${file.name.split(".").pop() ?? "bin"}`,
+      filename: `${kind}-${Date.now()}.${uploadFile.name.split(".").pop() ?? "bin"}`,
       durationSeconds,
     }),
   });
@@ -79,10 +113,10 @@ export function inferMediaType(
 export function pickVoiceRecorderMimeType(): string {
   if (typeof MediaRecorder === "undefined") return "";
   const candidates = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
     "audio/mp4",
     "audio/aac",
+    "audio/webm;codecs=opus",
+    "audio/webm",
     "audio/ogg;codecs=opus",
     "audio/ogg",
   ];

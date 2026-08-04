@@ -1268,7 +1268,9 @@
     "summaryClose": "Close",
     "minimize": "Minimize",
     "expand": "Expand call",
-    "swapCameras": "Swap",
+    "swapCameras": "Swap views",
+    "swapViews": "Swap views",
+    "flipCamera": "Flip",
     "event": {
       "started": "Call started",
       "ended": "Call ended",
