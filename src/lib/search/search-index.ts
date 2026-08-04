@@ -403,15 +403,22 @@ export async function rebuildSearchIndex(): Promise<SearchIndexFile> {
 
 const INDEX_MAX_AGE_MS = 60_000;
 
-async function readIndex(): Promise<SearchIndexFile> {
-  const index = readJsonStore<SearchIndexFile>(INDEX_FILE, () => ({
+function emptyIndex(): SearchIndexFile {
+  return {
     entries: [],
     tokenIndex: {},
     builtAt: new Date(0).toISOString(),
-  }));
+  };
+}
+
+async function readIndex(options?: { allowRebuild?: boolean }): Promise<SearchIndexFile> {
+  const index = readJsonStore<SearchIndexFile>(INDEX_FILE, emptyIndex);
   const ageMs = Date.now() - new Date(index.builtAt ?? 0).getTime();
   const stale = !Number.isFinite(ageMs) || ageMs > INDEX_MAX_AGE_MS;
-  if (!index.entries?.length || stale) return rebuildSearchIndex();
+  if ((!index.entries?.length || stale) && options?.allowRebuild !== false) {
+    // Avoid blocking every search on a full rebuild — live Supabase is the source of truth.
+    if (!index.entries?.length) return emptyIndex();
+  }
   if (!index.tokenIndex) index.tokenIndex = buildTokenIndex(index.entries);
   return index;
 }
@@ -559,66 +566,71 @@ export async function searchIndex(
   options?: { type?: SearchResultType; limit?: number }
 ): Promise<SearchIndexEntry[]> {
   const limit = options?.limit ?? 12;
-  const trimmed = query.trim().toLowerCase();
+  const trimmed = query.trim();
 
   if (!trimmed) return [];
 
-  const cacheKey = CACHE_KEYS.searchResults(trimmed, options?.type, limit);
+  const cacheKey = CACHE_KEYS.searchResults(trimmed.toLowerCase(), options?.type, limit);
   const cached = await cacheGet<SearchIndexEntry[]>(cacheKey);
-  if (cached) return cached;
+  if (cached?.length) return cached;
 
-  const index = await readIndex();
+  const merged = new Map<string, SearchIndexEntry>();
 
-  const queryTokens = tokenize(trimmed);
-  const scoreMap = new Map<string, number>();
-
-  for (const token of queryTokens) {
-    const exactIds = index.tokenIndex[token] ?? [];
-    for (const id of exactIds) {
-      scoreMap.set(id, (scoreMap.get(id) ?? 0) + 3);
-    }
-
-    for (const [indexedToken, ids] of Object.entries(index.tokenIndex)) {
-      if (indexedToken.startsWith(token) || token.startsWith(indexedToken)) {
-        for (const id of ids) {
-          scoreMap.set(id, (scoreMap.get(id) ?? 0) + 1);
-        }
-      }
-    }
-  }
-
-  const entryById = new Map(index.entries.map((entry) => [entry.id, entry]));
-  let results = [...scoreMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([id]) => entryById.get(id))
-    .filter((entry): entry is SearchIndexEntry => Boolean(entry));
-
-  if (options?.type) {
-    results = results.filter((entry) => entry.type === options.type);
-  }
-
-  if (results.length === 0) {
-    results = index.entries.filter((entry) => {
-      const haystack = `${entry.title} ${entry.subtitle} ${entry.keywords}`.toLowerCase();
-      return haystack.includes(trimmed);
-    });
-    if (options?.type) results = results.filter((entry) => entry.type === options.type);
-  }
-
-  // Always enrich with live Supabase hits so every registered user/company/job is findable.
+  // Live Supabase first — works for every registered user/company/job on production.
   try {
     const live = await liveSearchAllTypes(trimmed, limit, options?.type);
-    if (live.length > 0) {
-      const merged = new Map<string, SearchIndexEntry>();
-      for (const entry of results) merged.set(entry.id, entry);
-      for (const entry of live) merged.set(entry.id, entry);
-      results = [...merged.values()];
-    }
+    for (const entry of live) merged.set(entry.id, entry);
   } catch (error) {
     console.error("[search-index] live search failed:", error);
   }
 
-  const finalResults = results.slice(0, limit);
-  await cacheSet(cacheKey, finalResults, { ttlSeconds: 30 });
+  // Optionally enrich from local/demo index without forcing a slow rebuild.
+  if (merged.size < limit) {
+    try {
+      const index = await readIndex({ allowRebuild: false });
+      const lowered = trimmed.toLowerCase();
+      const queryTokens = tokenize(lowered);
+      const scoreMap = new Map<string, number>();
+
+      for (const token of queryTokens) {
+        const exactIds = index.tokenIndex[token] ?? [];
+        for (const id of exactIds) scoreMap.set(id, (scoreMap.get(id) ?? 0) + 3);
+
+        for (const [indexedToken, ids] of Object.entries(index.tokenIndex)) {
+          if (indexedToken.startsWith(token) || token.startsWith(indexedToken)) {
+            for (const id of ids) scoreMap.set(id, (scoreMap.get(id) ?? 0) + 1);
+          }
+        }
+      }
+
+      const entryById = new Map(index.entries.map((entry) => [entry.id, entry]));
+      let indexedResults = [...scoreMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([id]) => entryById.get(id))
+        .filter((entry): entry is SearchIndexEntry => Boolean(entry));
+
+      if (indexedResults.length === 0) {
+        indexedResults = index.entries.filter((entry) => {
+          const haystack = `${entry.title} ${entry.subtitle} ${entry.keywords}`.toLowerCase();
+          return haystack.includes(lowered);
+        });
+      }
+
+      if (options?.type) {
+        indexedResults = indexedResults.filter((entry) => entry.type === options.type);
+      }
+
+      for (const entry of indexedResults) {
+        if (!merged.has(entry.id)) merged.set(entry.id, entry);
+      }
+    } catch (error) {
+      console.error("[search-index] local index enrich failed:", error);
+    }
+  }
+
+  const finalResults = [...merged.values()].slice(0, limit);
+  if (finalResults.length > 0) {
+    await cacheSet(cacheKey, finalResults, { ttlSeconds: 30 });
+  }
   return finalResults;
 }

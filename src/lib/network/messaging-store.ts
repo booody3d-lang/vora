@@ -3,17 +3,12 @@ import "server-only";
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
-import {
-  isMissingRelationError,
-  markSupabaseDbSyncUnavailable,
-  runOptionalDbSync,
-} from "@/lib/supabase/safe-db";
+import { runOptionalDbSync } from "@/lib/supabase/safe-db";
 import {
   getConversationForViewerFromSupabase,
   getConversationsForAccountFromSupabase,
   getMessagesFromSupabase,
   getOrCreateConversationInSupabase,
-  migrateJsonMessagingToSupabase,
   sendMessageInSupabase,
 } from "@/lib/network/messaging-supabase";
 import { getProfileByAccountId, listLinkedAccounts } from "@/lib/profile/profile-store";
@@ -29,7 +24,6 @@ import type {
 } from "@/types/network";
 
 const DATA_FILE = "messaging-data.json";
-const MIGRATION_FLAG = "messaging-supabase-migrated.json";
 
 interface StoredConversation {
   id: string;
@@ -51,14 +45,12 @@ async function isMessagingSupabaseReady(): Promise<boolean> {
   if (!isSupabasePersistenceEnabled()) return false;
   if (messagingTableProbed) return messagingTableAvailable;
 
+  // Probe once; do not mark global DB sync unavailable — optional tables must not kill followers/search.
   messagingTableProbed = true;
   try {
     const admin = createAdminClient();
     const { error } = await admin.from("conversations").select("id").limit(1);
     if (error) {
-      if (isMissingRelationError(error)) {
-        markSupabaseDbSyncUnavailable("conversations missing", error);
-      }
       messagingTableAvailable = false;
       return false;
     }
@@ -135,36 +127,10 @@ function conversationPreview(
   };
 }
 
-async function maybeMigrateJsonToSupabase(): Promise<void> {
-  if (!(await isMessagingSupabaseReady())) return;
-
-  const flag = readJsonStore(MIGRATION_FLAG, () => ({ done: false as boolean }));
-  if (flag.done) return;
-
-  const data = readData();
-  await runOptionalDbSync("messaging-json-migration", async () => {
-    const migrated = await migrateJsonMessagingToSupabase({
-      conversations: data.conversations,
-      messages: data.messages,
-    });
-    writeJsonStore(MIGRATION_FLAG, {
-      done: true,
-      migratedAt: new Date().toISOString(),
-      migratedConversations: migrated,
-    });
-    return migrated;
-  }, 0);
-
-  if (!readJsonStore(MIGRATION_FLAG, () => ({ done: false as boolean })).done) {
-    writeJsonStore(MIGRATION_FLAG, { done: true, skipped: true });
-  }
-}
-
 export async function getConversationsForAccount(
   accountId: string
 ): Promise<ConversationPreview[]> {
   if (await isMessagingSupabaseReady()) {
-    await maybeMigrateJsonToSupabase();
     return runOptionalDbSync(
       "getConversationsForAccount",
       () => getConversationsForAccountFromSupabase(accountId),
@@ -223,28 +189,25 @@ export async function getOrCreateConversation(
   targetAccountId: string
 ): Promise<StoredConversation | null> {
   if (accountId === targetAccountId) return null;
-  if (!getProfileByAccountId(targetAccountId)) return null;
   if (!(await canInitiateMessage(accountId, targetAccountId))) return null;
 
   if (await isMessagingSupabaseReady()) {
-    await maybeMigrateJsonToSupabase();
-    return runOptionalDbSync(
-      "getOrCreateConversation",
-      async () => {
-        const row = await getOrCreateConversationInSupabase(accountId, targetAccountId);
-        if (!row) return null;
-        return {
-          id: row.id,
-          memberIds: [accountId, targetAccountId],
-          accessType: "mutual_connection" as const,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-      },
-      getOrCreateConversationJson(accountId, targetAccountId)
-    );
+    // Skip JSON migration on the hot path — it slows first message click on serverless.
+    const row = await getOrCreateConversationInSupabase(accountId, targetAccountId);
+    if (row) {
+      return {
+        id: row.id,
+        memberIds: [accountId, targetAccountId],
+        accessType: "mutual_connection" as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return null;
   }
 
+  // JSON fallback only when target exists in local store
+  if (!getProfileByAccountId(targetAccountId)) return null;
   return getOrCreateConversationJson(accountId, targetAccountId);
 }
 
@@ -349,11 +312,48 @@ function getConversationForViewerJson(
 }
 
 export async function getMessagingContacts(viewerId: string): Promise<NetworkUser[]> {
-  const linked = listLinkedAccounts();
   const contacts: NetworkUser[] = [];
+  const seen = new Set<string>();
 
-  for (const accountId of linked) {
-    if (accountId === viewerId) continue;
+  // Prefer people already messageable via accepted connections (followers/following).
+  try {
+    const { listFollowersForOwner, listFollowingForOwner } = await import(
+      "@/lib/network/social-store"
+    );
+    const [followers, following] = await Promise.all([
+      listFollowersForOwner(viewerId),
+      listFollowingForOwner(viewerId),
+    ]);
+
+    for (const entry of [...followers, ...following]) {
+      if (!entry.accountId || entry.accountId === viewerId || seen.has(entry.accountId)) continue;
+      if (entry.status !== "accepted") continue;
+      seen.add(entry.accountId);
+      contacts.push({
+        id: entry.accountId,
+        accountId: entry.accountId,
+        slug: entry.profileSlug ?? entry.accountId.slice(0, 8),
+        fullName: entry.fullName,
+        headline: entry.headline ?? "",
+        profilePhotoUrl: resolveAvatarUrl({ photoUrl: "", gender: undefined }),
+        coverImageUrl: "",
+        location: "",
+        isVerified: false,
+        isPremium: false,
+        professionalScore: 0,
+        hasFreelancerStore: false,
+        gender: undefined,
+        isOnline: isAccountOnline(entry.accountId),
+      });
+    }
+  } catch {
+    // fall through to local linked accounts
+  }
+
+  if (contacts.length > 0) return contacts;
+
+  for (const accountId of listLinkedAccounts()) {
+    if (accountId === viewerId || seen.has(accountId)) continue;
     if (!(await canInitiateMessage(viewerId, accountId))) continue;
     const user = participantFromAccount(accountId);
     if (user) contacts.push(user);

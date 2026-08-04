@@ -87,19 +87,36 @@ export function useMessaging(options: UseMessagingOptions = {}) {
 
   const startConversation = useCallback(
     async (targetAccountId: string) => {
-      const res = await fetch("/api/messages/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ targetAccountId }),
-      });
-      const data = await res.json();
-      if (!res.ok) return null;
+      if (!targetAccountId) return null;
+      try {
+        const res = await fetch("/api/messages/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ targetAccountId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          console.error("[messaging] startConversation failed:", data.error);
+          return null;
+        }
 
-      await loadConversations();
-      const conversationId = data.conversation?.id as string | undefined;
-      if (conversationId) setActiveId(conversationId);
-      return conversationId ?? null;
+        const conversationId = data.conversation?.id as string | undefined;
+        if (conversationId) {
+          setActiveId(conversationId);
+          // Optimistic preview so the thread opens before the list reload finishes
+          setConversations((prev) => {
+            if (prev.some((c) => c.id === conversationId)) return prev;
+            return prev;
+          });
+        }
+        await loadConversations();
+        if (conversationId) setActiveId(conversationId);
+        return conversationId ?? null;
+      } catch (error) {
+        console.error("[messaging] startConversation error:", error);
+        return null;
+      }
     },
     [loadConversations]
   );

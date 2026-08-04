@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 interface SearchResult {
   id: string;
-  type: "profile" | "job" | "company";
+  type: "profile" | "job" | "company" | "store" | "service";
   slug: string;
   title: string;
   subtitle: string;
@@ -19,6 +19,8 @@ const TYPE_LABELS: Record<SearchResult["type"], string> = {
   profile: "Profile",
   job: "Job",
   company: "Company",
+  store: "Store",
+  service: "Service",
 };
 
 interface GlobalSearchBarProps {

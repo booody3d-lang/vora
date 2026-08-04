@@ -35,9 +35,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const conversations = await getConversationsForAccount(auth.user.id);
-    const preview = conversations.find((item) => item.id === conv.id);
-    return NextResponse.json({ conversation: preview ?? { id: conv.id } });
+    // Return id immediately — avoid reloading the full conversation list on create.
+    return NextResponse.json({ conversation: { id: conv.id } });
   } catch {
     return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
   }

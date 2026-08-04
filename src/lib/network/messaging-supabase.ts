@@ -33,33 +33,141 @@ interface DbMessageRow {
   created_at: string;
 }
 
+type ProfileLite = {
+  id: string;
+  full_name?: string | null;
+  slug?: string | null;
+  headline?: string | null;
+};
+
 function orderedParticipants(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
 }
 
-function participantFromAccount(accountId: string): NetworkUser | null {
-  const profile = getProfileByAccountId(accountId);
-  if (!profile) return null;
-
+function networkUserFromParts(
+  accountId: string,
+  fullName: string,
+  slug: string,
+  headline = ""
+): NetworkUser {
   return {
-    id: profile.id,
+    id: accountId,
     accountId,
-    slug: profile.slug,
-    fullName: profile.fullName,
-    headline: profile.headline,
-    profilePhotoUrl: resolveAvatarUrl({
-      photoUrl: profile.profilePhotoUrl,
-      gender: profile.gender,
-    }),
-    coverImageUrl: profile.coverImageUrl ?? "",
-    location: profile.location ?? "",
-    isVerified: profile.isVerified,
-    isPremium: profile.isPremium,
-    professionalScore: profile.professionalScore,
-    hasFreelancerStore: profile.hasFreelancerStore,
-    gender: profile.gender,
+    slug,
+    fullName,
+    headline,
+    profilePhotoUrl: resolveAvatarUrl({ photoUrl: "", gender: undefined }),
+    coverImageUrl: "",
+    location: "",
+    isVerified: false,
+    isPremium: false,
+    professionalScore: 0,
+    hasFreelancerStore: false,
+    gender: undefined,
     isOnline: isAccountOnline(accountId),
   };
+}
+
+async function resolveParticipant(accountId: string): Promise<NetworkUser | null> {
+  try {
+    const local = getProfileByAccountId(accountId);
+    if (local?.fullName) {
+      return {
+        id: local.id,
+        accountId,
+        slug: local.slug,
+        fullName: local.fullName,
+        headline: local.headline ?? "",
+        profilePhotoUrl: resolveAvatarUrl({
+          photoUrl: local.profilePhotoUrl,
+          gender: local.gender,
+        }),
+        coverImageUrl: local.coverImageUrl ?? "",
+        location: local.location ?? "",
+        isVerified: local.isVerified,
+        isPremium: local.isPremium,
+        professionalScore: local.professionalScore,
+        hasFreelancerStore: local.hasFreelancerStore,
+        gender: local.gender,
+        isOnline: isAccountOnline(accountId),
+      };
+    }
+  } catch {
+    // ignore local cache
+  }
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("id, full_name, slug, headline")
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (profile) {
+    const row = profile as ProfileLite;
+    const fullName = String(row.full_name ?? "").trim();
+    const slug = String(row.slug ?? "").trim() || accountId.slice(0, 8);
+    if (fullName) {
+      return networkUserFromParts(accountId, fullName, slug, String(row.headline ?? "").trim());
+    }
+  }
+
+  // Slim schema without headline column
+  const { data: slim, error: slimError } = await admin
+    .from("profiles")
+    .select("id, full_name, slug")
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (!slimError && slim) {
+    const row = slim as ProfileLite;
+    const fullName = String(row.full_name ?? "").trim();
+    const slug = String(row.slug ?? "").trim() || accountId.slice(0, 8);
+    if (fullName) return networkUserFromParts(accountId, fullName, slug);
+  }
+
+  const { data: account } = await admin
+    .from("accounts")
+    .select("id, email")
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (account) {
+    const email = String((account as { email?: string | null }).email ?? "").trim();
+    const name = email ? email.split("@")[0] || email : "User";
+    return networkUserFromParts(accountId, name, accountId.slice(0, 8));
+  }
+
+  return null;
+}
+
+async function resolveParticipants(accountIds: string[]): Promise<Map<string, NetworkUser>> {
+  const unique = [...new Set(accountIds.filter(Boolean))];
+  const map = new Map<string, NetworkUser>();
+  await Promise.all(
+    unique.map(async (id) => {
+      const user = await resolveParticipant(id);
+      if (user) map.set(id, user);
+    })
+  );
+  return map;
+}
+
+async function accountExists(accountId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", accountId)
+    .maybeSingle();
+  if (profile) return true;
+
+  const { data: account } = await admin
+    .from("accounts")
+    .select("id")
+    .eq("id", accountId)
+    .maybeSingle();
+  return Boolean(account);
 }
 
 function mapMessageRow(row: DbMessageRow): ChatMessage {
@@ -79,12 +187,9 @@ function mapMessageRow(row: DbMessageRow): ChatMessage {
 function conversationPreviewFromRow(
   row: DbConversationRow,
   viewerId: string,
-  messages: ChatMessage[]
-): ConversationPreview | null {
-  const otherId = row.participant_a === viewerId ? row.participant_b : row.participant_a;
-  const participant = participantFromAccount(otherId);
-  if (!participant) return null;
-
+  messages: ChatMessage[],
+  participant: NetworkUser
+): ConversationPreview {
   const last = messages[messages.length - 1];
   const unreadCount = messages.filter(
     (message) => message.senderId !== viewerId && message.status !== "read"
@@ -108,34 +213,65 @@ export async function getConversationsForAccountFromSupabase(
 
   const { data: rows, error } = await admin
     .from("conversations")
-    .select("*")
+    .select("id, participant_a, participant_b, company_initiated, last_message_at, created_at")
     .or(`participant_a.eq.${accountId},participant_b.eq.${accountId}`)
-    .order("last_message_at", { ascending: false });
+    .order("last_message_at", { ascending: false })
+    .limit(50);
 
   if (error) throw error;
   if (!rows?.length) return [];
 
-  const conversationIds = (rows as DbConversationRow[]).map((row) => row.id);
+  const typedRows = rows as DbConversationRow[];
+  const conversationIds = typedRows.map((row) => row.id);
+
+  // Only fetch latest message per conversation for preview speed
   const { data: messageRows, error: messageError } = await admin
     .from("messages")
-    .select("*")
+    .select("id, conversation_id, sender_id, content, file_url, file_name, file_size, status, created_at")
     .in("conversation_id", conversationIds)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false })
+    .limit(Math.max(conversationIds.length * 3, 30));
 
   if (messageError) throw messageError;
 
-  const messagesByConversation = new Map<string, ChatMessage[]>();
+  const latestByConversation = new Map<string, ChatMessage>();
+  const unreadByConversation = new Map<string, number>();
+
   for (const row of (messageRows ?? []) as DbMessageRow[]) {
-    const list = messagesByConversation.get(row.conversation_id) ?? [];
-    list.push(mapMessageRow(row));
-    messagesByConversation.set(row.conversation_id, list);
+    const mapped = mapMessageRow(row);
+    if (!latestByConversation.has(row.conversation_id)) {
+      latestByConversation.set(row.conversation_id, mapped);
+    }
+    if (mapped.senderId !== accountId && mapped.status !== "read") {
+      unreadByConversation.set(
+        row.conversation_id,
+        (unreadByConversation.get(row.conversation_id) ?? 0) + 1
+      );
+    }
   }
 
-  return (rows as DbConversationRow[])
-    .map((row) =>
-      conversationPreviewFromRow(row, accountId, messagesByConversation.get(row.id) ?? [])
-    )
-    .filter((preview): preview is ConversationPreview => preview !== null);
+  const otherIds = typedRows.map((row) =>
+    row.participant_a === accountId ? row.participant_b : row.participant_a
+  );
+  const participants = await resolveParticipants(otherIds);
+
+  const previews: ConversationPreview[] = [];
+  for (const row of typedRows) {
+    const otherId = row.participant_a === accountId ? row.participant_b : row.participant_a;
+    const participant = participants.get(otherId);
+    if (!participant) continue;
+    const last = latestByConversation.get(row.id);
+    previews.push({
+      id: row.id,
+      participant,
+      lastMessage: last?.content ?? "",
+      lastMessageAt: last?.createdAt ?? row.last_message_at,
+      unreadCount: unreadByConversation.get(row.id) ?? 0,
+      isTyping: false,
+      accessType: row.company_initiated ? "hr_applicant" : "mutual_connection",
+    });
+  }
+  return previews;
 }
 
 export async function getMessagesFromSupabase(
@@ -162,7 +298,8 @@ export async function getMessagesFromSupabase(
     .from("messages")
     .select("*")
     .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .limit(200);
 
   if (error) throw error;
 
@@ -186,7 +323,8 @@ export async function getOrCreateConversationInSupabase(
   accountId: string,
   targetAccountId: string
 ): Promise<{ id: string } | null> {
-  if (accountId === targetAccountId || !getProfileByAccountId(targetAccountId)) return null;
+  if (accountId === targetAccountId) return null;
+  if (!(await accountExists(targetAccountId))) return null;
 
   const admin = createAdminClient();
   const [participantA, participantB] = orderedParticipants(accountId, targetAccountId);
@@ -281,8 +419,13 @@ export async function getConversationForViewerFromSupabase(
     return null;
   }
 
+  const typed = row as DbConversationRow;
+  const otherId = typed.participant_a === viewerId ? typed.participant_b : typed.participant_a;
+  const participant = await resolveParticipant(otherId);
+  if (!participant) return null;
+
   const messages = await getMessagesFromSupabase(conversationId, viewerId);
-  return conversationPreviewFromRow(row as DbConversationRow, viewerId, messages);
+  return conversationPreviewFromRow(typed, viewerId, messages, participant);
 }
 
 export async function countConversationsInSupabase(): Promise<number> {

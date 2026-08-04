@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CrossPlatformLink } from "@/components/navigation/DualDashboardToggle";
 import { PremiumBadge } from "@/components/billing/PremiumBadge";
 import { ProfessionalScoreRing } from "@/components/professional/ProfessionalScoreRing";
@@ -11,7 +12,7 @@ import { FollowerCountDisplay } from "@/components/network/connections/FollowerC
 import { FollowersListModal } from "@/components/network/connections/FollowersListModal";
 import { MessageButton } from "@/components/network/connections/MessageButton";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { getCompanyUrl, getFreelanceStoreUrl } from "@/lib/network/urls";
+import { getCompanyUrl, getFreelanceStoreUrl, getMessagingUrl } from "@/lib/network/urls";
 import { useLocale } from "@/providers/LocaleProvider";
 import type { FullProfessionalProfile } from "@/types/network";
 
@@ -32,6 +33,7 @@ export function ProfileHeader({
   initiallyAccepted = false,
   hasIncomingPending = false,
 }: ProfileHeaderProps) {
+  const router = useRouter();
   const [showContact, setShowContact] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
   const { t } = useLocale();
@@ -190,6 +192,10 @@ export function ProfileHeader({
           onClose={() => setShowFollowers(false)}
           targetId={targetAccountId}
           targetType="user"
+          onSelectFollower={(followerAccountId) => {
+            setShowFollowers(false);
+            router.push(getMessagingUrl({ targetAccountId: followerAccountId }));
+          }}
         />
       )}
 

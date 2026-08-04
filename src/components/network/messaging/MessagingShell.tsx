@@ -27,8 +27,9 @@ export function MessagingShell({
 }: MessagingShellProps) {
   const { t } = useTranslations();
   const { profile } = useCurrentProfile();
-  const currentUserId = profile?.id ?? "";
+  const currentUserId = profile?.accountId ?? profile?.id ?? "";
   const [newOpen, setNewOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
   const startedTargetRef = useRef<string | null>(null);
 
   const {
@@ -46,7 +47,8 @@ export function MessagingShell({
     if (initialConversationId || !initialTargetAccountId || loading) return;
     if (startedTargetRef.current === initialTargetAccountId) return;
     startedTargetRef.current = initialTargetAccountId;
-    void startConversation(initialTargetAccountId);
+    setStarting(true);
+    void startConversation(initialTargetAccountId).finally(() => setStarting(false));
   }, [initialConversationId, initialTargetAccountId, loading, startConversation]);
 
   const isChatLocked = activeConversation?.accessType === "locked";
@@ -101,7 +103,8 @@ export function MessagingShell({
         <MessagingOwnerFollowersPanel
           compact={compact}
           onMessageFollower={(targetAccountId) => {
-            void startConversation(targetAccountId);
+            setStarting(true);
+            void startConversation(targetAccountId).finally(() => setStarting(false));
           }}
         />
         <ConversationList
@@ -143,7 +146,7 @@ export function MessagingShell({
           )
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
-            {t("network.messagingSelectConversation")}
+            {starting ? t("common.loading") : t("network.messagingSelectConversation")}
           </div>
         )}
       </div>
