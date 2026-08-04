@@ -1270,7 +1270,13 @@
     "confirmDeleteAlbum": "حذف هذا الألبوم وجميع صوره؟",
     "confirmDeletePhoto": "حذف هذه الصورة من الألبوم؟",
     "open": "فتح",
-    "close": "إغلاق"
+    "close": "إغلاق",
+    "reply": "رد",
+    "replyingTo": "الرد على",
+    "replyPlaceholder": "اكتب رداً…",
+    "noComments": "لا تعليقات بعد — كن أول من يعلّق.",
+    "feedCreated": "أنشأ {name} ألبوم صور",
+    "openAlbum": "اضغط لفتح الألبوم"
   },
   "stories": {
     "title": "القصص",

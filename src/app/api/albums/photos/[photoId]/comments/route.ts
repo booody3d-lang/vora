@@ -26,8 +26,13 @@ export async function POST(request: Request, { params }: Params) {
   const auth = await getAuthenticatedUser();
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { photoId } = await params;
-  const body = (await request.json()) as { content?: string };
-  const result = await addAlbumPhotoComment(photoId, auth.user.id, body.content ?? "");
+  const body = (await request.json()) as { content?: string; parentId?: string };
+  const result = await addAlbumPhotoComment(
+    photoId,
+    auth.user.id,
+    body.content ?? "",
+    body.parentId ?? null
+  );
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error },

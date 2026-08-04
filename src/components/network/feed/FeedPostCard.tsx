@@ -16,6 +16,8 @@ import { ReportButton } from "@/components/security/ReportButton";
 import { useTranslations } from "@/i18n/use-translations";
 import { useGuardedAction } from "@/hooks/useGuardedAction";
 import { usePermissions } from "@/providers/VoraProviders";
+import { parseAlbumFeedEvent } from "@/lib/albums-stories/album-feed-events";
+import { AlbumFeedCard } from "@/components/albums/AlbumFeedCard";
 
 const TRUNCATE_LENGTH = 280;
 
@@ -75,6 +77,7 @@ export function FeedPostCard({ post: initialPost, onUpdate, onDelete }: FeedPost
   const isLong = (post.content?.length ?? 0) > TRUNCATE_LENGTH;
   const displayContent =
     isLong && !expanded ? `${post.content?.slice(0, TRUNCATE_LENGTH)}...` : post.content;
+  const albumEvent = parseAlbumFeedEvent(post.content);
 
   function timeAgo(dateStr: string) {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -229,16 +232,18 @@ export function FeedPostCard({ post: initialPost, onUpdate, onDelete }: FeedPost
                         onClick={() => setMenuOpen(false)}
                       />
                       <div className="absolute end-0 top-full z-20 mt-1 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMenuOpen(false);
-                            setEditOpen(true);
-                          }}
-                          className="block w-full px-4 py-2 text-start text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                          {t("common.edit")}
-                        </button>
+                        {!albumEvent && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMenuOpen(false);
+                              setEditOpen(true);
+                            }}
+                            className="block w-full px-4 py-2 text-start text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            {t("common.edit")}
+                          </button>
+                        )}
                         <button
                           type="button"
                           disabled={deleting}
@@ -311,28 +316,34 @@ export function FeedPostCard({ post: initialPost, onUpdate, onDelete }: FeedPost
             );
           })()}
 
-          {displayContent && (
-            <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-              {displayContent}
-              {isLong && (
-                <button
-                  type="button"
-                  onClick={() => setExpanded(!expanded)}
-                  className="ms-1 font-medium text-[#3B5998] hover:underline"
-                >
-                  {expanded ? t("network.feed.seeLess") : t("network.feed.seeMore")}
-                </button>
+          {albumEvent ? (
+            <AlbumFeedCard event={albumEvent} authorName={author.fullName} />
+          ) : (
+            <>
+              {displayContent && (
+                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                  {displayContent}
+                  {isLong && (
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(!expanded)}
+                      className="ms-1 font-medium text-[#3B5998] hover:underline"
+                    >
+                      {expanded ? t("network.feed.seeLess") : t("network.feed.seeMore")}
+                    </button>
+                  )}
+                </p>
               )}
-            </p>
-          )}
 
-          {post.type === "image" && (post.media?.length || post.mediaUrls?.length) && (
-            <FeedPostMedia
-              media={
-                post.media ??
-                post.mediaUrls!.map((url) => ({ url, width: 0, height: 0 }))
-              }
-            />
+              {post.type === "image" && (post.media?.length || post.mediaUrls?.length) && (
+                <FeedPostMedia
+                  media={
+                    post.media ??
+                    post.mediaUrls!.map((url) => ({ url, width: 0, height: 0 }))
+                  }
+                />
+              )}
+            </>
           )}
 
           {post.type === "poll" && post.pollQuestion && post.pollOptions && (

@@ -6,7 +6,11 @@ import {
   listAlbumPhotos,
   updateAlbum,
 } from "@/lib/albums-stories/albums-stories-store";
-import { canViewOwnedContent } from "@/lib/albums-stories/access";
+import {
+  canInteractWithOwnedContent,
+  canViewOwnedContent,
+  isOwnerOfContent,
+} from "@/lib/albums-stories/access";
 import type { ContentVisibility } from "@/types/albums-stories";
 
 interface Params {
@@ -16,14 +20,22 @@ interface Params {
 export async function GET(_request: Request, { params }: Params) {
   const { albumId } = await params;
   const auth = await getAuthenticatedUser();
-  const result = await listAlbumPhotos(albumId, auth?.user.id ?? null);
+  const viewerId = auth?.user.id ?? null;
+  const result = await listAlbumPhotos(albumId, viewerId);
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error },
       { status: result.error === "Forbidden" ? 403 : 404 }
     );
   }
-  return NextResponse.json({ album: result.album, photos: result.photos });
+  const { album, photos } = result;
+  const isOwner = await isOwnerOfContent(viewerId, album.ownerType, album.ownerId);
+  const canInteract = await canInteractWithOwnedContent(
+    viewerId,
+    album.ownerType,
+    album.ownerId
+  );
+  return NextResponse.json({ album, photos, isOwner, canInteract });
 }
 
 export async function PATCH(request: Request, { params }: Params) {

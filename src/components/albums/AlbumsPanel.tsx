@@ -12,6 +12,7 @@ import type {
   ContentOwnerType,
   ContentVisibility,
 } from "@/types/albums-stories";
+import { AlbumPhotoCommentsThread } from "@/components/albums/AlbumPhotoComments";
 
 interface AlbumsPanelProps {
   ownerType: ContentOwnerType;
@@ -40,7 +41,6 @@ export function AlbumsPanel({
   const [photos, setPhotos] = useState<AlbumPhoto[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [comments, setComments] = useState<AlbumPhotoComment[]>([]);
-  const [commentText, setCommentText] = useState("");
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState("");
@@ -149,7 +149,6 @@ export function AlbumsPanel({
 
   async function openLightbox(index: number) {
     setLightboxIndex(index);
-    setCommentText("");
     const photo = photos[index];
     if (!photo) return;
     const res = await fetch(`/api/albums/photos/${photo.id}/comments`, {
@@ -183,30 +182,26 @@ export function AlbumsPanel({
     );
   }
 
-  async function sendComment() {
-    if (!activePhoto || !commentText.trim()) return;
-    if (!canInteract && !isOwner) {
-      setError(t("albums.followersOnlyInteract"));
+  function countThread(list: AlbumPhotoComment[]) {
+    return list.reduce((n, c) => n + 1 + (c.replies?.length ?? 0), 0);
+  }
+
+  function handleCommentsChange(next: AlbumPhotoComment[]) {
+    if (!activePhoto) {
+      setComments(next);
       return;
     }
-    const res = await fetch(`/api/albums/photos/${activePhoto.id}/comments`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: commentText.trim() }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error || t("albums.followersOnlyInteract"));
-      return;
+    const delta = countThread(next) - countThread(comments);
+    setComments(next);
+    if (delta !== 0) {
+      setPhotos((prev) =>
+        prev.map((p) =>
+          p.id === activePhoto.id
+            ? { ...p, commentCount: Math.max(0, p.commentCount + delta) }
+            : p
+        )
+      );
     }
-    setComments((prev) => [...prev, data.comment as AlbumPhotoComment]);
-    setCommentText("");
-    setPhotos((prev) =>
-      prev.map((p) =>
-        p.id === activePhoto.id ? { ...p, commentCount: p.commentCount + 1 } : p
-      )
-    );
   }
 
   async function deletePhoto() {
@@ -467,34 +462,14 @@ export function AlbumsPanel({
                       {activePhoto.commentCount} {t("albums.comments")}
                     </span>
                   </div>
-                  {!canInteract && !isOwner && (
-                    <p className="text-xs text-amber-200">{t("albums.followersOnlyInteract")}</p>
-                  )}
-                  <div className="max-h-28 space-y-1 overflow-y-auto">
-                    {comments.map((c) => (
-                      <div key={c.id} className="rounded-lg bg-white/10 px-3 py-1.5 text-sm">
-                        <span className="font-semibold">{c.authorName}</span>{" "}
-                        <span className="text-white/85">{c.content}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {(canInteract || isOwner) && (
-                    <div className="flex gap-2">
-                      <input
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        placeholder={t("albums.commentPlaceholder")}
-                        className="flex-1 rounded-xl border border-white/20 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void sendComment()}
-                        className="rounded-xl bg-[#3B5998] px-3 py-2 text-sm font-semibold text-white"
-                      >
-                        {t("albums.comment")}
-                      </button>
-                    </div>
-                  )}
+                  <AlbumPhotoCommentsThread
+                    photoId={activePhoto.id}
+                    comments={comments}
+                    canInteract={canInteract}
+                    isOwner={isOwner}
+                    dark
+                    onChange={handleCommentsChange}
+                  />
                 </div>
               </div>
             </div>,

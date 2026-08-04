@@ -11,6 +11,7 @@ export interface Album {
   visibility: ContentVisibility;
   coverPhotoUrl?: string;
   photoCount: number;
+  feedPostId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +37,12 @@ export interface AlbumPhotoComment {
   authorPhotoUrl?: string;
   content: string;
   createdAt: string;
+  parentId?: string | null;
+  likeCount: number;
+  likedByMe: boolean;
+  myReaction?: StoryReactionEmoji | null;
+  reactions?: Partial<Record<StoryReactionEmoji, number>>;
+  replies?: AlbumPhotoComment[];
 }
 
 export interface StoryItem {

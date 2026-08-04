@@ -34,6 +34,7 @@ function mapAlbum(row: Record<string, unknown>, photoCount = 0): Album {
     visibility: row.visibility as ContentVisibility,
     coverPhotoUrl: (row.cover_photo_url as string | null) ?? undefined,
     photoCount,
+    feedPostId: (row.feed_post_id as string | null) ?? undefined,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
@@ -147,7 +148,12 @@ export async function createAlbumInSupabase(input: CreateAlbumInput): Promise<Al
 
 export async function updateAlbumInSupabase(
   albumId: string,
-  patch: Partial<{ title: string; visibility: ContentVisibility; coverPhotoUrl: string | null }>
+  patch: Partial<{
+    title: string;
+    visibility: ContentVisibility;
+    coverPhotoUrl: string | null;
+    feedPostId: string | null;
+  }>
 ): Promise<Album | null> {
   if (tablesMissing) return null;
   const admin = createAdminClient();
@@ -155,6 +161,7 @@ export async function updateAlbumInSupabase(
   if (patch.title != null) update.title = patch.title.trim();
   if (patch.visibility != null) update.visibility = patch.visibility;
   if (patch.coverPhotoUrl !== undefined) update.cover_photo_url = patch.coverPhotoUrl;
+  if (patch.feedPostId !== undefined) update.feed_post_id = patch.feedPostId;
   const { data, error } = await admin
     .from("albums")
     .update(update)
@@ -329,7 +336,8 @@ export async function toggleAlbumPhotoLikeInSupabase(
 }
 
 export async function listAlbumPhotoCommentsInSupabase(
-  photoId: string
+  photoId: string,
+  viewerId?: string | null
 ): Promise<AlbumPhotoComment[] | null> {
   if (tablesMissing) return null;
   const admin = createAdminClient();
@@ -343,47 +351,168 @@ export async function listAlbumPhotoCommentsInSupabase(
     return null;
   }
 
-  const comments: AlbumPhotoComment[] = [];
+  const flat: AlbumPhotoComment[] = [];
   for (const row of data ?? []) {
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("full_name")
-      .eq("id", row.account_id)
-      .maybeSingle();
-    comments.push({
+    const [{ data: profile }, { data: reactions }, myReaction] = await Promise.all([
+      admin.from("profiles").select("full_name").eq("id", row.account_id).maybeSingle(),
+      admin
+        .from("album_photo_comment_reactions")
+        .select("emoji")
+        .eq("comment_id", row.id),
+      viewerId
+        ? admin
+            .from("album_photo_comment_reactions")
+            .select("emoji")
+            .eq("comment_id", row.id)
+            .eq("account_id", viewerId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    const reactionCounts: NonNullable<AlbumPhotoComment["reactions"]> = {};
+    for (const r of reactions ?? []) {
+      const key = r.emoji as keyof NonNullable<AlbumPhotoComment["reactions"]>;
+      reactionCounts[key] = (reactionCounts[key] ?? 0) + 1;
+    }
+
+    flat.push({
       id: String(row.id),
       photoId: String(row.photo_id),
       accountId: String(row.account_id),
       authorName: (profile?.full_name as string) || "User",
       content: String(row.content),
       createdAt: String(row.created_at),
+      parentId: (row.parent_id as string | null) ?? null,
+      likeCount: Object.values(reactionCounts).reduce((a, b) => a + (b ?? 0), 0),
+      likedByMe: Boolean(myReaction.data),
+      myReaction: (myReaction.data?.emoji as AlbumPhotoComment["myReaction"]) ?? null,
+      reactions: reactionCounts,
+      replies: [],
     });
   }
-  return comments;
+
+  const roots = flat.filter((c) => !c.parentId);
+  for (const root of roots) {
+    root.replies = flat.filter((c) => c.parentId === root.id);
+  }
+  return roots;
 }
 
 export async function addAlbumPhotoCommentInSupabase(input: {
   photoId: string;
   accountId: string;
   content: string;
+  parentId?: string | null;
 }): Promise<AlbumPhotoComment | null> {
+  if (tablesMissing) return null;
+  const admin = createAdminClient();
+  const insert: Record<string, unknown> = {
+    photo_id: input.photoId,
+    account_id: input.accountId,
+    content: input.content.trim(),
+  };
+  if (input.parentId) insert.parent_id = input.parentId;
+
+  const { data, error } = await admin
+    .from("album_photo_comments")
+    .insert(insert)
+    .select("*")
+    .single();
+  if (error) {
+    // Retry without parent_id if column missing
+    if (String(error.message || "").toLowerCase().includes("parent_id")) {
+      const { data: fallback, error: err2 } = await admin
+        .from("album_photo_comments")
+        .insert({
+          photo_id: input.photoId,
+          account_id: input.accountId,
+          content: input.content.trim(),
+        })
+        .select("*")
+        .single();
+      if (err2) {
+        markMissing(err2);
+        return null;
+      }
+      const list = await listAlbumPhotoCommentsInSupabase(input.photoId, input.accountId);
+      return (
+        list?.find((c) => c.id === fallback.id) ??
+        list?.flatMap((c) => c.replies ?? []).find((c) => c.id === fallback.id) ??
+        null
+      );
+    }
+    markMissing(error);
+    return null;
+  }
+  const list = await listAlbumPhotoCommentsInSupabase(input.photoId, input.accountId);
+  return (
+    list?.find((c) => c.id === data.id) ??
+    list?.flatMap((c) => c.replies ?? []).find((c) => c.id === data.id) ??
+    null
+  );
+}
+
+export async function setAlbumPhotoCommentReactionInSupabase(
+  commentId: string,
+  accountId: string,
+  emoji: string | null
+): Promise<{
+  reactions: NonNullable<AlbumPhotoComment["reactions"]>;
+  myReaction: AlbumPhotoComment["myReaction"];
+  likeCount: number;
+} | null> {
+  if (tablesMissing) return null;
+  const admin = createAdminClient();
+  await admin
+    .from("album_photo_comment_reactions")
+    .delete()
+    .eq("comment_id", commentId)
+    .eq("account_id", accountId);
+
+  if (emoji) {
+    const { error } = await admin.from("album_photo_comment_reactions").insert({
+      comment_id: commentId,
+      account_id: accountId,
+      emoji,
+    });
+    if (error) {
+      markMissing(error);
+      return null;
+    }
+  }
+
+  const { data: reactions } = await admin
+    .from("album_photo_comment_reactions")
+    .select("emoji")
+    .eq("comment_id", commentId);
+  const reactionCounts: NonNullable<AlbumPhotoComment["reactions"]> = {};
+  for (const row of reactions ?? []) {
+    const key = row.emoji as keyof NonNullable<AlbumPhotoComment["reactions"]>;
+    reactionCounts[key] = (reactionCounts[key] ?? 0) + 1;
+  }
+  const likeCount = Object.values(reactionCounts).reduce((a, b) => a + (b ?? 0), 0);
+  return {
+    reactions: reactionCounts,
+    myReaction: (emoji as AlbumPhotoComment["myReaction"]) ?? null,
+    likeCount,
+  };
+}
+
+export async function getAlbumPhotoIdForCommentInSupabase(
+  commentId: string
+): Promise<string | null> {
   if (tablesMissing) return null;
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("album_photo_comments")
-    .insert({
-      photo_id: input.photoId,
-      account_id: input.accountId,
-      content: input.content.trim(),
-    })
-    .select("*")
-    .single();
+    .select("photo_id")
+    .eq("id", commentId)
+    .maybeSingle();
   if (error) {
     markMissing(error);
     return null;
   }
-  const list = await listAlbumPhotoCommentsInSupabase(input.photoId);
-  return list?.find((c) => c.id === data.id) ?? null;
+  return (data?.photo_id as string | undefined) ?? null;
 }
 
 export async function createStoryInSupabase(input: CreateStoryInput): Promise<StoryItem | null> {

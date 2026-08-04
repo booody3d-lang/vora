@@ -1270,7 +1270,13 @@
     "confirmDeleteAlbum": "Delete this album and all its photos?",
     "confirmDeletePhoto": "Delete this photo from the album?",
     "open": "Open",
-    "close": "Close"
+    "close": "Close",
+    "reply": "Reply",
+    "replyingTo": "Replying to",
+    "replyPlaceholder": "Write a reply…",
+    "noComments": "No comments yet — be the first.",
+    "feedCreated": "{name} created a photo album",
+    "openAlbum": "Tap to open album"
   },
   "stories": {
     "title": "Stories",

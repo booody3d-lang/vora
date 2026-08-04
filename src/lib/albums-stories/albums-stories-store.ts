@@ -26,16 +26,19 @@ import type {
   StoryViewerRow,
 } from "@/types/albums-stories";
 import { encodeStoryReply } from "@/lib/albums-stories/story-reply-events";
+import { encodeAlbumFeedEvent } from "@/lib/albums-stories/album-feed-events";
 import {
   getOrCreateConversation,
   sendMessage,
 } from "@/lib/network/messaging-store";
+import { createFeedPost, updateFeedPost } from "@/lib/network/feed-store";
 import type { MessageAttachment } from "@/types/network";
 
 const ALBUMS_FILE = "albums.json";
 const PHOTOS_FILE = "album-photos.json";
 const LIKES_FILE = "album-photo-likes.json";
 const COMMENTS_FILE = "album-photo-comments.json";
+const COMMENT_REACTIONS_FILE = "album-photo-comment-reactions.json";
 const STORIES_FILE = "stories.json";
 const STORY_VIEWS_FILE = "story-views.json";
 
@@ -51,6 +54,15 @@ interface CommentRow {
   photoId: string;
   accountId: string;
   content: string;
+  createdAt: string;
+  parentId?: string | null;
+}
+
+interface CommentReactionRow {
+  id: string;
+  commentId: string;
+  accountId: string;
+  emoji: StoryReactionEmoji;
   createdAt: string;
 }
 
@@ -84,6 +96,12 @@ function readComments(): CommentRow[] {
 }
 function writeComments(rows: CommentRow[]) {
   writeJsonStore(COMMENTS_FILE, rows);
+}
+function readCommentReactions(): CommentReactionRow[] {
+  return readJsonStore<CommentReactionRow[]>(COMMENT_REACTIONS_FILE, () => []);
+}
+function writeCommentReactions(rows: CommentReactionRow[]) {
+  writeJsonStore(COMMENT_REACTIONS_FILE, rows);
 }
 function readStories(): StoryItem[] {
   return readJsonStore<StoryItem[]>(STORIES_FILE, () => []);
@@ -189,24 +207,84 @@ export async function createAlbum(
   }
   if (!input.title.trim()) return { ok: false, error: "Title is required" };
 
+  let album: Album | null = null;
   if (isSupabaseConfigured()) {
-    const remote = await sb.createAlbumInSupabase(input);
-    if (remote) return { ok: true, album: remote };
+    album = await sb.createAlbumInSupabase(input);
+  }
+  if (!album) {
+    const now = new Date().toISOString();
+    album = {
+      id: randomUUID(),
+      ownerType: input.ownerType,
+      ownerId: input.ownerId,
+      title: input.title.trim(),
+      visibility: input.visibility,
+      photoCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeAlbums([album, ...readAlbums()]);
   }
 
-  const now = new Date().toISOString();
-  const album: Album = {
-    id: randomUUID(),
-    ownerType: input.ownerType,
-    ownerId: input.ownerId,
-    title: input.title.trim(),
-    visibility: input.visibility,
-    photoCount: 0,
-    createdAt: now,
-    updatedAt: now,
-  };
-  writeAlbums([album, ...readAlbums()]);
+  album = await publishAlbumFeed(album, actorId);
   return { ok: true, album };
+}
+
+async function publishAlbumFeed(album: Album, actorId: string): Promise<Album> {
+  const photoRows =
+    (isSupabaseConfigured()
+      ? await sb.listAlbumPhotosInSupabase(album.id, actorId)
+      : null) ??
+    readPhotos()
+      .filter((p) => p.albumId === album.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const coverUrls = photoRows.slice(0, 4).map((p) => p.url);
+  const content = encodeAlbumFeedEvent({
+    albumId: album.id,
+    ownerType: album.ownerType,
+    ownerId: album.ownerId,
+    title: album.title,
+    visibility: album.visibility,
+    coverUrls,
+    photoCount: photoRows.length,
+  });
+  const media = coverUrls.map((url) => ({ url }));
+
+  try {
+    if (album.feedPostId) {
+      await updateFeedPost(actorId, album.feedPostId, {
+        type: media.length ? "image" : "text",
+        content,
+        media: media.length ? media : undefined,
+        mediaUrls: coverUrls,
+      });
+      return album;
+    }
+
+    const post = await createFeedPost(actorId, {
+      type: media.length ? "image" : "text",
+      content,
+      media: media.length ? media : undefined,
+      mediaUrls: coverUrls,
+    });
+    if (!post) return album;
+
+    if (isSupabaseConfigured()) {
+      const updated = await sb.updateAlbumInSupabase(album.id, { feedPostId: post.id });
+      if (updated) return updated;
+    }
+    const rows = readAlbums();
+    const idx = rows.findIndex((a) => a.id === album.id);
+    if (idx >= 0) {
+      rows[idx] = { ...rows[idx], feedPostId: post.id };
+      writeAlbums(rows);
+      return rows[idx];
+    }
+    return { ...album, feedPostId: post.id };
+  } catch {
+    return album;
+  }
 }
 
 export async function updateAlbum(
@@ -298,32 +376,36 @@ export async function addAlbumPhoto(
     return { ok: false, error: "Forbidden" };
   }
 
+  let photo: AlbumPhoto | null = null;
   if (isSupabaseConfigured()) {
-    const remote = await sb.addAlbumPhotoInSupabase({ albumId, ...input });
-    if (remote) return { ok: true, photo: remote };
+    photo = await sb.addAlbumPhotoInSupabase({ albumId, ...input });
+  }
+  if (!photo) {
+    const photos = readPhotos();
+    photo = {
+      id: randomUUID(),
+      albumId,
+      url: input.url,
+      caption: input.caption,
+      mimeType: input.mimeType,
+      sortOrder: photos.filter((p) => p.albumId === albumId).length,
+      createdAt: new Date().toISOString(),
+      likeCount: 0,
+      commentCount: 0,
+      likedByMe: false,
+    };
+    writePhotos([...photos, photo]);
+    const albums = readAlbums();
+    const idx = albums.findIndex((a) => a.id === albumId);
+    if (idx >= 0) {
+      if (!albums[idx].coverPhotoUrl) albums[idx].coverPhotoUrl = input.url;
+      albums[idx].updatedAt = new Date().toISOString();
+      writeAlbums(albums);
+    }
   }
 
-  const photos = readPhotos();
-  const photo: AlbumPhoto = {
-    id: randomUUID(),
-    albumId,
-    url: input.url,
-    caption: input.caption,
-    mimeType: input.mimeType,
-    sortOrder: photos.filter((p) => p.albumId === albumId).length,
-    createdAt: new Date().toISOString(),
-    likeCount: 0,
-    commentCount: 0,
-    likedByMe: false,
-  };
-  writePhotos([...photos, photo]);
-  const albums = readAlbums();
-  const idx = albums.findIndex((a) => a.id === albumId);
-  if (idx >= 0) {
-    if (!albums[idx].coverPhotoUrl) albums[idx].coverPhotoUrl = input.url;
-    albums[idx].updatedAt = new Date().toISOString();
-    writeAlbums(albums);
-  }
+  const fresh = (await getAlbumById(albumId)) ?? album;
+  await publishAlbumFeed(fresh, actorId);
   return { ok: true, photo };
 }
 
@@ -425,14 +507,23 @@ export async function listAlbumPhotoComments(
   }
 
   if (isSupabaseConfigured()) {
-    const remote = await sb.listAlbumPhotoCommentsInSupabase(photoId);
+    const remote = await sb.listAlbumPhotoCommentsInSupabase(photoId, viewerId);
     if (remote) return { ok: true, comments: remote };
   }
 
-  const comments: AlbumPhotoComment[] = [];
-  for (const row of readComments().filter((c) => c.photoId === photoId)) {
+  const all = readComments().filter((c) => c.photoId === photoId);
+  const reactions = readCommentReactions().filter((r) =>
+    all.some((c) => c.id === r.commentId)
+  );
+  const flat: AlbumPhotoComment[] = [];
+  for (const row of all) {
     const meta = await resolveOwnerMeta("user", row.accountId);
-    comments.push({
+    const mine = reactions.filter((r) => r.commentId === row.id);
+    const counts: NonNullable<AlbumPhotoComment["reactions"]> = {};
+    for (const r of mine) {
+      counts[r.emoji] = (counts[r.emoji] ?? 0) + 1;
+    }
+    flat.push({
       id: row.id,
       photoId: row.photoId,
       accountId: row.accountId,
@@ -440,16 +531,28 @@ export async function listAlbumPhotoComments(
       authorPhotoUrl: meta.avatarUrl,
       content: row.content,
       createdAt: row.createdAt,
+      parentId: row.parentId ?? null,
+      likeCount: mine.length,
+      likedByMe: viewerId ? mine.some((r) => r.accountId === viewerId) : false,
+      myReaction: viewerId
+        ? mine.find((r) => r.accountId === viewerId)?.emoji ?? null
+        : null,
+      reactions: counts,
+      replies: [],
     });
   }
-  comments.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  return { ok: true, comments };
+  const roots = flat.filter((c) => !c.parentId);
+  for (const root of roots) {
+    root.replies = flat.filter((c) => c.parentId === root.id);
+  }
+  return { ok: true, comments: roots };
 }
 
 export async function addAlbumPhotoComment(
   photoId: string,
   actorId: string,
-  content: string
+  content: string,
+  parentId?: string | null
 ): Promise<{ ok: true; comment: AlbumPhotoComment } | { ok: false; error: string }> {
   const resolved = await resolvePhotoOwner(photoId);
   if (!resolved) return { ok: false, error: "Photo not found" };
@@ -468,6 +571,7 @@ export async function addAlbumPhotoComment(
       photoId,
       accountId: actorId,
       content,
+      parentId,
     });
     if (remote) return { ok: true, comment: remote };
   }
@@ -478,6 +582,7 @@ export async function addAlbumPhotoComment(
     accountId: actorId,
     content: content.trim(),
     createdAt: new Date().toISOString(),
+    parentId: parentId ?? null,
   };
   writeComments([...readComments(), row]);
   const meta = await resolveOwnerMeta("user", actorId);
@@ -491,7 +596,72 @@ export async function addAlbumPhotoComment(
       authorPhotoUrl: meta.avatarUrl,
       content: row.content,
       createdAt: row.createdAt,
+      parentId: row.parentId,
+      likeCount: 0,
+      likedByMe: false,
+      myReaction: null,
+      reactions: {},
+      replies: [],
     },
+  };
+}
+
+export async function setAlbumPhotoCommentReaction(
+  commentId: string,
+  actorId: string,
+  emoji: StoryReactionEmoji | null
+): Promise<
+  | {
+      ok: true;
+      reactions: NonNullable<AlbumPhotoComment["reactions"]>;
+      myReaction: AlbumPhotoComment["myReaction"];
+      likeCount: number;
+    }
+  | { ok: false; error: string }
+> {
+  let photoId = readComments().find((c) => c.id === commentId)?.photoId ?? null;
+  if (!photoId && isSupabaseConfigured()) {
+    photoId = await sb.getAlbumPhotoIdForCommentInSupabase(commentId);
+  }
+  if (!photoId) return { ok: false, error: "Comment not found" };
+
+  const resolved = await resolvePhotoOwner(photoId);
+  if (!resolved) return { ok: false, error: "Comment not found" };
+  if (
+    !(await canInteractWithOwnedContent(actorId, resolved.album.ownerType, resolved.album.ownerId))
+  ) {
+    return { ok: false, error: "Only followers can react to comments" };
+  }
+
+  if (isSupabaseConfigured()) {
+    const remote = await sb.setAlbumPhotoCommentReactionInSupabase(commentId, actorId, emoji);
+    if (remote) return { ok: true, ...remote };
+  }
+
+  let rows = readCommentReactions().filter(
+    (r) => !(r.commentId === commentId && r.accountId === actorId)
+  );
+  if (emoji) {
+    rows = [
+      ...rows,
+      {
+        id: randomUUID(),
+        commentId,
+        accountId: actorId,
+        emoji,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  }
+  writeCommentReactions(rows);
+  const onComment = rows.filter((r) => r.commentId === commentId);
+  const counts: NonNullable<AlbumPhotoComment["reactions"]> = {};
+  for (const r of onComment) counts[r.emoji] = (counts[r.emoji] ?? 0) + 1;
+  return {
+    ok: true,
+    reactions: counts,
+    myReaction: emoji,
+    likeCount: onComment.length,
   };
 }
 
