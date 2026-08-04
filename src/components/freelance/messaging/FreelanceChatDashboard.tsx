@@ -181,6 +181,7 @@ export function FreelanceChatDashboard({
                         contextType="freelance"
                         contextId={active.id}
                         localAccountId={viewerAccountId}
+                        peerAccountId=""
                         peerLabel={isSeller ? active.buyerName : active.sellerName}
                       />
                     )}

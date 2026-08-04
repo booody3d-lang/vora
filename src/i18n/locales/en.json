@@ -1244,16 +1244,31 @@
     "incoming": "Incoming call from {name}",
     "calling": "Calling {name}...",
     "inCall": "In call with {name}",
+    "ringingHint": "Ringing… waiting for answer",
+    "incomingHint": "Incoming call — accept or decline",
     "videoMode": "Video",
     "audioMode": "Voice only",
     "you": "You",
     "accept": "Accept",
     "decline": "Decline",
-    "leave": "Leave",
+    "leave": "End call",
+    "cancel": "Cancel",
     "mute": "Mute",
     "unmute": "Unmute",
     "cameraOff": "Turn camera off",
-    "cameraOn": "Turn camera on"
+    "cameraOn": "Turn camera on",
+    "summaryTitle": "Call summary",
+    "summaryResult": "Result",
+    "summaryDuration": "Duration",
+    "summaryClose": "Close",
+    "event": {
+      "started": "Call started",
+      "ended": "Call ended",
+      "missed": "Missed call",
+      "declined": "Call declined",
+      "cancelled": "Call cancelled",
+      "failed": "Call failed"
+    }
   },
   "seo": {
     "siteName": "VORA",

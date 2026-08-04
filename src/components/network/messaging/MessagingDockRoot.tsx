@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { CallProvider } from "@/providers/CallProvider";
 import { MessagingDockProvider } from "@/providers/MessagingDockProvider";
 import { usePermissions } from "@/providers/VoraProviders";
 
@@ -22,8 +23,10 @@ export function MessagingDockRoot({ children }: { children: React.ReactNode }) {
 
   return (
     <MessagingDockProvider>
-      {children}
-      <FloatingChatDock />
+      <CallProvider>
+        {children}
+        <FloatingChatDock />
+      </CallProvider>
     </MessagingDockProvider>
   );
 }

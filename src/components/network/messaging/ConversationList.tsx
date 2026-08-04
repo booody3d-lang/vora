@@ -1,6 +1,8 @@
 import type { ConversationPreview } from "@/types/network";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PresenceIndicator } from "@/components/ui/PresenceIndicator";
+import { callEventLabelKey, parseCallEvent } from "@/lib/calls/call-events";
+import { useTranslations } from "@/i18n/use-translations";
 import { cn } from "@/lib/utils";
 
 interface ConversationListProps {
@@ -27,6 +29,8 @@ export function ConversationList({
   emptyLabel,
   compact = false,
 }: ConversationListProps) {
+  const { t } = useTranslations();
+
   if (conversations.length === 0) {
     return (
       <p className="px-4 py-8 text-center text-sm text-slate-400">
@@ -39,6 +43,10 @@ export function ConversationList({
     <ul className="divide-y divide-slate-50">
       {conversations.map((conv) => {
         const hasUnread = conv.unreadCount > 0;
+        const callEvent = parseCallEvent(conv.lastMessage);
+        const preview = callEvent
+          ? `${callEvent.mode === "video" ? "📹" : "🎙️"} ${t(callEventLabelKey(callEvent.kind))}`
+          : conv.lastMessage;
         return (
           <li key={conv.id}>
             <button
@@ -57,7 +65,7 @@ export function ConversationList({
                   photoUrl={conv.participant.profilePhotoUrl}
                   gender={conv.participant.gender}
                   name={conv.participant.fullName}
-                  className="h-11 w-11 border border-slate-200"
+                  className={cn("border border-slate-200", compact ? "h-9 w-9" : "h-11 w-11")}
                 />
                 <PresenceIndicator
                   isOnline={conv.participant.isOnline}
@@ -92,13 +100,17 @@ export function ConversationList({
                 <p
                   className={cn(
                     "mt-0.5 truncate text-xs",
-                    hasUnread ? "font-medium text-[#1E40AF]" : "text-slate-500"
+                    callEvent?.kind === "missed"
+                      ? "font-medium text-amber-700"
+                      : hasUnread
+                        ? "font-medium text-[#1E40AF]"
+                        : "text-slate-500"
                   )}
                 >
                   {conv.isTyping ? (
                     <span className="italic text-[#3B5998]">typing...</span>
                   ) : (
-                    conv.lastMessage
+                    preview
                   )}
                 </p>
               </div>

@@ -3,11 +3,14 @@
 import { useEffect, useRef } from "react";
 import type { ChatMessage, ConversationPreview, MessageAttachment } from "@/types/network";
 import { CallControls } from "@/components/calls/CallControls";
+import { CallEventBubble } from "@/components/calls/CallEventBubble";
 import { MessageInput } from "@/components/network/messaging/MessageInput";
 import { ChatMessageMedia } from "@/components/network/messaging/ChatMessageMedia";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PresenceIndicator } from "@/components/ui/PresenceIndicator";
+import { parseCallEvent } from "@/lib/calls/call-events";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
+import { useCallOptional } from "@/providers/CallProvider";
 import { getProfileUrl } from "@/lib/network/urls";
 import { useTranslations } from "@/i18n/use-translations";
 import Link from "next/link";
@@ -39,9 +42,15 @@ export function MessageThread({
   compact = false,
 }: MessageThreadProps) {
   const { t } = useTranslations();
+  const call = useCallOptional();
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastMessageId = messages[messages.length - 1]?.id ?? "";
   const { fullName, avatarUrl, profilePhotoUrl, gender } = useCurrentProfile();
+  const peerAccountId = conversation.participant.accountId ?? conversation.participant.id;
+
+  useEffect(() => {
+    call?.registerConversation(conversation.id);
+  }, [call, conversation.id]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -83,6 +92,7 @@ export function MessageThread({
           contextType="network"
           contextId={conversation.id}
           localAccountId={currentUserId}
+          peerAccountId={peerAccountId}
           peerLabel={conversation.participant.fullName}
           disabled={disabled}
           compact={compact}
@@ -95,6 +105,15 @@ export function MessageThread({
         ) : (
           <ul className="space-y-3">
             {messages.map((msg) => {
+              const callEvent = parseCallEvent(msg.content);
+              if (callEvent) {
+                return (
+                  <li key={msg.id}>
+                    <CallEventBubble event={callEvent} />
+                  </li>
+                );
+              }
+
               const isOwn = msg.senderId === currentUserId;
               return (
                 <li

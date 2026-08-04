@@ -1244,16 +1244,31 @@
     "incoming": "مكالمة واردة من {name}",
     "calling": "جاري الاتصال بـ {name}...",
     "inCall": "في مكالمة مع {name}",
+    "ringingHint": "يرن… في انتظار الرد",
+    "incomingHint": "مكالمة واردة — اقبل أو ارفض",
     "videoMode": "فيديو",
     "audioMode": "صوت فقط",
     "you": "أنت",
     "accept": "قبول",
     "decline": "رفض",
-    "leave": "مغادرة",
+    "leave": "إنهاء المكالمة",
+    "cancel": "إلغاء",
     "mute": "كتم",
     "unmute": "إلغاء الكتم",
     "cameraOff": "إيقاف الكاميرا",
-    "cameraOn": "تشغيل الكاميرا"
+    "cameraOn": "تشغيل الكاميرا",
+    "summaryTitle": "ملخص المكالمة",
+    "summaryResult": "النتيجة",
+    "summaryDuration": "المدة",
+    "summaryClose": "إغلاق",
+    "event": {
+      "started": "بدأت المكالمة",
+      "ended": "انتهت المكالمة",
+      "missed": "مكالمة فائتة",
+      "declined": "تم رفض المكالمة",
+      "cancelled": "تم إلغاء المكالمة",
+      "failed": "فشل الاتصال"
+    }
   },
   "seo": {
     "siteName": "VORA",
