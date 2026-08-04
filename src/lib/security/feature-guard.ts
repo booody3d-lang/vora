@@ -20,10 +20,13 @@ export const FREE_TIER_DAILY_MEDIA_UPLOADS = 5;
 
 const UPLOAD_QUOTA_FILE = "upload-quota.json";
 
-/** Upload kinds that count against the free-tier daily media quota */
+/**
+ * Upload kinds that count against the free-tier daily media quota.
+ * Chat attachments (including voice notes) stay ungated so messaging media
+ * remains free for every authenticated user.
+ */
 export const GATED_UPLOAD_KINDS: ProfileUploadKind[] = [
   "post-media",
-  "message-attachment",
   "video-intro",
   "service-thumbnail",
   "service-gallery",

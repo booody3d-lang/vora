@@ -228,7 +228,7 @@ export interface ChatMessage {
   fileName?: string;
   fileSize?: number;
   mimeType?: string;
-  mediaType?: "image" | "video" | "file";
+  mediaType?: "image" | "video" | "audio" | "file";
   durationSeconds?: number;
   status: MessageStatus;
   createdAt: string;
@@ -239,7 +239,7 @@ export interface MessageAttachment {
   name: string;
   size: number;
   mimeType?: string;
-  mediaType?: "image" | "video" | "file";
+  mediaType?: "image" | "video" | "audio" | "file";
   durationSeconds?: number;
 }
 

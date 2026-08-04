@@ -31,6 +31,8 @@ export async function uploadMediaFile(
   let durationSeconds: number | undefined;
   if (file.type.startsWith("video/") && options?.validateVideo !== false) {
     durationSeconds = await validateShortVideo(file);
+  } else if (file.type.startsWith("audio/")) {
+    durationSeconds = await getAudioDurationSeconds(file);
   }
 
   const dataUrl = await fileToDataUrl(file);
@@ -63,11 +65,47 @@ export async function uploadMediaFile(
 export function inferMediaType(
   mimeType?: string,
   fileName?: string
-): "image" | "video" | "file" {
+): "image" | "video" | "audio" | "file" {
   if (mimeType?.startsWith("image/")) return "image";
   if (mimeType?.startsWith("video/")) return "video";
+  if (mimeType?.startsWith("audio/")) return "audio";
   const lower = fileName?.toLowerCase() ?? "";
   if (/\.(jpe?g|png|gif|webp)$/.test(lower)) return "image";
   if (/\.(mp4|webm|mov)$/.test(lower)) return "video";
+  if (/\.(webm|mp3|m4a|aac|ogg|wav|mpeg)$/.test(lower)) return "audio";
   return "file";
+}
+
+export function pickVoiceRecorderMimeType(): string {
+  if (typeof MediaRecorder === "undefined") return "";
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/aac",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+  ];
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+}
+
+export async function getAudioDurationSeconds(file: Blob): Promise<number | undefined> {
+  if (typeof window === "undefined") return undefined;
+  const url = URL.createObjectURL(file);
+  try {
+    const audio = document.createElement("audio");
+    audio.preload = "metadata";
+    audio.src = url;
+    await new Promise<void>((resolve, reject) => {
+      audio.onloadedmetadata = () => resolve();
+      audio.onerror = () => reject(new Error("Could not read audio duration"));
+    });
+    const duration = audio.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return undefined;
+    return duration;
+  } catch {
+    return undefined;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }

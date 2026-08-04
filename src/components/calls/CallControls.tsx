@@ -6,6 +6,7 @@ import { useCallOptional } from "@/providers/CallProvider";
 import { usePermissions } from "@/providers/VoraProviders";
 import { useTranslations } from "@/i18n/use-translations";
 import { cn } from "@/lib/utils";
+import { IconPhone, IconVideo } from "@/components/calls/CallIcons";
 
 interface CallControlsProps {
   contextType: CallContextType;
@@ -53,6 +54,11 @@ export function CallControls({
     });
   }
 
+  const btn = cn(
+    "inline-flex items-center justify-center rounded-full text-slate-600 transition hover:bg-[#3B5998]/10 hover:text-[#3B5998] disabled:opacity-40",
+    compact ? "h-8 w-8" : "h-9 w-9"
+  );
+
   return (
     <div className={cn("flex shrink-0 items-center", compact ? "gap-0.5" : "gap-1")}>
       <button
@@ -60,26 +66,20 @@ export function CallControls({
         title={t("calls.startVideo")}
         disabled={busy}
         onClick={() => begin("video")}
-        className={cn(
-          "rounded-lg text-slate-600 hover:bg-[#3B5998]/10 hover:text-[#3B5998] disabled:opacity-40",
-          compact ? "p-1.5 text-base" : "p-2 text-lg"
-        )}
+        className={btn}
         aria-label={t("calls.startVideo")}
       >
-        📹
+        <IconVideo size={compact ? 18 : 20} />
       </button>
       <button
         type="button"
         title={t("calls.startAudio")}
         disabled={busy}
         onClick={() => begin("audio")}
-        className={cn(
-          "rounded-lg text-slate-600 hover:bg-[#3B5998]/10 hover:text-[#3B5998] disabled:opacity-40",
-          compact ? "p-1.5 text-base" : "p-2 text-lg"
-        )}
+        className={btn}
         aria-label={t("calls.startAudio")}
       >
-        🎙️
+        <IconPhone size={compact ? 17 : 19} />
       </button>
     </div>
   );

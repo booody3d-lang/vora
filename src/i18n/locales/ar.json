@@ -279,6 +279,11 @@
     "messagingUnsupportedFile": "المدعوم: صور، فيديوهات قصيرة (15 ثانية)، PDF، وWord",
     "messagingDockSubtitle": "وصول سريع إلى محادثاتك",
     "messagingVideoLimit": "يجب ألا يتجاوز الفيديو 15 ثانية",
+    "messagingVoiceTitle": "تسجيل رسالة صوتية",
+    "messagingVoiceCancel": "إلغاء التسجيل",
+    "messagingVoiceUnsupported": "الرسائل الصوتية غير مدعومة في هذا المتصفح",
+    "messagingVoicePermission": "يلزم إذن الميكروفون لإرسال الرسائل الصوتية",
+    "messagingVoiceTooLong": "يجب ألا تتجاوز الرسالة الصوتية 60 ثانية",
     "settings": {
       "security": {
         "pageTitle": "أمان الحساب",

@@ -2,6 +2,7 @@
 
 import type { ChatMessage } from "@/types/network";
 import { inferMediaType } from "@/lib/media/upload-client";
+import { formatDuration } from "@/lib/calls/call-events";
 
 interface ChatMessageMediaProps {
   message: ChatMessage;
@@ -54,6 +55,29 @@ export function ChatMessageMedia({ message, isOwn }: ChatMessageMediaProps) {
         {message.durationSeconds && (
           <p className={`px-2 py-1 text-[10px] ${isOwn ? "text-white/70" : "text-slate-500"}`}>
             {message.durationSeconds.toFixed(1)}s
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (mediaType === "audio") {
+    return (
+      <div
+        className={`mt-1 min-w-[12rem] max-w-[16rem] rounded-2xl px-3 py-2 ${
+          isOwn ? "bg-white/10" : "bg-slate-100"
+        }`}
+      >
+        <audio
+          src={message.fileUrl}
+          controls
+          preload="metadata"
+          className="w-full"
+          style={{ height: 36 }}
+        />
+        {message.durationSeconds != null && message.durationSeconds > 0 && (
+          <p className={`mt-1 text-[10px] ${isOwn ? "text-white/70" : "text-slate-500"}`}>
+            {formatDuration(Math.round(message.durationSeconds))}
           </p>
         )}
       </div>

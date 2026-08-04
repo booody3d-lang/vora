@@ -4,7 +4,13 @@ import {
   getProfileByAccountId,
 } from "@/lib/profile/profile-store";
 import { updateCompanyForAccount } from "@/lib/company/company-store";
-import { MAX_SHORT_VIDEO_SECONDS, MAX_UPLOAD_BYTES, IMAGE_MIME_TYPES } from "@/lib/media/constants";
+import {
+  AUDIO_MIME_TYPES,
+  IMAGE_MIME_TYPES,
+  MAX_SHORT_VIDEO_SECONDS,
+  MAX_UPLOAD_BYTES,
+  MAX_VOICE_MESSAGE_SECONDS,
+} from "@/lib/media/constants";
 import { processAvatarImage, processFeedImage } from "@/lib/media/process-image";
 import { getAuthenticatedUser } from "@/lib/security/session";
 import type { AuthUser } from "@/types/security";
@@ -41,10 +47,23 @@ function isVideoMime(mime: string) {
   return mime.startsWith("video/");
 }
 
+function isAudioMime(mime: string) {
+  return mime.startsWith("audio/");
+}
+
 function videoExtension(mime: string) {
   if (mime === "video/webm") return "webm";
   if (mime === "video/quicktime") return "mov";
   return "mp4";
+}
+
+function audioExtension(mime: string) {
+  if (mime.includes("webm")) return "webm";
+  if (mime.includes("ogg")) return "ogg";
+  if (mime.includes("mpeg") || mime === "audio/mp3") return "mp3";
+  if (mime.includes("wav")) return "wav";
+  if (mime.includes("aac")) return "aac";
+  return "m4a";
 }
 
 function ensureOwnerProfile(accountId: string, authUser: AuthUser) {
@@ -91,6 +110,19 @@ async function processUploadInput(input: {
     }
     ext = videoExtension(input.mime);
     outMime = input.mime;
+  } else if (isAudioMime(input.mime)) {
+    if (kind !== "message-attachment") {
+      throw new Error("Audio upload is only allowed for chat voice messages");
+    }
+    const baseMime = input.mime.split(";")[0]?.trim() || input.mime;
+    if (!(AUDIO_MIME_TYPES as readonly string[]).includes(baseMime)) {
+      throw new Error("Unsupported audio type");
+    }
+    if (durationSeconds && durationSeconds > MAX_VOICE_MESSAGE_SECONDS) {
+      throw new Error(`Voice messages must be ${MAX_VOICE_MESSAGE_SECONDS} seconds or less`);
+    }
+    ext = audioExtension(baseMime);
+    outMime = baseMime;
   } else if (isImageMime(input.mime)) {
     if (!IMAGE_MIME_TYPES.includes(input.mime as (typeof IMAGE_MIME_TYPES)[number])) {
       throw new Error("Unsupported image type. Use JPEG, PNG, GIF, or WebP");

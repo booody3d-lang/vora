@@ -279,6 +279,11 @@
     "messagingUnsupportedFile": "Supported: images, short videos (15s), PDF, and Word documents",
     "messagingDockSubtitle": "Quick access to your conversations",
     "messagingVideoLimit": "Videos must be 15 seconds or less",
+    "messagingVoiceTitle": "Record voice message",
+    "messagingVoiceCancel": "Cancel recording",
+    "messagingVoiceUnsupported": "Voice messages are not supported in this browser",
+    "messagingVoicePermission": "Microphone permission is required for voice messages",
+    "messagingVoiceTooLong": "Voice messages must be 60 seconds or less",
     "settings": {
       "security": {
         "pageTitle": "Account Security",
