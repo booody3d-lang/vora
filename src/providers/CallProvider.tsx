@@ -237,8 +237,19 @@ export function CallProvider({ children }: { children: ReactNode }) {
       const pc = new RTCPeerConnection({ iceServers: getDefaultIceServers() });
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
       pc.ontrack = (event) => {
-        const [remote] = event.streams;
-        if (remote) setRemoteStream(remote);
+        const inbound = event.streams?.[0];
+        if (inbound) {
+          setRemoteStream(inbound);
+          return;
+        }
+        // Some browsers deliver tracks without a stream container.
+        setRemoteStream((prev) => {
+          const next = prev ?? new MediaStream();
+          if (!next.getTracks().some((t) => t.id === event.track.id)) {
+            next.addTrack(event.track);
+          }
+          return next;
+        });
       };
       pc.onicecandidate = (event) => {
         if (event.candidate) onIce(event.candidate.toJSON());
@@ -585,8 +596,18 @@ export function CallProvider({ children }: { children: ReactNode }) {
       registerConversation(args.contextId);
 
       try {
+        // Ensure previous call media is fully released before re-connecting.
+        pcRef.current?.close();
+        pcRef.current = null;
+        localStreamRef.current?.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+        setRemoteStream(null);
+
         const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
           video: args.mode === "video",
         });
         localStreamRef.current = stream;
@@ -599,11 +620,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
         isCallerRef.current = true;
         remoteAnswerAppliedRef.current = false;
         pendingIceRef.current = [];
+        connectedAtRef.current = null;
+        setDurationSec(0);
 
         const mediaChannel = await attachMediaChannel(args.contextType, args.contextId);
 
         const pc = createPeerConnection(stream, (candidate) => {
-          void sendCallSignal(mediaChannel, {
+          // ICE only on the shared media channel — never open a new Realtime channel per candidate.
+          void sendCallSignal(mediaChannelRef.current ?? mediaChannel, {
             type: "ice",
             callId,
             from: localAccountId,
@@ -617,6 +641,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
         });
         await pc.setLocalDescription(offer);
         const localOffer = pc.localDescription ?? offer;
+
+        setStatus("calling");
+        playCallTone("ringback");
 
         // Invite carries the offer SDP — callee can answer without a separate offer race.
         const peerInviteChannel = await subscribeCallSignalsReady(
@@ -636,15 +663,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
         unsubscribeCallSignals(peerInviteChannel);
 
         // Also publish on media channel for ICE / redundancy
-        await sendCallSignal(mediaChannel, {
+        await sendCallSignal(mediaChannelRef.current ?? mediaChannel, {
           type: "offer",
           callId,
           from: localAccountId,
           sdp: localOffer,
         });
-
-        setStatus("calling");
-        playCallTone("ringback");
 
         clearRingTimer();
         ringTimerRef.current = setTimeout(() => {
@@ -675,59 +699,51 @@ export function CallProvider({ children }: { children: ReactNode }) {
     if (statusRef.current !== "ringing" || !activeCallId || !contextIdRef.current) return;
 
     acceptingRef.current = true;
+    stopCallSounds();
+    clearRingTimer();
+    setError(null);
+
     try {
+      // Invite embeds SDP — only wait briefly if it has not been stored yet.
       let sdp = pendingOfferRef.current;
-      for (let i = 0; i < 30 && !sdp; i += 1) {
-        await new Promise((r) => setTimeout(r, 100));
+      for (let i = 0; i < 8 && !sdp; i += 1) {
+        await new Promise((r) => setTimeout(r, 50));
         sdp = pendingOfferRef.current;
       }
       if (!sdp) {
         setError("تعذر استلام إشارة الاتصال — أعد المحاولة");
         setStatus("error");
-        acceptingRef.current = false;
         return;
       }
 
-      stopCallSounds();
+      const mediaChannelPromise = attachMediaChannel(
+        contextTypeRef.current,
+        contextIdRef.current
+      );
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
         video: modeRef.current === "video",
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
 
-      const mediaChannel = await attachMediaChannel(
-        contextTypeRef.current,
-        contextIdRef.current
-      );
+      const mediaChannel = await mediaChannelPromise;
 
-      // Close any leftover PC
       pcRef.current?.close();
       pcRef.current = null;
+      pendingIceRef.current = [];
 
       const pc = createPeerConnection(stream, (candidate) => {
-        void sendCallSignal(mediaChannel, {
+        void sendCallSignal(mediaChannelRef.current ?? mediaChannel, {
           type: "ice",
           callId: activeCallId,
           from: localAccountId,
           candidate,
         });
-        // Also send ICE to caller's personal channel as backup
-        if (peerAccountIdRef.current) {
-          void (async () => {
-            const ch = await subscribeCallSignalsReady(
-              `vora-call:user:${peerAccountIdRef.current}`,
-              localAccountId
-            );
-            await sendCallSignal(ch, {
-              type: "ice",
-              callId: activeCallId,
-              from: localAccountId,
-              candidate,
-            });
-            unsubscribeCallSignals(ch);
-          })();
-        }
       });
 
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -736,14 +752,24 @@ export function CallProvider({ children }: { children: ReactNode }) {
       await pc.setLocalDescription(answer);
       const localAnswer = pc.localDescription ?? answer;
 
-      await sendCallSignal(mediaChannel, {
+      // Enter in-call immediately for responsive UI; signaling continues in parallel.
+      pendingOfferRef.current = null;
+      beginConnected();
+      void postCallChatEvent(contextIdRef.current, "started", modeRef.current, 0);
+
+      await sendCallSignal(mediaChannelRef.current ?? mediaChannel, {
         type: "answer",
         callId: activeCallId,
         from: localAccountId,
         sdp: localAnswer,
       });
+      await sendCallSignal(mediaChannelRef.current ?? mediaChannel, {
+        type: "accept",
+        callId: activeCallId,
+        from: localAccountId,
+      });
 
-      // Deliver answer on caller's personal channel so it is never missed
+      // Backup delivery on caller's personal channel (once — not per ICE).
       if (peerAccountIdRef.current) {
         const callerChannel = await subscribeCallSignalsReady(
           `vora-call:user:${peerAccountIdRef.current}`,
@@ -762,16 +788,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
         });
         unsubscribeCallSignals(callerChannel);
       }
-
-      await sendCallSignal(mediaChannel, {
-        type: "accept",
-        callId: activeCallId,
-        from: localAccountId,
-      });
-
-      pendingOfferRef.current = null;
-      await postCallChatEvent(contextIdRef.current, "started", modeRef.current, 0);
-      beginConnected();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not answer call");
       setStatus("error");
@@ -782,6 +798,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   }, [
     attachMediaChannel,
     beginConnected,
+    clearRingTimer,
     createPeerConnection,
     flushIce,
     localAccountId,

@@ -27,15 +27,17 @@ interface MeetingRoomProps {
   onDismissSummary: () => void;
 }
 
-function useAttachStream(stream: MediaStream | null, muted: boolean) {
-  const ref = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+/** Keep one element bound to one stream forever — never unmount during minimize/swap. */
+function bindStream(el: HTMLVideoElement | HTMLAudioElement | null, stream: MediaStream | null, muted: boolean) {
+  if (!el) return;
+  if (el.srcObject !== stream) {
     el.srcObject = stream;
-    el.muted = muted;
-  }, [stream, muted]);
-  return ref;
+  }
+  el.muted = muted;
+  if (stream) {
+    const playAttempt = el.play();
+    if (playAttempt) void playAttempt.catch(() => undefined);
+  }
 }
 
 function AvatarOrb({
@@ -129,6 +131,9 @@ export function MeetingRoom({
   const { t } = useTranslations();
   const [minimized, setMinimized] = useState(false);
   const [swapped, setSwapped] = useState(false);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (!open) {
@@ -137,18 +142,28 @@ export function MeetingRoom({
     }
   }, [open]);
 
-  const primaryStream = swapped ? (isCameraOff ? null : localStream) : remoteStream;
-  const pipStream = swapped ? remoteStream : isCameraOff ? null : localStream;
-  const primaryMuted = swapped;
-  const pipMuted = !swapped;
+  // Bind streams continuously — minimize/swap only changes CSS, never tears down media.
+  useEffect(() => {
+    bindStream(remoteVideoRef.current, remoteStream, false);
+    bindStream(remoteAudioRef.current, remoteStream, false);
+  }, [remoteStream, open, minimized, status]);
 
-  const primaryRef = useAttachStream(primaryStream, primaryMuted);
-  const pipRef = useAttachStream(pipStream, pipMuted);
-  const pipAudioOnly = mode === "audio";
+  useEffect(() => {
+    bindStream(localVideoRef.current, isCameraOff ? null : localStream, true);
+  }, [localStream, isCameraOff, open, minimized, status]);
+
+  // Re-assert playback after layout transitions (minimize/expand).
+  useEffect(() => {
+    const remote = remoteVideoRef.current;
+    const local = localVideoRef.current;
+    const audio = remoteAudioRef.current;
+    if (remote?.srcObject) void remote.play().catch(() => undefined);
+    if (local?.srcObject) void local.play().catch(() => undefined);
+    if (audio?.srcObject) void audio.play().catch(() => undefined);
+  }, [minimized, swapped, mode, status]);
 
   if (!open) return null;
 
-  /* —— Call summary (Instagram-like end card) —— */
   if (status === "summary" && summary) {
     const ok = summary.kind === "ended" || summary.kind === "started";
     return (
@@ -189,47 +204,6 @@ export function MeetingRoom({
     );
   }
 
-  /* —— Minimized PiP bubble (Instagram-style) —— */
-  if (minimized) {
-    return (
-      <button
-        type="button"
-        onClick={() => setMinimized(false)}
-        className="fixed bottom-24 end-4 z-[120] flex w-36 flex-col overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl ring-1 ring-black/40 transition hover:scale-[1.02] sm:bottom-6"
-        aria-label={t("calls.expand")}
-      >
-        <div className="relative aspect-[3/4] w-full bg-slate-900">
-          {mode === "video" && primaryStream ? (
-            <video
-              ref={primaryRef}
-              autoPlay
-              playsInline
-              muted={primaryMuted}
-              className={cn("h-full w-full object-cover", swapped && "scale-x-[-1]")}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center bg-gradient-to-b from-[#222] to-black">
-              <AvatarOrb name={peerLabel} size="md" pulsing={status !== "in-call"} />
-            </div>
-          )}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-2 pt-6">
-            <p className="truncate text-[11px] font-semibold text-white">{peerLabel}</p>
-            <p className="font-mono text-[10px] text-white/70">
-              {status === "in-call"
-                ? formatDuration(durationSec)
-                : status === "ringing"
-                  ? t("calls.incomingHint")
-                  : t("calls.ringingHint")}
-            </p>
-          </div>
-          {status === "in-call" && (
-            <span className="absolute start-2 top-2 h-2 w-2 rounded-full bg-emerald-400 shadow" />
-          )}
-        </div>
-      </button>
-    );
-  }
-
   const title =
     status === "ringing"
       ? t("calls.incoming", { name: peerLabel })
@@ -246,184 +220,224 @@ export function MeetingRoom({
           ? t("calls.incomingHint")
           : formatDuration(durationSec);
 
+  const remoteIsPrimary = !swapped;
+  const showVideoStage = mode === "video";
+
   return (
-    <div className="fixed inset-0 z-[120] flex flex-col bg-black text-white">
-      {/* Top bar */}
-      <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between bg-gradient-to-b from-black/70 to-transparent px-4 pb-10 pt-[max(1rem,env(safe-area-inset-top))]">
-        <button
-          type="button"
-          onClick={() => setMinimized(true)}
-          className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold backdrop-blur hover:bg-white/20"
-        >
-          {t("calls.minimize")}
-        </button>
-        <div className="text-center">
-          <p className="max-w-[14rem] truncate text-sm font-semibold sm:max-w-xs">{title}</p>
-          <p
+    <div
+      className={cn(
+        "z-[120] overflow-hidden bg-black text-white shadow-2xl transition-all duration-200",
+        minimized
+          ? "fixed bottom-24 end-4 h-52 w-36 rounded-2xl border border-white/20 sm:bottom-6"
+          : "fixed inset-0"
+      )}
+    >
+      {/* Persistent media sinks — never unmounted while the call UI is open */}
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
+      <div className={cn("relative h-full w-full", minimized && "cursor-pointer")} role={minimized ? "button" : undefined}>
+        {/* Remote video — always bound to remoteStream */}
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          className={cn(
+            "bg-black object-cover",
+            showVideoStage
+              ? remoteIsPrimary
+                ? "absolute inset-0 h-full w-full"
+                : cn(
+                    "absolute z-20 rounded-2xl border-2 border-white/30 object-cover shadow-2xl",
+                    minimized
+                      ? "bottom-2 end-2 h-16 w-12"
+                      : "bottom-36 end-4 h-40 w-[7.5rem] sm:bottom-40 sm:h-44 sm:w-32"
+                  )
+              : "pointer-events-none absolute h-px w-px opacity-0"
+          )}
+        />
+
+        {/* Local video — always bound to localStream, always muted */}
+        <video
+          ref={localVideoRef}
+          autoPlay
+          playsInline
+          muted
+          className={cn(
+            "scale-x-[-1] bg-black object-cover",
+            showVideoStage
+              ? !remoteIsPrimary
+                ? "absolute inset-0 h-full w-full"
+                : cn(
+                    "absolute z-20 rounded-2xl border-2 border-white/30 object-cover shadow-2xl",
+                    minimized
+                      ? "pointer-events-none bottom-2 end-2 h-16 w-12 opacity-0"
+                      : "bottom-36 end-4 h-40 w-[7.5rem] sm:bottom-40 sm:h-44 sm:w-32"
+                  )
+              : "pointer-events-none absolute h-px w-px opacity-0"
+          )}
+        />
+
+        {/* Audio-only / no-remote-video fallback stage */}
+        {(!showVideoStage || (!remoteStream && remoteIsPrimary) || (showVideoStage && isCameraOff && !remoteIsPrimary)) && (
+          <div
             className={cn(
-              "mt-0.5 font-mono text-xs",
-              status === "in-call" ? "text-emerald-300" : "text-white/60"
+              "absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-[#1a1a2e] via-[#0f0f1a] to-black",
+              showVideoStage && remoteStream && remoteIsPrimary && "hidden"
             )}
           >
-            {subtitle}
-          </p>
-        </div>
-        <span className="rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/80 backdrop-blur">
-          {mode === "video" ? t("calls.videoMode") : t("calls.audioMode")}
-        </span>
-      </div>
-
-      {/* Stage */}
-      <div className="relative min-h-0 flex-1">
-        {mode === "video" ? (
-          <>
-            {primaryStream ? (
-              <video
-                ref={primaryRef}
-                autoPlay
-                playsInline
-                muted={primaryMuted}
-                className={cn(
-                  "absolute inset-0 h-full w-full object-cover",
-                  swapped && "scale-x-[-1]"
-                )}
-              />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-[#1a1a2e] via-[#0f0f1a] to-black">
-                <AvatarOrb
-                  name={swapped ? t("calls.you") : peerLabel}
-                  size="xl"
-                  pulsing={status === "calling" || status === "ringing"}
-                />
-                <p className="text-lg font-medium text-white/90">
-                  {swapped ? t("calls.you") : peerLabel}
-                </p>
-              </div>
-            )}
-
-            {/* PiP — tap to swap (Instagram style) */}
-            <button
-              type="button"
-              onClick={() => setSwapped((v) => !v)}
-              className="absolute bottom-36 end-4 z-20 h-40 w-[7.5rem] overflow-hidden rounded-2xl border-2 border-white/30 bg-black shadow-2xl transition hover:border-white/60 sm:bottom-40 sm:h-44 sm:w-32"
-              aria-label={t("calls.swapCameras")}
-            >
-              {pipStream && !pipAudioOnly ? (
-                <video
-                  ref={pipRef}
-                  autoPlay
-                  playsInline
-                  muted={pipMuted}
-                  className={cn("h-full w-full object-cover", !swapped && "scale-x-[-1]")}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center bg-slate-900">
-                  <AvatarOrb name={swapped ? peerLabel : t("calls.you")} size="sm" />
-                </div>
-              )}
-              <span className="absolute inset-x-0 bottom-0 bg-black/50 py-1 text-center text-[10px] font-medium">
-                {swapped ? peerLabel : t("calls.you")}
-              </span>
-            </button>
-          </>
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-gradient-to-b from-[#1a1a2e] via-[#12121f] to-black">
             <AvatarOrb
               name={peerLabel}
-              size="xl"
+              size={minimized ? "md" : "xl"}
               pulsing={status === "calling" || status === "ringing"}
             />
-            <div className="text-center">
-              <p className="text-2xl font-semibold">{peerLabel}</p>
-              <p className="mt-2 text-sm text-white/55">{subtitle}</p>
-            </div>
-            {/* Keep remote audio alive even in audio-only UI */}
-            {remoteStream && (
-              <video ref={primaryRef} autoPlay playsInline className="pointer-events-none absolute h-0 w-0 opacity-0" />
+            {!minimized && (
+              <div className="text-center">
+                <p className="text-2xl font-semibold">{peerLabel}</p>
+                <p className="mt-2 text-sm text-white/55">{subtitle}</p>
+              </div>
             )}
           </div>
         )}
-      </div>
 
-      {error && (
-        <p className="absolute inset-x-0 bottom-36 z-20 px-6 text-center text-sm text-red-300 drop-shadow">
-          {error}
-        </p>
-      )}
-
-      {/* Bottom controls */}
-      <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black via-black/80 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-16">
-        <div className="mx-auto flex max-w-md items-center justify-center gap-4 sm:gap-5">
-          {status === "ringing" ? (
-            <>
-              <div className="flex flex-col items-center gap-2">
-                <RoundControl tone="danger" icon="📞" label={t("calls.decline")} onClick={onReject} />
-                <span className="text-[11px] text-white/60">{t("calls.decline")}</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <RoundControl tone="success" icon="✓" label={t("calls.accept")} onClick={onAccept} />
-                <span className="text-[11px] text-white/60">{t("calls.accept")}</span>
-              </div>
-            </>
-          ) : status === "error" ? (
-            <div className="flex flex-col items-center gap-2">
-              <RoundControl tone="glass" icon="✕" label={t("calls.summaryClose")} onClick={onEnd} />
-              <span className="text-[11px] text-white/60">{t("calls.summaryClose")}</span>
+        {/* Minimized chrome */}
+        {minimized ? (
+          <button
+            type="button"
+            className="absolute inset-0 z-30"
+            onClick={() => setMinimized(false)}
+            aria-label={t("calls.expand")}
+          >
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-2 pt-8 text-start">
+              <p className="truncate text-[11px] font-semibold text-white">{peerLabel}</p>
+              <p className="font-mono text-[10px] text-white/70">
+                {status === "in-call" ? formatDuration(durationSec) : subtitle}
+              </p>
             </div>
-          ) : (
-            <>
-              <div className="flex flex-col items-center gap-2">
-                <RoundControl
-                  tone={isMuted ? "active" : "glass"}
-                  icon={isMuted ? "🔇" : "🎤"}
-                  label={isMuted ? t("calls.unmute") : t("calls.mute")}
-                  onClick={onToggleMute}
-                />
-                <span className="text-[11px] text-white/60">
-                  {isMuted ? t("calls.unmute") : t("calls.mute")}
-                </span>
+            {status === "in-call" && (
+              <span className="absolute start-2 top-2 h-2 w-2 rounded-full bg-emerald-400 shadow" />
+            )}
+          </button>
+        ) : (
+          <>
+            <div className="absolute inset-x-0 top-0 z-30 flex items-start justify-between bg-gradient-to-b from-black/70 to-transparent px-4 pb-10 pt-[max(1rem,env(safe-area-inset-top))]">
+              <button
+                type="button"
+                onClick={() => setMinimized(true)}
+                className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold backdrop-blur hover:bg-white/20"
+              >
+                {t("calls.minimize")}
+              </button>
+              <div className="text-center">
+                <p className="max-w-[14rem] truncate text-sm font-semibold sm:max-w-xs">{title}</p>
+                <p
+                  className={cn(
+                    "mt-0.5 font-mono text-xs",
+                    status === "in-call" ? "text-emerald-300" : "text-white/60"
+                  )}
+                >
+                  {subtitle}
+                </p>
               </div>
+              <span className="rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/80 backdrop-blur">
+                {mode === "video" ? t("calls.videoMode") : t("calls.audioMode")}
+              </span>
+            </div>
 
-              {mode === "video" && (
-                <div className="flex flex-col items-center gap-2">
-                  <RoundControl
-                    tone={isCameraOff ? "active" : "glass"}
-                    icon={isCameraOff ? "📷" : "📹"}
-                    label={isCameraOff ? t("calls.cameraOn") : t("calls.cameraOff")}
-                    onClick={onToggleCamera}
-                  />
-                  <span className="text-[11px] text-white/60">
-                    {isCameraOff ? t("calls.cameraOn") : t("calls.cameraOff")}
-                  </span>
-                </div>
-              )}
-
-              {mode === "video" && (
-                <div className="flex flex-col items-center gap-2">
-                  <RoundControl
-                    tone="glass"
-                    icon="🔄"
-                    label={t("calls.swapCameras")}
-                    onClick={() => setSwapped((v) => !v)}
-                  />
-                  <span className="text-[11px] text-white/60">{t("calls.swapCameras")}</span>
-                </div>
-              )}
-
-              <div className="flex flex-col items-center gap-2">
-                <RoundControl
-                  tone="danger"
-                  icon="📵"
-                  label={status === "calling" ? t("calls.cancel") : t("calls.leave")}
-                  onClick={onEnd}
-                />
-                <span className="text-[11px] text-white/60">
-                  {status === "calling" ? t("calls.cancel") : t("calls.leave")}
+            {/* Tap PiP region to swap — separate from video element so streams stay put */}
+            {showVideoStage && (
+              <button
+                type="button"
+                onClick={() => setSwapped((v) => !v)}
+                className="absolute bottom-36 end-4 z-30 h-40 w-[7.5rem] rounded-2xl sm:bottom-40 sm:h-44 sm:w-32"
+                aria-label={t("calls.swapCameras")}
+              >
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-2xl bg-black/50 py-1 text-center text-[10px] font-medium">
+                  {remoteIsPrimary ? t("calls.you") : peerLabel}
                 </span>
+              </button>
+            )}
+
+            {error && (
+              <p className="absolute inset-x-0 bottom-36 z-30 px-6 text-center text-sm text-red-300 drop-shadow">
+                {error}
+              </p>
+            )}
+
+            <div className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black via-black/80 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-16">
+              <div className="mx-auto flex max-w-md items-center justify-center gap-4 sm:gap-5">
+                {status === "ringing" ? (
+                  <>
+                    <div className="flex flex-col items-center gap-2">
+                      <RoundControl tone="danger" icon="📞" label={t("calls.decline")} onClick={onReject} />
+                      <span className="text-[11px] text-white/60">{t("calls.decline")}</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                      <RoundControl tone="success" icon="✓" label={t("calls.accept")} onClick={onAccept} />
+                      <span className="text-[11px] text-white/60">{t("calls.accept")}</span>
+                    </div>
+                  </>
+                ) : status === "error" ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <RoundControl tone="glass" icon="✕" label={t("calls.summaryClose")} onClick={onEnd} />
+                    <span className="text-[11px] text-white/60">{t("calls.summaryClose")}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col items-center gap-2">
+                      <RoundControl
+                        tone={isMuted ? "active" : "glass"}
+                        icon={isMuted ? "🔇" : "🎤"}
+                        label={isMuted ? t("calls.unmute") : t("calls.mute")}
+                        onClick={onToggleMute}
+                      />
+                      <span className="text-[11px] text-white/60">
+                        {isMuted ? t("calls.unmute") : t("calls.mute")}
+                      </span>
+                    </div>
+
+                    {mode === "video" && (
+                      <div className="flex flex-col items-center gap-2">
+                        <RoundControl
+                          tone={isCameraOff ? "active" : "glass"}
+                          icon={isCameraOff ? "📷" : "📹"}
+                          label={isCameraOff ? t("calls.cameraOn") : t("calls.cameraOff")}
+                          onClick={onToggleCamera}
+                        />
+                        <span className="text-[11px] text-white/60">
+                          {isCameraOff ? t("calls.cameraOn") : t("calls.cameraOff")}
+                        </span>
+                      </div>
+                    )}
+
+                    {mode === "video" && (
+                      <div className="flex flex-col items-center gap-2">
+                        <RoundControl
+                          tone="glass"
+                          icon="🔄"
+                          label={t("calls.swapCameras")}
+                          onClick={() => setSwapped((v) => !v)}
+                        />
+                        <span className="text-[11px] text-white/60">{t("calls.swapCameras")}</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col items-center gap-2">
+                      <RoundControl
+                        tone="danger"
+                        icon="📵"
+                        label={status === "calling" ? t("calls.cancel") : t("calls.leave")}
+                        onClick={onEnd}
+                      />
+                      <span className="text-[11px] text-white/60">
+                        {status === "calling" ? t("calls.cancel") : t("calls.leave")}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
