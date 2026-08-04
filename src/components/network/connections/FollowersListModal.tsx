@@ -36,7 +36,11 @@ export function FollowersListModal({
 
     void (async () => {
       try {
-        const params = new URLSearchParams({ targetId, targetType });
+        const params = new URLSearchParams({ targetType });
+        // For user lists the API uses the session account; targetId is only required for companies.
+        if (targetType === "company" || targetId) {
+          params.set("targetId", targetId);
+        }
         const res = await fetch(`/api/social/followers?${params.toString()}`, {
           credentials: "include",
         });

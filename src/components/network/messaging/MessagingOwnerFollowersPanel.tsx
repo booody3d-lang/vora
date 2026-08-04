@@ -31,20 +31,16 @@ export function MessagingOwnerFollowersPanel({
     if (!accountId) return;
     setListLoading(true);
     try {
-      const params = new URLSearchParams({
-        targetId: accountId,
-        targetType: "user",
-      });
-      const res = await fetch(`/api/social/followers?${params.toString()}`, {
+      // Session-scoped endpoint — omit targetId so server uses auth.user.id.
+      const res = await fetch("/api/social/followers?targetType=user", {
         credentials: "include",
       });
       const data = await res.json();
       if (res.ok) {
-        setFollowers(data.followers ?? []);
+        const list = (data.followers ?? []) as FollowListEntry[];
+        setFollowers(list);
         setFollowerCount(
-          typeof data.followerCount === "number"
-            ? data.followerCount
-            : (data.followers?.length ?? 0)
+          typeof data.followerCount === "number" ? data.followerCount : list.length
         );
       }
     } finally {
@@ -84,24 +80,27 @@ export function MessagingOwnerFollowersPanel({
         <button
           type="button"
           onClick={handleToggle}
-          disabled={followerCount === 0}
+          disabled={followerCount === 0 && followers.length === 0}
           aria-label={t("network.connections.followersList.viewFollowers")}
           className={cn(
             "flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-start transition-colors",
-            followerCount > 0 ? "hover:bg-white" : "cursor-default opacity-70"
+            followerCount > 0 || followers.length > 0
+              ? "hover:bg-white"
+              : "cursor-default opacity-70"
           )}
         >
           <div>
             <p className={cn("font-semibold text-[#0F172A]", compact ? "text-xs" : "text-sm")}>
-              {followerCount.toLocaleString()} {t("profile.header.followers")}
+              {Math.max(followerCount, followers.length).toLocaleString()}{" "}
+              {t("profile.header.followers")}
             </p>
-            {!compact && followerCount > 0 && (
+            {!compact && (followerCount > 0 || followers.length > 0) && (
               <p className="text-[11px] text-slate-500">
                 {t("network.connections.followersList.messagingHint")}
               </p>
             )}
           </div>
-          {followerCount > 0 && (
+          {(followerCount > 0 || followers.length > 0) && (
             <span className="shrink-0 text-xs font-semibold text-[#3B5998]">
               {compact ? t("network.connections.followersList.viewFollowers") : expanded ? "▲" : "▼"}
             </span>

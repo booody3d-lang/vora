@@ -163,19 +163,40 @@ export async function getFollowingUserCountFromSupabase(accountId: string): Prom
   return count ?? 0;
 }
 
-async function fetchAccountDisplayName(accountId: string): Promise<string | null> {
+async function fetchProductionProfileEntry(
+  accountId: string
+): Promise<{ fullName: string; profileSlug?: string; headline: string } | null> {
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from("accounts")
-    .select("full_name, email")
+    .from("profiles")
+    .select("id, full_name, slug")
     .eq("id", accountId)
     .maybeSingle();
 
   if (error || !data) return null;
-  const row = data as { full_name?: string | null; email?: string | null };
-  if (row.full_name?.trim()) return row.full_name.trim();
-  if (row.email?.trim()) return row.email.split("@")[0] ?? row.email;
-  return null;
+  const row = data as { full_name?: string | null; slug?: string | null };
+  const fullName = row.full_name?.trim();
+  if (!fullName && !row.slug) return null;
+  return {
+    fullName: fullName || row.slug || "User",
+    profileSlug: row.slug?.trim() || undefined,
+    headline: "",
+  };
+}
+
+async function fetchAccountEmailName(accountId: string): Promise<string | null> {
+  const admin = createAdminClient();
+  // Production accounts table may not have full_name — email only.
+  const { data, error } = await admin
+    .from("accounts")
+    .select("email")
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const email = (data as { email?: string | null }).email?.trim();
+  if (!email) return null;
+  return email.split("@")[0] || email;
 }
 
 export async function resolveFollowListEntryForAccount(
@@ -183,34 +204,73 @@ export async function resolveFollowListEntryForAccount(
   status: FollowStatus,
   since: string
 ): Promise<FollowListEntry> {
-  const cached = getProfileByAccountId(accountId);
-  if (cached) {
-    return {
-      accountId,
-      fullName: cached.fullName,
-      headline: cached.headline ?? "",
-      profileSlug: cached.slug,
-      status,
-      since,
-    };
+  try {
+    const cached = getProfileByAccountId(accountId);
+    if (cached?.fullName) {
+      return {
+        accountId,
+        fullName: cached.fullName,
+        headline: cached.headline ?? "",
+        profileSlug: cached.slug,
+        status,
+        since,
+      };
+    }
+  } catch {
+    // ignore local cache failures
   }
 
-  const loaded = await loadProfileForAccount(accountId);
-  if (loaded) {
-    return {
-      accountId,
-      fullName: loaded.fullName,
-      headline: loaded.headline ?? "",
-      profileSlug: loaded.slug,
-      status,
-      since,
-    };
+  try {
+    const production = await fetchProductionProfileEntry(accountId);
+    if (production) {
+      return {
+        accountId,
+        fullName: production.fullName,
+        headline: production.headline,
+        profileSlug: production.profileSlug,
+        status,
+        since,
+      };
+    }
+  } catch {
+    // ignore production profile lookup failures
   }
 
-  const accountName = await fetchAccountDisplayName(accountId);
+  try {
+    const loaded = await loadProfileForAccount(accountId);
+    if (loaded?.fullName) {
+      return {
+        accountId,
+        fullName: loaded.fullName,
+        headline: loaded.headline ?? "",
+        profileSlug: loaded.slug,
+        status,
+        since,
+      };
+    }
+  } catch {
+    // ignore heavy profile loader failures
+  }
+
+  try {
+    const emailName = await fetchAccountEmailName(accountId);
+    if (emailName) {
+      return {
+        accountId,
+        fullName: emailName,
+        headline: "",
+        profileSlug: undefined,
+        status,
+        since,
+      };
+    }
+  } catch {
+    // ignore account email lookup failures
+  }
+
   return {
     accountId,
-    fullName: accountName ?? "User",
+    fullName: "User",
     headline: "",
     profileSlug: undefined,
     status,
@@ -223,11 +283,22 @@ async function mapConnectionToFollowListEntryResolved(
   accountIdKey: "requester_id" | "recipient_id"
 ): Promise<FollowListEntry> {
   const accountId = row[accountIdKey];
-  return resolveFollowListEntryForAccount(
-    accountId,
-    row.status,
-    row.status === "accepted" ? row.updated_at : row.created_at
-  );
+  try {
+    return await resolveFollowListEntryForAccount(
+      accountId,
+      row.status,
+      row.status === "accepted" ? row.updated_at : row.created_at
+    );
+  } catch {
+    return {
+      accountId,
+      fullName: "User",
+      headline: "",
+      profileSlug: undefined,
+      status: row.status,
+      since: row.status === "accepted" ? row.updated_at : row.created_at,
+    };
+  }
 }
 
 export async function listFollowersForOwnerFromSupabase(

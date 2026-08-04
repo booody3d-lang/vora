@@ -1,4 +1,4 @@
-﻿import { AuthPageBrand } from "@/components/auth/AuthPageBrand";
+import { AuthPageBrand } from "@/components/auth/AuthPageBrand";
 import { SignupForm } from "@/components/auth/SignupForm";
 
 export default function SignupPage() {

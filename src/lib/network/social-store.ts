@@ -537,11 +537,20 @@ export async function getCompanySocialContext(
 
 export async function listFollowersForOwner(ownerAccountId: string): Promise<FollowListEntry[]> {
   if (await isSocialSupabaseReady()) {
-    return runOptionalDbSync(
-      "listFollowersForOwner",
-      () => listFollowersForOwnerFromSupabase(ownerAccountId),
-      listFollowersForOwnerJson(ownerAccountId)
-    );
+    try {
+      const fromDb = await listFollowersForOwnerFromSupabase(ownerAccountId);
+      // Prefer DB rows even when empty — JSON fallback on serverless is ephemeral.
+      return fromDb;
+    } catch (error) {
+      if (isMissingRelationError(error as { message?: string; code?: string })) {
+        markSupabaseDbSyncUnavailable("listFollowersForOwner", error as { message?: string });
+        return listFollowersForOwnerJson(ownerAccountId);
+      }
+      console.error("[social-store] listFollowersForOwner failed:", error);
+      const jsonFallback = listFollowersForOwnerJson(ownerAccountId);
+      if (jsonFallback.length > 0) return jsonFallback;
+      throw error;
+    }
   }
   return listFollowersForOwnerJson(ownerAccountId);
 }

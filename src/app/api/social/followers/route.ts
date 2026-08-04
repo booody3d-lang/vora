@@ -23,20 +23,41 @@ export async function GET(request: Request) {
   }
 
   if (targetType === "user") {
-    const ownerAccountId = requestedTargetId ?? auth.user.id;
-    if (ownerAccountId !== auth.user.id) {
+    // Always use the authenticated session account — never trust a mismatched client id.
+    const ownerAccountId = auth.user.id;
+    if (requestedTargetId && requestedTargetId !== ownerAccountId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const [followers, followerCount] = await Promise.all([
-      listFollowersForOwner(ownerAccountId),
-      getFollowerCount(ownerAccountId, "user"),
-    ]);
+    let followers: Awaited<ReturnType<typeof listFollowersForOwner>> = [];
+    let followerCount = 0;
+    let listError: string | null = null;
+
+    try {
+      [followers, followerCount] = await Promise.all([
+        listFollowersForOwner(ownerAccountId),
+        getFollowerCount(ownerAccountId, "user"),
+      ]);
+    } catch (error) {
+      listError = error instanceof Error ? error.message : "Failed to load followers";
+      console.error("[api/social/followers] user list failed:", listError);
+      try {
+        followerCount = await getFollowerCount(ownerAccountId, "user");
+      } catch {
+        followerCount = 0;
+      }
+    }
+
+    // Keep count aligned with returned rows when resolution succeeds.
+    if (!listError && followers.length > 0) {
+      followerCount = Math.max(followerCount, followers.length);
+    }
 
     return NextResponse.json({
       ownerAccountId,
       followers,
       followerCount,
+      ...(listError ? { warning: listError } : {}),
     });
   }
 

@@ -222,14 +222,17 @@ async function fetchAccountFullName(accountId: string): Promise<string | null> {
 
   if (!isSupabasePersistenceEnabled()) return null;
   const admin = createAdminClient();
-  const { data, error } = await admin.from("accounts").select("full_name").eq("id", accountId).maybeSingle();
+  // Slim production schema: accounts may not have full_name.
+  const { data, error } = await admin.from("accounts").select("email").eq("id", accountId).maybeSingle();
   if (error) {
     if (!isMissingColumnError(error) && !isMissingRelationError(error)) {
       console.error("[profile-persistence] fetch account name:", error.message);
     }
     return null;
   }
-  return (data?.full_name as string | null) ?? null;
+  const email = (data?.email as string | null)?.trim();
+  if (!email) return null;
+  return email.split("@")[0] || email;
 }
 
 function mergeLegacyProfileFields(

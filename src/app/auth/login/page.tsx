@@ -1,4 +1,4 @@
-﻿import { Suspense } from "react";
+import { Suspense } from "react";
 import { AuthPageBrand } from "@/components/auth/AuthPageBrand";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { LoginPageFallback } from "@/components/auth/LoginPageFallback";
