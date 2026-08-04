@@ -1,7 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
-const videoCallsEnabled = process.env.NEXT_PUBLIC_ENABLE_VIDEO_CALLS === "true";
+const videoCallsFlag = process.env.NEXT_PUBLIC_ENABLE_VIDEO_CALLS;
+const videoCallsEnabled = videoCallsFlag !== "false" && videoCallsFlag !== "0";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,

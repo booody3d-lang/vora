@@ -8,7 +8,9 @@ import { MessagingOwnerFollowersPanel } from "@/components/network/messaging/Mes
 import { NewConversationPanel } from "@/components/network/messaging/NewConversationPanel";
 import { useMessaging } from "@/hooks/useMessaging";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
+import { usePermissions } from "@/providers/VoraProviders";
 import { useTranslations } from "@/i18n/use-translations";
+import { cn } from "@/lib/utils";
 
 interface MessagingShellProps {
   className?: string;
@@ -27,7 +29,8 @@ export function MessagingShell({
 }: MessagingShellProps) {
   const { t } = useTranslations();
   const { profile } = useCurrentProfile();
-  const currentUserId = profile?.accountId ?? profile?.id ?? "";
+  const { user } = usePermissions();
+  const currentUserId = profile?.accountId ?? profile?.id ?? user?.id ?? "";
   const [newOpen, setNewOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const startedTargetRef = useRef<string | null>(null);
@@ -52,33 +55,58 @@ export function MessagingShell({
   }, [initialConversationId, initialTargetAccountId, loading, startConversation]);
 
   const isChatLocked = activeConversation?.accessType === "locked";
-  const canMessage = activeConversation && !isChatLocked;
+  const canMessage = Boolean(activeConversation && !isChatLocked);
+  const showThread = Boolean(activeId && activeConversation);
+
+  // compact dock: list OR thread (never both cramped)
+  // messages page: list hidden on small screens when a thread is open
+  const listVisibleClass = compact
+    ? showThread
+      ? "hidden"
+      : "flex w-full"
+    : showMobileThread && showThread
+      ? "hidden md:flex md:w-80 lg:w-96 md:shrink-0"
+      : "flex w-full md:w-80 lg:w-96 md:shrink-0";
+
+  const threadVisibleClass = compact
+    ? showThread
+      ? "flex"
+      : "hidden"
+    : showMobileThread
+      ? showThread
+        ? "flex"
+        : "hidden md:flex"
+      : "hidden md:flex";
 
   if (loading) {
     return (
       <div
-        className={`flex items-center justify-center rounded-xl border border-slate-200 bg-white text-sm text-slate-500 ${className}`}
+        className={cn(
+          "flex items-center justify-center rounded-xl border border-slate-200 bg-white text-sm text-slate-500",
+          compact ? "h-full" : "h-[min(720px,calc(100dvh-7rem))]",
+          className
+        )}
       >
         {t("common.loading")}
       </div>
     );
   }
 
-  const heightClass = compact ? "h-[420px]" : "h-[calc(100vh-120px)]";
-
   return (
     <div
-      className={`flex overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${heightClass} ${className}`}
+      className={cn(
+        "flex min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm",
+        compact ? "h-full" : "h-[min(720px,calc(100dvh-7rem))]",
+        className
+      )}
     >
-      <div
-        className={`w-full border-e border-slate-100 ${compact ? "w-44 md:w-52" : "md:w-80 lg:w-96"} ${
-          showMobileThread && activeId ? "hidden md:block" : "block"
-        }`}
-      >
-        <div className="border-b border-slate-100 px-4 py-3">
+      <div className={cn("min-h-0 flex-col border-e border-slate-100", listVisibleClass)}>
+        <div className="shrink-0 border-b border-slate-100 px-4 py-3">
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <h2 className="font-bold text-[#0F172A]">{t("network.messages")}</h2>
+            <div className="min-w-0">
+              <h2 className={cn("font-bold text-[#0F172A]", compact ? "text-sm" : "text-base")}>
+                {t("network.messages")}
+              </h2>
               {!compact && (
                 <p className="text-xs text-slate-400">{t("network.messagingSubtitle")}</p>
               )}
@@ -107,18 +135,36 @@ export function MessagingShell({
             void startConversation(targetAccountId).finally(() => setStarting(false));
           }}
         />
-        <ConversationList
-          conversations={conversations}
-          activeId={activeId}
-          onSelect={setActiveId}
-          emptyLabel={t("network.messagingNoConversations")}
-          compact={compact}
-        />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <ConversationList
+            conversations={conversations}
+            activeId={activeId}
+            onSelect={setActiveId}
+            emptyLabel={t("network.messagingNoConversations")}
+            compact={compact}
+          />
+        </div>
       </div>
 
-      <div
-        className={`flex flex-1 flex-col ${showMobileThread || compact ? "flex" : "hidden md:flex"}`}
-      >
+      <div className={cn("min-h-0 min-w-0 flex-1 flex-col", threadVisibleClass)}>
+        {compact && showThread && (
+          <button
+            type="button"
+            onClick={() => setActiveId("")}
+            className="shrink-0 border-b border-slate-100 px-3 py-2 text-start text-xs font-semibold text-[#3B5998] hover:bg-slate-50"
+          >
+            ← {t("network.messages")}
+          </button>
+        )}
+        {showMobileThread && showThread && !compact && (
+          <button
+            type="button"
+            onClick={() => setActiveId("")}
+            className="shrink-0 border-b border-slate-100 px-3 py-2 text-start text-xs font-semibold text-[#3B5998] hover:bg-slate-50 md:hidden"
+          >
+            ← {t("network.messages")}
+          </button>
+        )}
         {activeConversation ? (
           isChatLocked ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
@@ -145,7 +191,7 @@ export function MessagingShell({
             />
           )
         ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
+          <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-slate-400">
             {starting ? t("common.loading") : t("network.messagingSelectConversation")}
           </div>
         )}

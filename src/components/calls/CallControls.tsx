@@ -5,6 +5,7 @@ import { useVideoCall } from "@/hooks/useVideoCall";
 import { useTranslations } from "@/i18n/use-translations";
 import { isVideoCallsEnabled, type CallContextType } from "@/lib/calls/config";
 import { usePermissions } from "@/providers/VoraProviders";
+import { cn } from "@/lib/utils";
 
 interface CallControlsProps {
   contextType: CallContextType;
@@ -12,6 +13,7 @@ interface CallControlsProps {
   localAccountId: string;
   peerLabel: string;
   disabled?: boolean;
+  compact?: boolean;
 }
 
 export function CallControls({
@@ -20,10 +22,11 @@ export function CallControls({
   localAccountId,
   peerLabel,
   disabled = false,
+  compact = false,
 }: CallControlsProps) {
   const { t } = useTranslations();
   const { role } = usePermissions();
-  const enabled = isVideoCallsEnabled() && role !== "company" && !disabled;
+  const enabled = isVideoCallsEnabled() && role !== "company" && Boolean(localAccountId) && !disabled;
 
   const call = useVideoCall({
     contextType,
@@ -37,13 +40,16 @@ export function CallControls({
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className={cn("flex shrink-0 items-center", compact ? "gap-0.5" : "gap-1")}>
         <button
           type="button"
           title={t("calls.startVideo")}
           disabled={call.isActive || disabled}
           onClick={() => void call.startCall("video")}
-          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-[#3B5998] disabled:opacity-40"
+          className={cn(
+            "rounded-lg text-slate-600 hover:bg-[#3B5998]/10 hover:text-[#3B5998] disabled:opacity-40",
+            compact ? "p-1.5 text-base" : "p-2 text-lg"
+          )}
           aria-label={t("calls.startVideo")}
         >
           📹
@@ -53,7 +59,10 @@ export function CallControls({
           title={t("calls.startAudio")}
           disabled={call.isActive || disabled}
           onClick={() => void call.startCall("audio")}
-          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-[#3B5998] disabled:opacity-40"
+          className={cn(
+            "rounded-lg text-slate-600 hover:bg-[#3B5998]/10 hover:text-[#3B5998] disabled:opacity-40",
+            compact ? "p-1.5 text-base" : "p-2 text-lg"
+          )}
           aria-label={t("calls.startAudio")}
         >
           🎙️

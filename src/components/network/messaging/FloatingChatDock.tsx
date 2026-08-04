@@ -31,7 +31,7 @@ export function FloatingChatDock() {
   if (pathname.startsWith("/network/messages")) return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-4 end-4 z-50 flex flex-col items-end gap-2">
+    <div className="pointer-events-none fixed bottom-4 start-4 z-50 flex flex-col items-start gap-2 sm:start-auto sm:end-4 sm:items-end">
       {!isOpen && (
         <button
           type="button"
@@ -52,21 +52,26 @@ export function FloatingChatDock() {
         <div
           className={cn(
             "pointer-events-auto flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all",
-            isMinimized ? "h-14 w-72" : "h-[520px] w-[min(420px,calc(100vw-2rem))]"
+            isMinimized
+              ? "h-14 w-72"
+              : "h-[min(640px,calc(100dvh-6rem))] w-[min(440px,calc(100vw-1.5rem))]"
           )}
         >
-          <div className="flex items-center justify-between border-b border-slate-100 bg-[#3B5998] px-4 py-3 text-white">
-            <div>
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-[#3B5998] px-4 py-3 text-white">
+            <div className="min-w-0">
               <p className="text-sm font-bold">{t("network.messages")}</p>
               {!isMinimized && (
-                <p className="text-[10px] text-white/80">{t("network.messagingDockSubtitle")}</p>
+                <p className="truncate text-[10px] text-white/80">
+                  {t("network.messagingDockSubtitle")}
+                </p>
               )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               <button
                 type="button"
                 onClick={toggleMinimize}
                 className="rounded px-2 py-1 text-xs hover:bg-white/10"
+                aria-label={isMinimized ? "Expand" : "Minimize"}
               >
                 {isMinimized ? "▲" : "▼"}
               </button>
@@ -82,6 +87,7 @@ export function FloatingChatDock() {
                 type="button"
                 onClick={closeDock}
                 className="rounded px-2 py-1 text-xs hover:bg-white/10"
+                aria-label="Close"
               >
                 ✕
               </button>
@@ -89,11 +95,13 @@ export function FloatingChatDock() {
           </div>
 
           {!isMinimized && (
-            <MessagingShell
-              compact
-              initialConversationId={activeConversationId}
-              className="h-full flex-1 rounded-none border-0 shadow-none"
-            />
+            <div className="min-h-0 flex-1">
+              <MessagingShell
+                compact
+                initialConversationId={activeConversationId}
+                className="h-full rounded-none border-0 shadow-none"
+              />
+            </div>
           )}
         </div>
       )}

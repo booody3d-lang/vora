@@ -36,10 +36,7 @@ export function ConversationList({
   }
 
   return (
-    <ul
-      className="overflow-y-auto"
-      style={{ maxHeight: compact ? "240px" : "calc(100vh - 200px)" }}
-    >
+    <ul className="divide-y divide-slate-50">
       {conversations.map((conv) => {
         const hasUnread = conv.unreadCount > 0;
         return (
