@@ -14,6 +14,9 @@ import {
   getProfileBySlug,
   listLinkedAccounts,
 } from "@/lib/profile/profile-store";
+import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
+import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
+import { isMissingColumnError, isMissingRelationError } from "@/lib/supabase/safe-db";
 
 const INDEX_FILE = "search-index.json";
 
@@ -55,8 +58,60 @@ function buildTokenIndex(entries: SearchIndexEntry[]): Record<string, string[]> 
   return tokenIndex;
 }
 
-function collectProfiles(): SearchIndexEntry[] {
-  const entries: SearchIndexEntry[] = [];
+async function collectProfilesFromSupabase(): Promise<SearchIndexEntry[]> {
+  if (!isSupabasePersistenceEnabled() || !isAdminClientAvailable()) return [];
+
+  try {
+    const admin = createAdminClient();
+    let { data, error } = await admin
+      .from("profiles")
+      .select("id, full_name, slug")
+      .limit(1000);
+
+    if (error && isMissingColumnError(error)) {
+      ({ data, error } = await admin.from("profiles").select("id, full_name").limit(1000));
+    }
+
+    if (error) {
+      if (!isMissingRelationError(error)) {
+        console.error("[search-index] profiles query failed:", error.message);
+      }
+      return [];
+    }
+
+    const entries: SearchIndexEntry[] = [];
+    for (const row of data ?? []) {
+      const id = String((row as { id?: string }).id ?? "");
+      const fullName = String((row as { full_name?: string | null }).full_name ?? "").trim();
+      let slug = String((row as { slug?: string | null }).slug ?? "").trim();
+      if (!id || !fullName) continue;
+      if (!slug) slug = id.slice(0, 8);
+
+      entries.push({
+        id: `profile-${id}`,
+        type: "profile",
+        slug,
+        title: fullName,
+        subtitle: "",
+        href: `/network/profile/${slug}`,
+        keywords: [fullName, slug].filter(Boolean).join(" "),
+      });
+    }
+    return entries;
+  } catch (error) {
+    console.error("[search-index] collectProfilesFromSupabase failed:", error);
+    return [];
+  }
+}
+
+async function collectProfiles(): Promise<SearchIndexEntry[]> {
+  const byId = new Map<string, SearchIndexEntry>();
+
+  // Production source of truth: Supabase profiles (all registered users).
+  for (const entry of await collectProfilesFromSupabase()) {
+    byId.set(entry.id, entry);
+  }
+
   const slugs = new Set<string>(isDemoDataEnabled() ? Object.keys(DEMO_PROFILES) : []);
 
   for (const accountId of listLinkedAccounts()) {
@@ -67,8 +122,10 @@ function collectProfiles(): SearchIndexEntry[] {
   for (const slug of slugs) {
     const profile = getProfileBySlug(slug) ?? (isDemoDataEnabled() ? DEMO_PROFILES[slug] : undefined);
     if (!profile) continue;
-    entries.push({
-      id: `profile-${profile.id}`,
+    const id = `profile-${profile.accountId ?? profile.id}`;
+    // Prefer richer local/demo fields when available, but never drop Supabase-only users.
+    byId.set(id, {
+      id,
       type: "profile",
       slug: profile.slug,
       title: profile.fullName,
@@ -81,7 +138,7 @@ function collectProfiles(): SearchIndexEntry[] {
     });
   }
 
-  return entries;
+  return [...byId.values()];
 }
 
 async function collectJobs(): Promise<SearchIndexEntry[]> {
@@ -192,7 +249,7 @@ async function collectServices(): Promise<SearchIndexEntry[]> {
 
 export async function rebuildSearchIndex(): Promise<SearchIndexFile> {
   const entries = [
-    ...collectProfiles(),
+    ...(await collectProfiles()),
     ...(await collectJobs()),
     ...(await collectCompanies()),
     ...(await collectStores()),
@@ -211,13 +268,18 @@ export async function rebuildSearchIndex(): Promise<SearchIndexFile> {
   return index;
 }
 
+const INDEX_MAX_AGE_MS = 60_000;
+
 async function readIndex(): Promise<SearchIndexFile> {
   const index = readJsonStore<SearchIndexFile>(INDEX_FILE, () => ({
     entries: [],
     tokenIndex: {},
     builtAt: new Date(0).toISOString(),
   }));
-  if (!index.entries?.length) return rebuildSearchIndex();
+  const ageMs = Date.now() - new Date(index.builtAt ?? 0).getTime();
+  const stale = !Number.isFinite(ageMs) || ageMs > INDEX_MAX_AGE_MS;
+  // On serverless JSON is ephemeral — always rebuild when empty or stale so new signups appear.
+  if (!index.entries?.length || stale) return rebuildSearchIndex();
   if (!index.tokenIndex) index.tokenIndex = buildTokenIndex(index.entries);
   return index;
 }
@@ -273,7 +335,64 @@ export async function searchIndex(
     if (options?.type) results = results.filter((entry) => entry.type === options.type);
   }
 
+  // Live DB fallback for profile name/slug search (covers new signups before index rebuild).
+  if (
+    results.length === 0 &&
+    (!options?.type || options.type === "profile") &&
+    isSupabasePersistenceEnabled() &&
+    isAdminClientAvailable()
+  ) {
+    try {
+      const admin = createAdminClient();
+      const pattern = `%${trimmed}%`;
+      const byId = new Map<string, SearchIndexEntry>();
+
+      const mergeRows = (rows: unknown[]) => {
+        for (const row of rows) {
+          const id = String((row as { id?: string }).id ?? "");
+          const fullName = String((row as { full_name?: string | null }).full_name ?? "").trim();
+          let slug = String((row as { slug?: string | null }).slug ?? "").trim();
+          if (!id || !fullName) continue;
+          if (!slug) slug = id.slice(0, 8);
+          byId.set(id, {
+            id: `profile-${id}`,
+            type: "profile",
+            slug,
+            title: fullName,
+            subtitle: "",
+            href: `/network/profile/${slug}`,
+            keywords: [fullName, slug].join(" "),
+          });
+        }
+      };
+
+      const byName = await admin
+        .from("profiles")
+        .select("id, full_name, slug")
+        .ilike("full_name", pattern)
+        .limit(limit);
+      if (!byName.error && byName.data) mergeRows(byName.data);
+      else if (byName.error && isMissingColumnError(byName.error)) {
+        const slim = await admin.from("profiles").select("id, full_name").ilike("full_name", pattern).limit(limit);
+        if (!slim.error && slim.data) mergeRows(slim.data);
+      } else if (byName.error && !isMissingRelationError(byName.error)) {
+        console.error("[search-index] live name search failed:", byName.error.message);
+      }
+
+      const bySlug = await admin
+        .from("profiles")
+        .select("id, full_name, slug")
+        .ilike("slug", pattern)
+        .limit(limit);
+      if (!bySlug.error && bySlug.data) mergeRows(bySlug.data);
+
+      results = [...byId.values()].slice(0, limit);
+    } catch (error) {
+      console.error("[search-index] live profile search failed:", error);
+    }
+  }
+
   const finalResults = results.slice(0, limit);
-  await cacheSet(cacheKey, finalResults, { ttlSeconds: 60 });
+  await cacheSet(cacheKey, finalResults, { ttlSeconds: 30 });
   return finalResults;
 }

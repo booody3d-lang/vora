@@ -78,12 +78,20 @@ interface SocialDataFile {
 
 let socialTableProbed = false;
 let socialTableAvailable = false;
+let socialTableLastProbeAt = 0;
+const SOCIAL_PROBE_RETRY_MS = 30_000;
 
 async function isSocialSupabaseReady(): Promise<boolean> {
   if (!isSupabasePersistenceEnabled()) return false;
-  if (socialTableProbed) return socialTableAvailable;
+  const now = Date.now();
+  // Cache successes; retry failures so a transient probe does not break the lambda for its lifetime.
+  if (socialTableProbed && socialTableAvailable) return true;
+  if (socialTableProbed && !socialTableAvailable && now - socialTableLastProbeAt < SOCIAL_PROBE_RETRY_MS) {
+    return false;
+  }
 
   socialTableProbed = true;
+  socialTableLastProbeAt = now;
   try {
     const admin = createAdminClient();
     const { error } = await admin.from("connections").select("id").limit(1);
@@ -360,11 +368,17 @@ export async function getFollowerCount(
   }
 
   if (await isSocialSupabaseReady()) {
-    return runOptionalDbSync(
-      "getFollowerCount",
-      () => getFollowerCountFromSupabase(targetId),
-      getFollowerCountJson(targetId, targetType)
-    );
+    try {
+      return await getFollowerCountFromSupabase(targetId);
+    } catch (error) {
+      if (isMissingRelationError(error as { message?: string; code?: string })) {
+        markSupabaseDbSyncUnavailable("connections missing", error as { message?: string });
+        return getFollowerCountJson(targetId, targetType);
+      }
+      console.error("[social-store] getFollowerCount failed:", error);
+      const fallback = getFollowerCountJson(targetId, targetType);
+      return fallback;
+    }
   }
 
   return getFollowerCountJson(targetId, targetType);

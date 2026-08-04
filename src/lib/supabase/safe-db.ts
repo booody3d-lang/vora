@@ -38,6 +38,25 @@ export function isSupabaseDbSyncEnabled(): boolean {
 }
 
 export function markSupabaseDbSyncUnavailable(reason: string, error?: SupabaseDbErrorLike): void {
+  // Slim production schemas intentionally omit many optional tables
+  // (professional_profiles, company_followers, subscription_tiers, …).
+  // Only core `accounts` failures should disable DB sync — otherwise
+  // connections/profiles/followers/search break after the first optional probe.
+  const reasonLower = reason.toLowerCase();
+  const isCoreFailure =
+    reasonLower.includes("core tables") ||
+    reasonLower.includes("accounts missing") ||
+    reasonLower === "accounts";
+
+  if (!isCoreFailure) {
+    console.warn("[safe-db] optional table unavailable (DB sync remains enabled)", {
+      reason,
+      code: error?.code,
+      message: error?.message ?? error?.details,
+    });
+    return;
+  }
+
   dbSyncAvailable = false;
   console.warn("[safe-db] Supabase DB sync disabled (auth will continue without DB tables)", {
     reason,

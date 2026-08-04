@@ -314,10 +314,9 @@ export async function listFollowersForOwnerFromSupabase(
 
   if (error) throw error;
 
+  const rows = (data ?? []) as DbConnectionRow[];
   return Promise.all(
-    (data as DbConnectionRow[]).map((row) =>
-      mapConnectionToFollowListEntryResolved(row, "requester_id")
-    )
+    rows.map((row) => mapConnectionToFollowListEntryResolved(row, "requester_id"))
   );
 }
 
@@ -334,10 +333,9 @@ export async function listFollowingUsersFromSupabase(
 
   if (error) throw error;
 
+  const rows = (data ?? []) as DbConnectionRow[];
   return Promise.all(
-    (data as DbConnectionRow[]).map((row) =>
-      mapConnectionToFollowListEntryResolved(row, "recipient_id")
-    )
+    rows.map((row) => mapConnectionToFollowListEntryResolved(row, "recipient_id"))
   );
 }
 
@@ -354,10 +352,9 @@ export async function getIncomingPendingFollowsFromSupabase(
 
   if (error) throw error;
 
+  const rows = (data ?? []) as DbConnectionRow[];
   return Promise.all(
-    (data as DbConnectionRow[]).map((row) =>
-      mapConnectionToFollowListEntryResolved(row, "requester_id")
-    )
+    rows.map((row) => mapConnectionToFollowListEntryResolved(row, "requester_id"))
   );
 }
 
