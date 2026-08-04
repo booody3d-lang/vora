@@ -271,7 +271,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         beginConnected();
         return;
       }
-      if (pc.signalingState !== "have-local-offer") {
+      const stateBefore = pc.signalingState as RTCSignalingState;
+      if (stateBefore !== "have-local-offer") {
         // Already stable / answered — just enter in-call.
         beginConnected();
         return;
@@ -283,7 +284,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         beginConnected();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Call failed";
-        const stateAfter = pc.signalingState;
+        const stateAfter = pc.signalingState as RTCSignalingState;
         // Duplicate answer is common with dual-channel delivery.
         if (
           remoteAnswerAppliedRef.current ||
