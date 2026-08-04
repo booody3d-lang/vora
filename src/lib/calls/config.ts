@@ -2,13 +2,34 @@
 export function isVideoCallsEnabled(): boolean {
   const flag = process.env.NEXT_PUBLIC_ENABLE_VIDEO_CALLS;
   if (flag === "false" || flag === "0") return false;
-  // Enabled by default so Production shows call controls without a separate Vercel flag.
   return true;
 }
 
-/** Free public STUN — no paid TURN/API. Some NATs may fail without TURN. */
+/**
+ * STUN + public TURN (Open Relay) for symmetric NATs.
+ * TURN improves reconnect / one-way-media reliability vs STUN-only.
+ */
 export function getDefaultIceServers(): RTCIceServer[] {
-  return [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
+  return [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:openrelay.metered.ca:80" },
+    {
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ];
 }
 
 export type CallContextType = "network" | "freelance";

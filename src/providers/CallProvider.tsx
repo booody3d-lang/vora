@@ -181,9 +181,20 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const remoteMediaRef = useRef<MediaStream>(new MediaStream());
+
   const stopMediaTracks = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
+    remoteMediaRef.current.getTracks().forEach((t) => {
+      try {
+        remoteMediaRef.current.removeTrack(t);
+        t.stop();
+      } catch {
+        // ignore
+      }
+    });
+    remoteMediaRef.current = new MediaStream();
     setLocalStream(null);
     setRemoteStream(null);
     pcRef.current?.close();
@@ -192,6 +203,87 @@ export function CallProvider({ children }: { children: ReactNode }) {
     remoteAnswerAppliedRef.current = false;
     acceptingRef.current = false;
   }, []);
+
+  const publishRemoteStream = useCallback(() => {
+    // New MediaStream wrapper so React consumers re-bind reliably on reconnect.
+    setRemoteStream(new MediaStream(remoteMediaRef.current.getTracks()));
+  }, []);
+
+  const flushIce = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc?.remoteDescription) return;
+    const queued = pendingIceRef.current.splice(0);
+    for (const candidate of queued) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
+  const createPeerConnection = useCallback(
+    (stream: MediaStream, onIce: (candidate: RTCIceCandidateInit) => void) => {
+      const pc = new RTCPeerConnection({
+        iceServers: getDefaultIceServers(),
+        iceCandidatePoolSize: 4,
+      });
+
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      pc.ontrack = (event) => {
+        const addTrack = (track: MediaStreamTrack) => {
+          const already = remoteMediaRef.current.getTracks().some((t) => t.id === track.id);
+          if (!already) remoteMediaRef.current.addTrack(track);
+          track.addEventListener("unmute", () => publishRemoteStream());
+          track.addEventListener("ended", () => publishRemoteStream());
+        };
+
+        if (event.streams?.[0]) {
+          event.streams[0].getTracks().forEach(addTrack);
+        } else {
+          addTrack(event.track);
+        }
+        publishRemoteStream();
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        if (state === "failed") {
+          try {
+            pc.restartIce();
+          } catch {
+            // ignore
+          }
+        }
+        if (state === "connected" || state === "completed") {
+          publishRemoteStream();
+        }
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) onIce(event.candidate.toJSON());
+      };
+
+      pcRef.current = pc;
+      return pc;
+    },
+    [publishRemoteStream]
+  );
+
+  const beginConnected = useCallback(() => {
+    if (statusRef.current === "in-call" && connectedAtRef.current) return;
+    clearRingTimer();
+    stopCallSounds();
+    if (!connectedAtRef.current) connectedAtRef.current = Date.now();
+    clearDurationTimer();
+    durationTimerRef.current = setInterval(() => {
+      if (!connectedAtRef.current) return;
+      setDurationSec(Math.floor((Date.now() - connectedAtRef.current) / 1000));
+    }, 1000);
+    setError(null);
+    setStatus("in-call");
+  }, [clearDurationTimer, clearRingTimer]);
 
   const showSummary = useCallback((kind: CallEventKind, dur: number) => {
     setSummary({
@@ -218,61 +310,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setError(null);
     setStatus("idle");
   }, [clearDurationTimer, clearRingTimer, stopMediaTracks]);
-
-  const flushIce = useCallback(async () => {
-    const pc = pcRef.current;
-    if (!pc?.remoteDescription) return;
-    const queued = pendingIceRef.current.splice(0);
-    for (const candidate of queued) {
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch {
-        // ignore
-      }
-    }
-  }, []);
-
-  const createPeerConnection = useCallback(
-    (stream: MediaStream, onIce: (candidate: RTCIceCandidateInit) => void) => {
-      const pc = new RTCPeerConnection({ iceServers: getDefaultIceServers() });
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      pc.ontrack = (event) => {
-        const inbound = event.streams?.[0];
-        if (inbound) {
-          setRemoteStream(inbound);
-          return;
-        }
-        // Some browsers deliver tracks without a stream container.
-        setRemoteStream((prev) => {
-          const next = prev ?? new MediaStream();
-          if (!next.getTracks().some((t) => t.id === event.track.id)) {
-            next.addTrack(event.track);
-          }
-          return next;
-        });
-      };
-      pc.onicecandidate = (event) => {
-        if (event.candidate) onIce(event.candidate.toJSON());
-      };
-      pcRef.current = pc;
-      return pc;
-    },
-    []
-  );
-
-  const beginConnected = useCallback(() => {
-    if (statusRef.current === "in-call" && connectedAtRef.current) return;
-    clearRingTimer();
-    stopCallSounds();
-    if (!connectedAtRef.current) connectedAtRef.current = Date.now();
-    clearDurationTimer();
-    durationTimerRef.current = setInterval(() => {
-      if (!connectedAtRef.current) return;
-      setDurationSec(Math.floor((Date.now() - connectedAtRef.current) / 1000));
-    }, 1000);
-    setError(null);
-    setStatus("in-call");
-  }, [clearDurationTimer, clearRingTimer]);
 
   const applyRemoteAnswer = useCallback(
     async (sdp: RTCSessionDescriptionInit) => {
@@ -400,6 +437,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         isCallerRef.current = false;
         remoteAnswerAppliedRef.current = false;
         pendingOfferRef.current = msg.sdp ?? null;
+        remoteMediaRef.current = new MediaStream();
+        setRemoteStream(null);
         setMode(msg.mode);
         setPeerLabel(msg.fromName || "User");
         setPeerAccountId(msg.from);
@@ -597,18 +636,23 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
       try {
         // Ensure previous call media is fully released before re-connecting.
-        pcRef.current?.close();
-        pcRef.current = null;
-        localStreamRef.current?.getTracks().forEach((t) => t.stop());
-        localStreamRef.current = null;
-        setRemoteStream(null);
+        stopMediaTracks();
+        remoteMediaRef.current = new MediaStream();
 
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
+            autoGainControl: true,
           },
-          video: args.mode === "video",
+          video:
+            args.mode === "video"
+              ? {
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                  facingMode: "user",
+                }
+              : false,
         });
         localStreamRef.current = stream;
         setLocalStream(stream);
@@ -736,6 +780,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
       pcRef.current?.close();
       pcRef.current = null;
       pendingIceRef.current = [];
+      remoteMediaRef.current = new MediaStream();
+      setRemoteStream(null);
 
       const pc = createPeerConnection(stream, (candidate) => {
         void sendCallSignal(mediaChannelRef.current ?? mediaChannel, {
