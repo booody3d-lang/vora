@@ -566,6 +566,7 @@
       "tabHome": "Home",
       "tabAbout": "About",
       "tabPosts": "Posts",
+      "tabAlbums": "Albums",
       "tabJobs": "Jobs",
       "verified": "Verified",
       "announcement": "Announcement",
@@ -1070,6 +1071,7 @@
       "skills": "Skills",
       "languages": "Languages",
       "projects": "Projects",
+      "albums": "Albums",
       "resume": "Resume"
     },
     "sections": {
@@ -1242,6 +1244,34 @@
     "back": "Back",
     "continue": "Continue",
     "enterPlatform": "Enter Platform"
+  },
+  "albums": {
+    "loading": "Loading albums…",
+    "empty": "No albums yet.",
+    "emptyPhotos": "No photos in this album yet.",
+    "create": "Create album",
+    "titlePlaceholder": "Album title",
+    "visibilityPublic": "Public",
+    "visibilityFollowers": "Followers only",
+    "photos": "photos",
+    "photo": "Photo",
+    "addPhoto": "Add photo",
+    "backToAlbums": "Albums",
+    "backToAlbum": "Back to album",
+    "comments": "comments",
+    "comment": "Comment",
+    "commentPlaceholder": "Write a comment…",
+    "followersOnlyInteract": "Only followers can like or comment on album photos."
+  },
+  "stories": {
+    "title": "Stories",
+    "add": "Add",
+    "you": "You",
+    "empty": "No stories yet.",
+    "expiresIn24h": "Disappears in 24 hours",
+    "visibilityPublic": "Public",
+    "visibilityFollowers": "Followers only",
+    "unsupportedMedia": "Use an image or a video up to 15 seconds."
   },
   "calls": {
     "startVideo": "Video call",

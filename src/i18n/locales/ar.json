@@ -566,6 +566,7 @@
       "tabHome": "الرئيسية",
       "tabAbout": "نبذة",
       "tabPosts": "منشورات",
+      "tabAlbums": "الألبومات",
       "tabJobs": "وظائف",
       "verified": "موثّقة",
       "announcement": "إعلان",
@@ -1070,6 +1071,7 @@
       "skills": "المهارات",
       "languages": "اللغات",
       "projects": "المشاريع",
+      "albums": "الألبومات",
       "resume": "السيرة الذاتية"
     },
     "sections": {
@@ -1242,6 +1244,34 @@
     "back": "رجوع",
     "continue": "متابعة",
     "enterPlatform": "الدخول إلى المنصة"
+  },
+  "albums": {
+    "loading": "جاري تحميل الألبومات…",
+    "empty": "لا توجد ألبومات بعد.",
+    "emptyPhotos": "لا توجد صور في هذا الألبوم بعد.",
+    "create": "إنشاء ألبوم",
+    "titlePlaceholder": "عنوان الألبوم",
+    "visibilityPublic": "عام",
+    "visibilityFollowers": "المتابعون فقط",
+    "photos": "صور",
+    "photo": "صورة",
+    "addPhoto": "إضافة صورة",
+    "backToAlbums": "الألبومات",
+    "backToAlbum": "العودة للألبوم",
+    "comments": "تعليقات",
+    "comment": "تعليق",
+    "commentPlaceholder": "اكتب تعليقاً…",
+    "followersOnlyInteract": "يُسمح للمتابعين فقط بالإعجاب أو التعليق على صور الألبوم."
+  },
+  "stories": {
+    "title": "القصص",
+    "add": "إضافة",
+    "you": "أنت",
+    "empty": "لا توجد قصص بعد.",
+    "expiresIn24h": "تختفي خلال 24 ساعة",
+    "visibilityPublic": "عام",
+    "visibilityFollowers": "المتابعون فقط",
+    "unsupportedMedia": "استخدم صورة أو فيديو بحد أقصى 15 ثانية."
   },
   "calls": {
     "startVideo": "مكالمة فيديو",

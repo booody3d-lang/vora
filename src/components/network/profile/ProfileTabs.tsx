@@ -14,6 +14,7 @@ import { LanguagesSection } from "@/components/network/profile/sections/Language
 import { ProjectsSection } from "@/components/network/profile/sections/ProjectsSection";
 import { ResumeSection } from "@/components/network/profile/sections/ResumeSection";
 import { ProfileAnalyticsPanel } from "@/components/network/profile/ProfileAnalyticsPanel";
+import { AlbumsPanel } from "@/components/albums/AlbumsPanel";
 import { useLocale } from "@/providers/LocaleProvider";
 import { cn } from "@/lib/utils";
 
@@ -26,17 +27,26 @@ const TAB_IDS: ProfileTab[] = [
   "skills",
   "languages",
   "projects",
+  "albums",
   "resume",
 ];
 
 interface ProfileTabsProps {
   profile: FullProfessionalProfile;
   isOwnProfile?: boolean;
+  ownerAccountId?: string;
+  canInteract?: boolean;
 }
 
-export function ProfileTabs({ profile, isOwnProfile }: ProfileTabsProps) {
+export function ProfileTabs({
+  profile,
+  isOwnProfile,
+  ownerAccountId,
+  canInteract = false,
+}: ProfileTabsProps) {
   const [activeTab, setActiveTab] = useState<ProfileTab>("about");
   const { t } = useLocale();
+  const albumOwnerId = ownerAccountId ?? profile.accountId ?? profile.id;
 
   return (
     <div className="mt-4 space-y-4">
@@ -59,7 +69,7 @@ export function ProfileTabs({ profile, isOwnProfile }: ProfileTabsProps) {
           ))}
         </nav>
         <div className="p-5">
-          {isOwnProfile && (
+          {isOwnProfile && activeTab !== "albums" && (
             <div className="mb-4 flex justify-end">
               <Link
                 href={`/network/profile/edit?section=${activeTab === "video" ? "video" : activeTab === "about" ? "about" : activeTab}`}
@@ -79,6 +89,14 @@ export function ProfileTabs({ profile, isOwnProfile }: ProfileTabsProps) {
           {activeTab === "skills" && <SkillsSection items={profile.skills} />}
           {activeTab === "languages" && <LanguagesSection items={profile.languages} />}
           {activeTab === "projects" && <ProjectsSection items={profile.projects} />}
+          {activeTab === "albums" && (
+            <AlbumsPanel
+              ownerType="user"
+              ownerId={albumOwnerId}
+              isOwner={Boolean(isOwnProfile)}
+              canInteract={Boolean(canInteract)}
+            />
+          )}
           {activeTab === "resume" && <ResumeSection resumeUrl={profile.resumeUrl} />}
         </div>
       </div>

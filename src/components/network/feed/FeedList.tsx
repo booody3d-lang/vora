@@ -5,6 +5,7 @@ import type { CreatePostInput } from "@/types/network";
 import type { FeedPost } from "@/types/network";
 import { FeedComposer } from "@/components/network/feed/FeedComposer";
 import { FeedPostCard } from "@/components/network/feed/FeedPostCard";
+import { StoriesBar } from "@/components/stories/StoriesBar";
 import { useTranslations } from "@/i18n/use-translations";
 
 const PAGE_SIZE = 10;
@@ -106,6 +107,7 @@ export function FeedList({ initialPosts = [] }: FeedListProps) {
 
   return (
     <div className="space-y-4">
+      <StoriesBar />
       <FeedComposer onPublish={handlePublish} />
       {!loading && posts.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center">

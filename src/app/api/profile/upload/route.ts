@@ -28,7 +28,13 @@ import type { ProfileUploadKind } from "@/types/profile";
 
 const AVATAR_KINDS: ProfileUploadKind[] = ["photo", "store-logo", "company-logo"];
 const COVER_KINDS: ProfileUploadKind[] = ["cover", "store-cover", "company-cover"];
-const MEDIA_KINDS: ProfileUploadKind[] = ["post-media", "message-attachment", "video-intro"];
+const MEDIA_KINDS: ProfileUploadKind[] = [
+  "post-media",
+  "message-attachment",
+  "video-intro",
+  "album-photo",
+  "story-media",
+];
 
 function parseDataUrl(dataUrl: string): { buffer: Buffer; mime: string } {
   // Supports mime params from MediaRecorder, e.g. data:audio/webm;codecs=opus;base64,...

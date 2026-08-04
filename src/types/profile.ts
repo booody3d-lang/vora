@@ -12,7 +12,9 @@ export type ProfileUploadKind =
   | "message-attachment"
   | "service-thumbnail"
   | "service-gallery"
-  | "video-intro";
+  | "video-intro"
+  | "album-photo"
+  | "story-media";
 
 export interface AccountLink {
   profileSlug: string;

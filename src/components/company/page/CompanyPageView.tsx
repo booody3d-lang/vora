@@ -5,17 +5,21 @@ import Link from "next/link";
 import { FollowButton } from "@/components/network/connections/FollowButton";
 import { FollowersListModal } from "@/components/network/connections/FollowersListModal";
 import { FollowersStatCard } from "@/components/network/connections/FollowerCountDisplay";
+import { AlbumsPanel } from "@/components/albums/AlbumsPanel";
+import { StoryRingButton } from "@/components/stories/StoryRingButton";
+import { StoriesBar } from "@/components/stories/StoriesBar";
 import { useTranslations } from "@/i18n/use-translations";
 import type { CompanyProfile, CompanyTab } from "@/types/company";
 import type { CompanyPost, JobPosting } from "@/types/company";
 import { cn } from "@/lib/utils";
 
-const TAB_IDS: CompanyTab[] = ["home", "about", "posts", "jobs"];
+const TAB_IDS: CompanyTab[] = ["home", "about", "posts", "albums", "jobs"];
 
 const TAB_LABEL_KEYS: Record<CompanyTab, string> = {
   home: "company.page.tabHome",
   about: "company.page.tabAbout",
   posts: "company.page.tabPosts",
+  albums: "company.page.tabAlbums",
   jobs: "company.page.tabJobs",
 };
 
@@ -50,18 +54,27 @@ export function CompanyPageView({
         <div className="relative px-5 pb-5 md:px-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="flex items-end gap-4">
-              {company.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={company.logoUrl}
-                  alt={company.name}
-                  className="-mt-10 h-20 w-20 rounded-xl border-4 border-white bg-white object-cover md:-mt-12 md:h-24 md:w-24"
-                />
-              ) : (
-                <div className="-mt-10 flex h-20 w-20 items-center justify-center rounded-xl border-4 border-white bg-slate-100 text-2xl md:-mt-12 md:h-24 md:w-24">
-                  🏢
-                </div>
-              )}
+              <StoryRingButton
+                ownerType="company"
+                ownerId={company.id}
+                displayName={company.name}
+                avatarUrl={company.logoUrl}
+                slug={company.slug}
+                className="-mt-10 md:-mt-12"
+              >
+                {company.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={company.logoUrl}
+                    alt={company.name}
+                    className="h-20 w-20 rounded-xl border-4 border-white bg-white object-cover md:h-24 md:w-24"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-4 border-white bg-slate-100 text-2xl md:h-24 md:w-24">
+                    🏢
+                  </div>
+                )}
+              </StoryRingButton>
               <div className="pb-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-xl font-bold text-[#0F172A] md:text-2xl">{company.name}</h1>
@@ -146,15 +159,28 @@ export function CompanyPageView({
         </nav>
         <div className="p-5">
           {activeTab === "home" && (
-            <HomeTab
-              company={company}
-              t={t}
-              isOwner={isOwner}
-              onViewFollowers={isOwner ? () => setShowFollowers(true) : undefined}
-            />
+            <div className="space-y-4">
+              {isOwner && (
+                <StoriesBar defaultOwnerType="company" defaultOwnerId={company.id} compact />
+              )}
+              <HomeTab
+                company={company}
+                t={t}
+                isOwner={isOwner}
+                onViewFollowers={isOwner ? () => setShowFollowers(true) : undefined}
+              />
+            </div>
           )}
           {activeTab === "about" && <AboutTab about={company.about ?? ""} />}
           {activeTab === "posts" && <PostsTab posts={posts} t={t} />}
+          {activeTab === "albums" && (
+            <AlbumsPanel
+              ownerType="company"
+              ownerId={company.id}
+              isOwner={isOwner}
+              canInteract={isOwner || initiallyFollowing}
+            />
+          )}
           {activeTab === "jobs" && <JobsTab jobs={jobs} t={t} />}
         </div>
       </div>

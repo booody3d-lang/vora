@@ -12,6 +12,7 @@ import { FollowerCountDisplay } from "@/components/network/connections/FollowerC
 import { FollowersListModal } from "@/components/network/connections/FollowersListModal";
 import { MessageButton } from "@/components/network/connections/MessageButton";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { StoryRingButton } from "@/components/stories/StoryRingButton";
 import { getCompanyUrl, getFreelanceStoreUrl, getMessagingUrl } from "@/lib/network/urls";
 import { useLocale } from "@/providers/LocaleProvider";
 import type { FullProfessionalProfile } from "@/types/network";
@@ -64,16 +65,26 @@ export function ProfileHeader({
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="flex items-end gap-4">
             <div className="relative shrink-0">
-              <UserAvatar
-                photoUrl={profile.profilePhotoUrl}
+              <StoryRingButton
+                ownerType="user"
+                ownerId={targetAccountId}
+                displayName={profile.fullName}
+                avatarUrl={profile.profilePhotoUrl}
                 gender={profile.gender}
-                name={profile.fullName}
-                className="-mt-12 h-28 w-28 border-4 border-white md:-mt-14 md:h-32 md:w-32"
-              />
+                slug={profile.slug}
+                className="-mt-12 md:-mt-14"
+              >
+                <UserAvatar
+                  photoUrl={profile.profilePhotoUrl}
+                  gender={profile.gender}
+                  name={profile.fullName}
+                  className="h-28 w-28 border-4 border-white md:h-32 md:w-32"
+                />
+              </StoryRingButton>
               {isOwnProfile && (
                 <Link
                   href="/network/profile/edit?section=photo"
-                  className="absolute bottom-1 end-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[#3B5998] shadow"
+                  className="absolute bottom-1 end-1 z-10 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[#3B5998] shadow"
                 >
                   {t("profile.header.editSection")}
                 </Link>

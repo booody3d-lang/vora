@@ -7,7 +7,7 @@ export type AtsStage =
   | "final_review"
   | "hired"
   | "rejected";
-export type CompanyTab = "home" | "about" | "posts" | "jobs";
+export type CompanyTab = "home" | "about" | "posts" | "jobs" | "albums";
 export type SubscriptionStatus = "trial" | "active" | "expired" | "locked";
 export type CompanyPostType = "text" | "image" | "job_announcement";
 

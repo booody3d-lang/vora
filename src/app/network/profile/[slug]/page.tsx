@@ -88,7 +88,12 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
         initiallyAccepted={social.isAccepted}
         hasIncomingPending={inbound?.status === "pending"}
       />
-      <ProfileTabs profile={profile} isOwnProfile={isOwnProfile} />
+      <ProfileTabs
+        profile={profile}
+        isOwnProfile={isOwnProfile}
+        ownerAccountId={targetAccountId}
+        canInteract={isOwnProfile || social.isAccepted}
+      />
     </div>
   );
 }
