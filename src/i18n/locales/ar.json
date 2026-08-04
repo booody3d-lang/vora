@@ -1261,6 +1261,9 @@
     "summaryResult": "النتيجة",
     "summaryDuration": "المدة",
     "summaryClose": "إغلاق",
+    "minimize": "تصغير",
+    "expand": "تكبير المكالمة",
+    "swapCameras": "تبديل",
     "event": {
       "started": "بدأت المكالمة",
       "ended": "انتهت المكالمة",

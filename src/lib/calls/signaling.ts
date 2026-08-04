@@ -12,6 +12,8 @@ export type CallSignalPayload =
       mode: "video" | "audio";
       contextType: CallContextType;
       contextId: string;
+      /** Offer SDP embedded so the callee never misses it */
+      sdp: RTCSessionDescriptionInit;
     }
   | { type: "accept"; callId: string; from: string }
   | {
@@ -57,7 +59,7 @@ export function subscribeCallSignals(
   return channel;
 }
 
-/** Subscribe and wait until the channel is ready to send (or timeout). */
+/** Subscribe and wait until the channel is ready to send. */
 export async function subscribeCallSignalsReady(
   channelId: string,
   localAccountId: string,
@@ -66,6 +68,12 @@ export async function subscribeCallSignalsReady(
   if (!canUseRealtime()) return null;
 
   const supabase = createClient();
+
+  // Drop any stale channel with the same topic before re-joining.
+  const existing = supabase.getChannels().filter((ch) => ch.topic === `realtime:${channelId}` || ch.topic === channelId);
+  for (const ch of existing) {
+    void supabase.removeChannel(ch);
+  }
 
   return new Promise((resolve) => {
     let settled = false;
@@ -87,7 +95,7 @@ export async function subscribeCallSignalsReady(
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") finish(null);
       });
 
-    window.setTimeout(() => finish(channel), 2500);
+    window.setTimeout(() => finish(channel), 3000);
   });
 }
 
@@ -96,7 +104,10 @@ export async function sendCallSignal(
   payload: CallSignalPayload
 ): Promise<void> {
   if (!channel) return;
-  await channel.send({ type: "broadcast", event: SIGNAL_EVENT, payload });
+  const result = await channel.send({ type: "broadcast", event: SIGNAL_EVENT, payload });
+  if (result === "error" || result === "timed out") {
+    console.warn("[calls] signal send failed", payload.type, result);
+  }
 }
 
 export function unsubscribeCallSignals(channel: RealtimeChannel | null): void {

@@ -1261,6 +1261,9 @@
     "summaryResult": "Result",
     "summaryDuration": "Duration",
     "summaryClose": "Close",
+    "minimize": "Minimize",
+    "expand": "Expand call",
+    "swapCameras": "Swap",
     "event": {
       "started": "Call started",
       "ended": "Call ended",

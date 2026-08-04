@@ -81,7 +81,6 @@ interface CallContextValue {
 }
 
 const CallContext = createContext<CallContextValue | null>(null);
-
 const RING_TIMEOUT_MS = 45_000;
 
 function newCallId(): string {
@@ -105,7 +104,7 @@ async function postCallChatEvent(
       }),
     });
   } catch {
-    // best-effort chat trail
+    // best-effort
   }
 }
 
@@ -132,33 +131,41 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const callIdRef = useRef<string | null>(null);
   const isCallerRef = useRef(false);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const remoteAnswerAppliedRef = useRef(false);
+  const acceptingRef = useRef(false);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const mediaChannelRef = useRef<RealtimeChannel | null>(null);
   const userChannelRef = useRef<RealtimeChannel | null>(null);
   const conversationChannelsRef = useRef<Map<string, RealtimeChannel>>(new Map());
+  const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
   const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectedAtRef = useRef<number | null>(null);
   const contextIdRef = useRef("");
+  const contextTypeRef = useRef<CallContextType>("network");
   const modeRef = useRef<CallMode>("video");
   const peerLabelRef = useRef("");
+  const peerAccountIdRef = useRef("");
 
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
-
   useEffect(() => {
     contextIdRef.current = contextId;
   }, [contextId]);
-
+  useEffect(() => {
+    contextTypeRef.current = contextType;
+  }, [contextType]);
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
-
   useEffect(() => {
     peerLabelRef.current = peerLabel;
   }, [peerLabel]);
+  useEffect(() => {
+    peerAccountIdRef.current = peerAccountId;
+  }, [peerAccountId]);
 
   const clearRingTimer = useCallback(() => {
     if (ringTimerRef.current) {
@@ -181,20 +188,20 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setRemoteStream(null);
     pcRef.current?.close();
     pcRef.current = null;
+    pendingIceRef.current = [];
+    remoteAnswerAppliedRef.current = false;
+    acceptingRef.current = false;
   }, []);
 
-  const showSummary = useCallback(
-    (kind: CallEventKind, dur: number) => {
-      setSummary({
-        peerLabel: peerLabelRef.current,
-        mode: modeRef.current,
-        kind,
-        durationSec: dur,
-      });
-      setStatus("summary");
-    },
-    []
-  );
+  const showSummary = useCallback((kind: CallEventKind, dur: number) => {
+    setSummary({
+      peerLabel: peerLabelRef.current,
+      mode: modeRef.current,
+      kind,
+      durationSec: dur,
+    });
+    setStatus("summary");
+  }, []);
 
   const resetToIdle = useCallback(() => {
     clearRingTimer();
@@ -212,18 +219,18 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setStatus("idle");
   }, [clearDurationTimer, clearRingTimer, stopMediaTracks]);
 
-  const ensureMediaChannel = useCallback(
-    (type: CallContextType, id: string, onSignal: (msg: CallSignalPayload) => void) => {
-      const channelId = buildCallChannelId(type, id);
-      if (mediaChannelRef.current) {
-        unsubscribeCallSignals(mediaChannelRef.current);
-        mediaChannelRef.current = null;
+  const flushIce = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc?.remoteDescription) return;
+    const queued = pendingIceRef.current.splice(0);
+    for (const candidate of queued) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch {
+        // ignore
       }
-      mediaChannelRef.current = subscribeCallSignals(channelId, localAccountId, onSignal);
-      return mediaChannelRef.current;
-    },
-    [localAccountId]
-  );
+    }
+  }, []);
 
   const createPeerConnection = useCallback(
     (stream: MediaStream, onIce: (candidate: RTCIceCandidateInit) => void) => {
@@ -243,17 +250,56 @@ export function CallProvider({ children }: { children: ReactNode }) {
   );
 
   const beginConnected = useCallback(() => {
+    if (statusRef.current === "in-call" && connectedAtRef.current) return;
     clearRingTimer();
     stopCallSounds();
-    connectedAtRef.current = Date.now();
-    setDurationSec(0);
+    if (!connectedAtRef.current) connectedAtRef.current = Date.now();
     clearDurationTimer();
     durationTimerRef.current = setInterval(() => {
       if (!connectedAtRef.current) return;
       setDurationSec(Math.floor((Date.now() - connectedAtRef.current) / 1000));
     }, 1000);
+    setError(null);
     setStatus("in-call");
   }, [clearDurationTimer, clearRingTimer]);
+
+  const applyRemoteAnswer = useCallback(
+    async (sdp: RTCSessionDescriptionInit) => {
+      const pc = pcRef.current;
+      if (!pc || !isCallerRef.current) return;
+      if (remoteAnswerAppliedRef.current) {
+        beginConnected();
+        return;
+      }
+      if (pc.signalingState !== "have-local-offer") {
+        // Already stable / answered — just enter in-call.
+        beginConnected();
+        return;
+      }
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        remoteAnswerAppliedRef.current = true;
+        await flushIce();
+        beginConnected();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Call failed";
+        const stateAfter = pc.signalingState;
+        // Duplicate answer is common with dual-channel delivery.
+        if (
+          remoteAnswerAppliedRef.current ||
+          stateAfter === "stable" ||
+          /wrong state:\s*stable/i.test(message)
+        ) {
+          remoteAnswerAppliedRef.current = true;
+          beginConnected();
+          return;
+        }
+        setError(message);
+        setStatus("error");
+      }
+    },
+    [beginConnected, flushIce]
+  );
 
   const finishCall = useCallback(
     async (kind: CallEventKind, notifyPeer: boolean) => {
@@ -265,14 +311,23 @@ export function CallProvider({ children }: { children: ReactNode }) {
       const conversationId = contextIdRef.current;
       const callMode = modeRef.current;
 
-      if (notifyPeer && callId && mediaChannelRef.current) {
-        await sendCallSignal(mediaChannelRef.current, {
+      if (notifyPeer && callId) {
+        const payload: CallSignalPayload = {
           type: "end",
           callId,
           from: localAccountId,
           reason: kind === "missed" ? "timeout" : "hangup",
           durationSec: dur,
-        });
+        };
+        await sendCallSignal(mediaChannelRef.current, payload);
+        if (peerAccountIdRef.current) {
+          const ch = await subscribeCallSignalsReady(
+            `vora-call:user:${peerAccountIdRef.current}`,
+            localAccountId
+          );
+          await sendCallSignal(ch, payload);
+          unsubscribeCallSignals(ch);
+        }
       }
 
       clearRingTimer();
@@ -294,63 +349,98 @@ export function CallProvider({ children }: { children: ReactNode }) {
     [clearDurationTimer, clearRingTimer, localAccountId, showSummary, stopMediaTracks]
   );
 
+  const attachMediaChannel = useCallback(
+    async (type: CallContextType, id: string) => {
+      const channelId = buildCallChannelId(type, id);
+      const existing = conversationChannelsRef.current.get(id);
+      if (existing && existing.state === "joined") {
+        mediaChannelRef.current = existing;
+        return existing;
+      }
+      if (existing) {
+        unsubscribeCallSignals(existing);
+        conversationChannelsRef.current.delete(id);
+      }
+
+      const channel = await subscribeCallSignalsReady(channelId, localAccountId, (msg) => {
+        void handleSignalRef.current(msg);
+      });
+      if (channel) {
+        conversationChannelsRef.current.set(id, channel);
+        mediaChannelRef.current = channel;
+      }
+      return channel;
+    },
+    [localAccountId]
+  );
+
+  const handleSignalRef = useRef<(msg: CallSignalPayload) => Promise<void>>(async () => undefined);
+
   const handleSignal = useCallback(
     async (msg: CallSignalPayload) => {
       const phase = statusRef.current;
       const activeCallId = callIdRef.current;
 
       if (msg.type === "invite") {
-        // Never auto-answer — only ring until the user accepts.
-        if (phase !== "idle" && phase !== "summary") {
-          return;
-        }
+        if (phase !== "idle" && phase !== "summary") return;
 
         callIdRef.current = msg.callId;
         isCallerRef.current = false;
-        pendingOfferRef.current = null;
+        remoteAnswerAppliedRef.current = false;
+        pendingOfferRef.current = msg.sdp ?? null;
         setMode(msg.mode);
         setPeerLabel(msg.fromName || "User");
         setPeerAccountId(msg.from);
         setContextType(msg.contextType ?? "network");
         setContextId(msg.contextId);
+        setError(null);
         setStatus("ringing");
         playCallTone("incoming");
 
-        ensureMediaChannel(msg.contextType ?? "network", msg.contextId, (inner) => {
-          void handleSignal(inner);
-        });
+        await attachMediaChannel(msg.contextType ?? "network", msg.contextId);
 
         clearRingTimer();
         ringTimerRef.current = setTimeout(() => {
-          if (statusRef.current === "ringing") {
-            void finishCall("missed", true);
-          }
+          if (statusRef.current === "ringing") void finishCall("missed", true);
         }, RING_TIMEOUT_MS);
         return;
       }
 
       if (msg.type === "offer") {
-        // Store SDP only — answering happens exclusively in acceptCall().
         if (!isCallerRef.current) {
-          if (!activeCallId || msg.callId === activeCallId || statusRef.current === "ringing") {
-            if (!callIdRef.current) callIdRef.current = msg.callId;
+          if (!callIdRef.current) callIdRef.current = msg.callId;
+          if (!activeCallId || msg.callId === callIdRef.current || statusRef.current === "ringing") {
             pendingOfferRef.current = msg.sdp;
           }
         }
         return;
       }
 
-      if (!activeCallId || msg.callId !== activeCallId) return;
+      if (msg.type === "answer") {
+        if (!isCallerRef.current) return;
+        if (activeCallId && msg.callId !== activeCallId) return;
+        await applyRemoteAnswer(msg.sdp);
+        return;
+      }
+
+      if (!activeCallId || msg.callId !== activeCallId) {
+        // Allow ICE for the active call only
+        if (msg.type === "ice" && callIdRef.current && msg.callId === callIdRef.current) {
+          // fall through below after re-check
+        } else if (msg.type !== "ice") {
+          return;
+        } else {
+          return;
+        }
+      }
 
       if (msg.type === "reject") {
         clearRingTimer();
         stopCallSounds();
         playCallTone("end");
         stopMediaTracks();
-        const kind: CallEventKind = msg.reason === "busy" ? "failed" : "declined";
-        // Peer already wrote the chat event when rejecting.
         callIdRef.current = null;
-        showSummary(kind, 0);
+        showSummary(msg.reason === "busy" ? "failed" : "declined", 0);
         return;
       }
 
@@ -367,58 +457,51 @@ export function CallProvider({ children }: { children: ReactNode }) {
         playCallTone("end");
         stopMediaTracks();
         const kind: CallEventKind =
-          statusRef.current === "ringing" || statusRef.current === "calling"
-            ? "missed"
-            : "ended";
-        // Peer who hung up / timed out already wrote the chat event.
+          statusRef.current === "ringing" || statusRef.current === "calling" ? "missed" : "ended";
         callIdRef.current = null;
         showSummary(kind, dur);
         return;
       }
 
       if (msg.type === "accept" && isCallerRef.current) {
-        beginConnected();
+        // Soft ack only — connection completes when answer SDP is applied.
+        if (remoteAnswerAppliedRef.current) beginConnected();
         return;
       }
 
-      if (msg.type === "answer" && isCallerRef.current && pcRef.current) {
-        try {
-          await pcRef.current.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-          beginConnected();
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Call failed");
-          setStatus("error");
+      if (msg.type === "ice") {
+        const pc = pcRef.current;
+        if (!pc) {
+          pendingIceRef.current.push(msg.candidate);
+          return;
         }
-        return;
-      }
-
-      if (msg.type === "ice" && pcRef.current) {
+        if (!pc.remoteDescription) {
+          pendingIceRef.current.push(msg.candidate);
+          return;
+        }
         try {
-          await pcRef.current.addIceCandidate(new RTCIceCandidate(msg.candidate));
+          await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
         } catch {
-          // ignore stale ICE
+          // ignore
         }
       }
     },
     [
+      applyRemoteAnswer,
+      attachMediaChannel,
       beginConnected,
       clearDurationTimer,
       clearRingTimer,
-      ensureMediaChannel,
       finishCall,
-      localAccountId,
       showSummary,
       stopMediaTracks,
     ]
   );
 
-  // Keep handleSignal stable for invite listener via ref
-  const handleSignalRef = useRef(handleSignal);
   useEffect(() => {
     handleSignalRef.current = handleSignal;
   }, [handleSignal]);
 
-  // Personal invite channel — rings even when the chat thread is not open
   useEffect(() => {
     if (!enabled || !localAccountId) return;
     let cancelled = false;
@@ -445,7 +528,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
   }, [enabled, localAccountId]);
 
-  // Pre-subscribe conversation media channels so offers arrive while ringing
   const registerConversation = useCallback(
     (conversationId: string) => {
       if (!enabled || !localAccountId || !conversationId) return;
@@ -465,22 +547,19 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!enabled || !localAccountId) return;
-
     let cancelled = false;
     void (async () => {
       try {
         const res = await fetch("/api/messages/conversations", { credentials: "include" });
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        const list = (data.conversations ?? []) as Array<{ id?: string }>;
-        for (const item of list) {
+        for (const item of (data.conversations ?? []) as Array<{ id?: string }>) {
           if (item.id) registerConversation(item.id);
         }
       } catch {
         // ignore
       }
     })();
-
     return () => {
       cancelled = true;
       for (const channel of conversationChannelsRef.current.values()) {
@@ -517,16 +596,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
         const callId = newCallId();
         callIdRef.current = callId;
         isCallerRef.current = true;
+        remoteAnswerAppliedRef.current = false;
+        pendingIceRef.current = [];
 
-        const mediaChannel = await subscribeCallSignalsReady(
-          buildCallChannelId(args.contextType, args.contextId),
-          localAccountId,
-          (msg) => {
-            void handleSignalRef.current(msg);
-          }
-        );
-        if (mediaChannelRef.current) unsubscribeCallSignals(mediaChannelRef.current);
-        mediaChannelRef.current = mediaChannel;
+        const mediaChannel = await attachMediaChannel(args.contextType, args.contextId);
 
         const pc = createPeerConnection(stream, (candidate) => {
           void sendCallSignal(mediaChannel, {
@@ -537,10 +610,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
           });
         });
 
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: args.mode === "video",
+        });
         await pc.setLocalDescription(offer);
+        const localOffer = pc.localDescription ?? offer;
 
-        // Ring peer on their personal channel (works even if chat is closed)
+        // Invite carries the offer SDP — callee can answer without a separate offer race.
         const peerInviteChannel = await subscribeCallSignalsReady(
           `vora-call:user:${args.peerAccountId}`,
           localAccountId
@@ -553,15 +630,16 @@ export function CallProvider({ children }: { children: ReactNode }) {
           mode: args.mode,
           contextType: args.contextType,
           contextId: args.contextId,
+          sdp: localOffer,
         });
         unsubscribeCallSignals(peerInviteChannel);
 
-        // SDP / ICE stay on the conversation media channel
+        // Also publish on media channel for ICE / redundancy
         await sendCallSignal(mediaChannel, {
           type: "offer",
           callId,
           from: localAccountId,
-          sdp: offer,
+          sdp: localOffer,
         });
 
         setStatus("calling");
@@ -569,9 +647,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
         clearRingTimer();
         ringTimerRef.current = setTimeout(() => {
-          if (statusRef.current === "calling") {
-            void finishCall("missed", true);
-          }
+          if (statusRef.current === "calling") void finishCall("missed", true);
         }, RING_TIMEOUT_MS);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not access camera/microphone");
@@ -580,10 +656,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }
     },
     [
+      attachMediaChannel,
       clearRingTimer,
       createPeerConnection,
       enabled,
-      ensureMediaChannel,
       finishCall,
       localAccountId,
       registerConversation,
@@ -593,25 +669,24 @@ export function CallProvider({ children }: { children: ReactNode }) {
   );
 
   const acceptCall = useCallback(async () => {
+    if (acceptingRef.current) return;
     const activeCallId = callIdRef.current;
-    const offer = pendingOfferRef.current;
     if (statusRef.current !== "ringing" || !activeCallId || !contextIdRef.current) return;
 
-    // Wait briefly if offer hasn't arrived yet
-    let sdp = offer;
-    if (!sdp) {
-      for (let i = 0; i < 20 && !sdp; i += 1) {
+    acceptingRef.current = true;
+    try {
+      let sdp = pendingOfferRef.current;
+      for (let i = 0; i < 30 && !sdp; i += 1) {
         await new Promise((r) => setTimeout(r, 100));
         sdp = pendingOfferRef.current;
       }
-    }
-    if (!sdp) {
-      setError("Call signal incomplete — try again");
-      setStatus("error");
-      return;
-    }
+      if (!sdp) {
+        setError("تعذر استلام إشارة الاتصال — أعد المحاولة");
+        setStatus("error");
+        acceptingRef.current = false;
+        return;
+      }
 
-    try {
       stopCallSounds();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -620,11 +695,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
       localStreamRef.current = stream;
       setLocalStream(stream);
 
-      const mediaChannel =
-        mediaChannelRef.current ??
-        ensureMediaChannel(contextType, contextIdRef.current, (msg) => {
-          void handleSignalRef.current(msg);
-        });
+      const mediaChannel = await attachMediaChannel(
+        contextTypeRef.current,
+        contextIdRef.current
+      );
+
+      // Close any leftover PC
+      pcRef.current?.close();
+      pcRef.current = null;
 
       const pc = createPeerConnection(stream, (candidate) => {
         void sendCallSignal(mediaChannel, {
@@ -633,18 +711,57 @@ export function CallProvider({ children }: { children: ReactNode }) {
           from: localAccountId,
           candidate,
         });
+        // Also send ICE to caller's personal channel as backup
+        if (peerAccountIdRef.current) {
+          void (async () => {
+            const ch = await subscribeCallSignalsReady(
+              `vora-call:user:${peerAccountIdRef.current}`,
+              localAccountId
+            );
+            await sendCallSignal(ch, {
+              type: "ice",
+              callId: activeCallId,
+              from: localAccountId,
+              candidate,
+            });
+            unsubscribeCallSignals(ch);
+          })();
+        }
       });
 
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      await flushIce();
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      const localAnswer = pc.localDescription ?? answer;
 
       await sendCallSignal(mediaChannel, {
         type: "answer",
         callId: activeCallId,
         from: localAccountId,
-        sdp: answer,
+        sdp: localAnswer,
       });
+
+      // Deliver answer on caller's personal channel so it is never missed
+      if (peerAccountIdRef.current) {
+        const callerChannel = await subscribeCallSignalsReady(
+          `vora-call:user:${peerAccountIdRef.current}`,
+          localAccountId
+        );
+        await sendCallSignal(callerChannel, {
+          type: "answer",
+          callId: activeCallId,
+          from: localAccountId,
+          sdp: localAnswer,
+        });
+        await sendCallSignal(callerChannel, {
+          type: "accept",
+          callId: activeCallId,
+          from: localAccountId,
+        });
+        unsubscribeCallSignals(callerChannel);
+      }
+
       await sendCallSignal(mediaChannel, {
         type: "accept",
         callId: activeCallId,
@@ -658,36 +775,34 @@ export function CallProvider({ children }: { children: ReactNode }) {
       setError(err instanceof Error ? err.message : "Could not answer call");
       setStatus("error");
       stopMediaTracks();
+    } finally {
+      acceptingRef.current = false;
     }
   }, [
+    attachMediaChannel,
     beginConnected,
-    contextType,
     createPeerConnection,
-    ensureMediaChannel,
+    flushIce,
     localAccountId,
     stopMediaTracks,
   ]);
 
   const rejectCall = useCallback(async () => {
     const callId = callIdRef.current;
-    if (callId && mediaChannelRef.current) {
-      await sendCallSignal(mediaChannelRef.current, {
-        type: "reject",
-        callId,
-        from: localAccountId,
-        reason: "declined",
-      });
-    }
-    // Also notify via peer user channel if media channel missing
-    if (callId && peerAccountId) {
-      const ch = subscribeCallSignals(`vora-call:user:${peerAccountId}`, localAccountId, () => undefined);
-      await sendCallSignal(ch, {
-        type: "reject",
-        callId,
-        from: localAccountId,
-        reason: "declined",
-      });
-      unsubscribeCallSignals(ch);
+    const payload: CallSignalPayload | null = callId
+      ? { type: "reject", callId, from: localAccountId, reason: "declined" }
+      : null;
+
+    if (payload) {
+      await sendCallSignal(mediaChannelRef.current, payload);
+      if (peerAccountIdRef.current) {
+        const ch = await subscribeCallSignalsReady(
+          `vora-call:user:${peerAccountIdRef.current}`,
+          localAccountId
+        );
+        await sendCallSignal(ch, payload);
+        unsubscribeCallSignals(ch);
+      }
     }
 
     clearRingTimer();
@@ -697,7 +812,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     await postCallChatEvent(contextIdRef.current, "declined", modeRef.current, 0);
     callIdRef.current = null;
     showSummary("declined", 0);
-  }, [clearRingTimer, localAccountId, peerAccountId, showSummary, stopMediaTracks]);
+  }, [clearRingTimer, localAccountId, showSummary, stopMediaTracks]);
 
   const endCall = useCallback(async () => {
     if (statusRef.current === "calling") {
@@ -708,8 +823,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
       await rejectCall();
       return;
     }
+    if (statusRef.current === "error") {
+      resetToIdle();
+      return;
+    }
     await finishCall("ended", true);
-  }, [finishCall, rejectCall]);
+  }, [finishCall, rejectCall, resetToIdle]);
 
   const toggleMute = useCallback(() => {
     localStreamRef.current?.getAudioTracks().forEach((t) => {
@@ -736,7 +855,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
       clearDurationTimer();
       stopCallSounds();
       stopMediaTracks();
-      unsubscribeCallSignals(mediaChannelRef.current);
       unsubscribeCallSignals(userChannelRef.current);
     };
   }, [clearDurationTimer, clearRingTimer, stopMediaTracks]);
@@ -825,9 +943,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
 export function useCall(): CallContextValue {
   const ctx = useContext(CallContext);
-  if (!ctx) {
-    throw new Error("useCall must be used within CallProvider");
-  }
+  if (!ctx) throw new Error("useCall must be used within CallProvider");
   return ctx;
 }
 
