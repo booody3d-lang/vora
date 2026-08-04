@@ -34,11 +34,32 @@ function mapRowToRelationship(row: DbConnectionRow): FollowRelationship {
   };
 }
 
+async function accountExistsInSupabase(accountId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", accountId)
+    .maybeSingle();
+  if (profile) return true;
+
+  const { data: account } = await admin
+    .from("accounts")
+    .select("id")
+    .eq("id", accountId)
+    .maybeSingle();
+  return Boolean(account);
+}
+
 export async function requestFollowInSupabase(input: {
   followerAccountId: string;
   targetId: string;
 }): Promise<{ ok: true; relationship: FollowRelationship } | { ok: false; error: string }> {
-  if (!getProfileByAccountId(input.targetId)) {
+  // Production users live in Supabase profiles/accounts — do not require local JSON cache.
+  const exists =
+    Boolean(getProfileByAccountId(input.targetId)) ||
+    (await accountExistsInSupabase(input.targetId));
+  if (!exists) {
     return { ok: false, error: "User not found" };
   }
 

@@ -19,12 +19,13 @@ export function isMissingColumnError(error: SupabaseDbErrorLike | null | undefin
 export function isMissingRelationError(error: SupabaseDbErrorLike | null | undefined): boolean {
   if (!error) return false;
   const message = (error.message ?? error.details ?? "").toLowerCase();
+  // Keep this narrow — bare "does not exist" also matches missing *columns* (42703)
+  // and must not disable social/search reads.
   return (
     error.code === "PGRST205" ||
     error.code === "42P01" ||
     message.includes("could not find the table") ||
-    message.includes("does not exist") ||
-    message.includes("relation") && message.includes("does not exist")
+    (message.includes("relation") && message.includes("does not exist"))
   );
 }
 

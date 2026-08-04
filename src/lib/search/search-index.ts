@@ -15,7 +15,6 @@ import {
   listLinkedAccounts,
 } from "@/lib/profile/profile-store";
 import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
-import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
 import { isMissingColumnError, isMissingRelationError } from "@/lib/supabase/safe-db";
 
 const INDEX_FILE = "search-index.json";
@@ -59,7 +58,9 @@ function buildTokenIndex(entries: SearchIndexEntry[]): Record<string, string[]> 
 }
 
 async function collectProfilesFromSupabase(): Promise<SearchIndexEntry[]> {
-  if (!isSupabasePersistenceEnabled() || !isAdminClientAvailable()) return [];
+  // Bypass isSupabasePersistenceEnabled()/dbSyncAvailable — search must always
+  // read production profiles when the admin client is configured.
+  if (!isAdminClientAvailable()) return [];
 
   try {
     const admin = createAdminClient();
@@ -339,7 +340,6 @@ export async function searchIndex(
   if (
     results.length === 0 &&
     (!options?.type || options.type === "profile") &&
-    isSupabasePersistenceEnabled() &&
     isAdminClientAvailable()
   ) {
     try {

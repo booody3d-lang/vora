@@ -1,7 +1,8 @@
 import "server-only";
 
 import { readJsonStore, writeJsonStore } from "@/lib/storage/json-store";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, isAdminClientAvailable } from "@/lib/supabase/admin";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { isSupabasePersistenceEnabled } from "@/lib/supabase/profile-persistence";
 import {
   isMissingRelationError,
@@ -76,38 +77,45 @@ interface SocialDataFile {
   follows: FollowRelationship[];
 }
 
-let socialTableProbed = false;
-let socialTableAvailable = false;
-let socialTableLastProbeAt = 0;
-const SOCIAL_PROBE_RETRY_MS = 30_000;
+let socialTableAvailable: boolean | null = null;
+let socialProbeInFlight: Promise<boolean> | null = null;
+let socialTableLastFailAt = 0;
+const SOCIAL_PROBE_RETRY_MS = 15_000;
 
 async function isSocialSupabaseReady(): Promise<boolean> {
-  if (!isSupabasePersistenceEnabled()) return false;
-  const now = Date.now();
-  // Cache successes; retry failures so a transient probe does not break the lambda for its lifetime.
-  if (socialTableProbed && socialTableAvailable) return true;
-  if (socialTableProbed && !socialTableAvailable && now - socialTableLastProbeAt < SOCIAL_PROBE_RETRY_MS) {
+  // Do NOT gate on isSupabasePersistenceEnabled()/dbSyncAvailable — optional-table
+  // failures elsewhere must never block connections reads for followers/messaging.
+  if (!isSupabaseConfigured() || !isAdminClientAvailable()) return false;
+  if (socialTableAvailable === true) return true;
+  if (
+    socialTableAvailable === false &&
+    Date.now() - socialTableLastFailAt < SOCIAL_PROBE_RETRY_MS
+  ) {
     return false;
   }
+  if (socialProbeInFlight) return socialProbeInFlight;
 
-  socialTableProbed = true;
-  socialTableLastProbeAt = now;
-  try {
-    const admin = createAdminClient();
-    const { error } = await admin.from("connections").select("id").limit(1);
-    if (error) {
-      if (isMissingRelationError(error)) {
-        markSupabaseDbSyncUnavailable("connections missing", error);
+  socialProbeInFlight = (async () => {
+    try {
+      const admin = createAdminClient();
+      const { error } = await admin.from("connections").select("id").limit(1);
+      if (error) {
+        socialTableAvailable = false;
+        socialTableLastFailAt = Date.now();
+        return false;
       }
+      socialTableAvailable = true;
+      return true;
+    } catch {
       socialTableAvailable = false;
+      socialTableLastFailAt = Date.now();
       return false;
+    } finally {
+      socialProbeInFlight = null;
     }
-    socialTableAvailable = true;
-    return true;
-  } catch {
-    socialTableAvailable = false;
-    return false;
-  }
+  })();
+
+  return socialProbeInFlight;
 }
 
 function readData(): SocialDataFile {
@@ -213,17 +221,23 @@ export async function requestFollow(input: {
     return jsonResult;
   }
 
-  if (!getProfileByAccountId(input.targetId)) {
-    return { ok: false, error: "User not found" };
-  }
-
   if (await isSocialSupabaseReady()) {
     await maybeMigrateJsonToSupabase();
-    return runOptionalDbSync(
-      "requestFollow",
-      () => requestFollowInSupabase(input),
-      requestFollowJson(input)
-    );
+    try {
+      return await requestFollowInSupabase(input);
+    } catch (error) {
+      if (isMissingRelationError(error as { message?: string; code?: string })) {
+        return requestFollowJson(input);
+      }
+      console.error("[social-store] requestFollow failed:", error);
+      const jsonResult = requestFollowJson(input);
+      if (jsonResult.ok) return jsonResult;
+      throw error;
+    }
+  }
+
+  if (!getProfileByAccountId(input.targetId)) {
+    return { ok: false, error: "User not found" };
   }
 
   return requestFollowJson(input);
