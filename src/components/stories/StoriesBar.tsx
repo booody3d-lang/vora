@@ -199,7 +199,24 @@ export function StoriesBar({
       {active && (
         <StoryViewer
           group={active}
+          isOwner={
+            (active.ownerType === "user" && active.ownerId === user?.id) ||
+            (active.ownerType === "company" &&
+              ownerType === "company" &&
+              active.ownerId === ownerId)
+          }
+          canInteract={Boolean(user)}
           onClose={() => setActive(null)}
+          onDeleted={(storyId) => {
+            setGroups((prev) =>
+              prev
+                .map((g) => ({
+                  ...g,
+                  stories: g.stories.filter((s) => s.id !== storyId),
+                }))
+                .filter((g) => g.stories.length > 0)
+            );
+          }}
           onExhausted={() => {
             setGroups((prev) =>
               prev.map((g) =>

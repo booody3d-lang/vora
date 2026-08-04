@@ -22,7 +22,15 @@ import type {
   CreateStoryInput,
   StoryItem,
   StoryOwnerGroup,
+  StoryReactionEmoji,
+  StoryViewerRow,
 } from "@/types/albums-stories";
+import { encodeStoryReply } from "@/lib/albums-stories/story-reply-events";
+import {
+  getOrCreateConversation,
+  sendMessage,
+} from "@/lib/network/messaging-store";
+import type { MessageAttachment } from "@/types/network";
 
 const ALBUMS_FILE = "albums.json";
 const PHOTOS_FILE = "album-photos.json";
@@ -542,14 +550,13 @@ export async function listActiveStoriesForOwner(
       const visible: StoryItem[] = [];
       for (const story of remote) {
         if (await canViewOwnedContent(viewerId, ownerType, ownerId, story.visibility)) {
-          visible.push(story);
+          visible.push(await enrichStory(story, viewerId));
         }
       }
       return visible;
     }
   }
 
-  const views = readStoryViews();
   const stories = readStories()
     .filter(
       (s) => s.ownerType === ownerType && s.ownerId === ownerId && isStoryActive(s)
@@ -559,12 +566,7 @@ export async function listActiveStoriesForOwner(
   const visible: StoryItem[] = [];
   for (const story of stories) {
     if (!(await canViewOwnedContent(viewerId, ownerType, ownerId, story.visibility))) continue;
-    visible.push({
-      ...story,
-      viewedByMe: viewerId
-        ? views.some((v) => v.storyId === story.id && v.viewerId === viewerId)
-        : false,
-    });
+    visible.push(await enrichStory(story, viewerId));
   }
   return visible;
 }
@@ -649,6 +651,7 @@ export async function deleteStory(
   if (isSupabaseConfigured()) await sb.deleteStoryInSupabase(storyId);
   writeStories(readStories().filter((s) => s.id !== storyId));
   writeStoryViews(readStoryViews().filter((v) => v.storyId !== storyId));
+  writeReactions(readReactions().filter((r) => r.storyId !== storyId));
   return { ok: true };
 }
 
@@ -691,4 +694,203 @@ export async function ownerHasActiveStory(
 ): Promise<boolean> {
   const stories = await listActiveStoriesForOwner(ownerType, ownerId, viewerId);
   return stories.length > 0;
+}
+
+const REACTIONS_FILE = "story-reactions.json";
+
+interface StoryReactionRow {
+  id: string;
+  storyId: string;
+  accountId: string;
+  emoji: StoryReactionEmoji;
+  createdAt: string;
+}
+
+function readReactions(): StoryReactionRow[] {
+  return readJsonStore<StoryReactionRow[]>(REACTIONS_FILE, () => []);
+}
+function writeReactions(rows: StoryReactionRow[]) {
+  writeJsonStore(REACTIONS_FILE, rows);
+}
+
+async function getStoryForActor(storyId: string): Promise<StoryItem | null> {
+  if (isSupabaseConfigured()) {
+    const remote = await sb.getStoryInSupabase(storyId);
+    if (remote) return remote;
+  }
+  return readStories().find((s) => s.id === storyId) ?? null;
+}
+
+export async function enrichStory(
+  story: StoryItem,
+  viewerId?: string | null
+): Promise<StoryItem> {
+  if (isSupabaseConfigured()) {
+    const remote = await sb.enrichStoryEngagementInSupabase(story, viewerId);
+    if (remote.viewCount != null || remote.reactions) return remote;
+  }
+  const views = readStoryViews().filter((v) => v.storyId === story.id);
+  const reactions = readReactions().filter((r) => r.storyId === story.id);
+  const counts: NonNullable<StoryItem["reactions"]> = {};
+  for (const r of reactions) {
+    counts[r.emoji] = (counts[r.emoji] ?? 0) + 1;
+  }
+  return {
+    ...story,
+    viewCount: views.length,
+    reactions: counts,
+    myReaction: viewerId
+      ? reactions.find((r) => r.accountId === viewerId)?.emoji ?? null
+      : null,
+    viewedByMe: viewerId
+      ? views.some((v) => v.viewerId === viewerId)
+      : story.viewedByMe,
+  };
+}
+
+export async function setStoryReaction(
+  storyId: string,
+  actorId: string,
+  emoji: StoryReactionEmoji | null
+): Promise<
+  | { ok: true; reactions: NonNullable<StoryItem["reactions"]>; myReaction: StoryItem["myReaction"] }
+  | { ok: false; error: string }
+> {
+  const story = await getStoryForActor(storyId);
+  if (!story || !isStoryActive(story)) return { ok: false, error: "Story not found" };
+  if (!(await canViewOwnedContent(actorId, story.ownerType, story.ownerId, story.visibility))) {
+    return { ok: false, error: "Forbidden" };
+  }
+  if (!(await canInteractWithOwnedContent(actorId, story.ownerType, story.ownerId))) {
+    return { ok: false, error: "Only followers can react to stories" };
+  }
+
+  if (isSupabaseConfigured()) {
+    const remote = await sb.setStoryReactionInSupabase(storyId, actorId, emoji);
+    if (remote) return { ok: true, ...remote };
+  }
+
+  let rows = readReactions().filter(
+    (r) => !(r.storyId === storyId && r.accountId === actorId)
+  );
+  if (emoji) {
+    rows = [
+      ...rows,
+      {
+        id: randomUUID(),
+        storyId,
+        accountId: actorId,
+        emoji,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  }
+  writeReactions(rows);
+  const counts: NonNullable<StoryItem["reactions"]> = {};
+  for (const r of rows.filter((x) => x.storyId === storyId)) {
+    counts[r.emoji] = (counts[r.emoji] ?? 0) + 1;
+  }
+  return { ok: true, reactions: counts, myReaction: emoji };
+}
+
+export async function listStoryViewers(
+  storyId: string,
+  actorId: string
+): Promise<{ ok: true; viewers: StoryViewerRow[] } | { ok: false; error: string }> {
+  const story = await getStoryForActor(storyId);
+  if (!story) return { ok: false, error: "Story not found" };
+  if (!(await isOwnerOfContent(actorId, story.ownerType, story.ownerId))) {
+    return { ok: false, error: "Forbidden" };
+  }
+
+  if (isSupabaseConfigured()) {
+    const remote = await sb.listStoryViewersInSupabase(storyId);
+    if (remote) {
+      return {
+        ok: true,
+        viewers: remote.map((v) => ({
+          accountId: v.accountId,
+          displayName: v.displayName,
+          viewedAt: v.viewedAt,
+          reaction: (v.reaction as StoryReactionEmoji | null) ?? null,
+        })),
+      };
+    }
+  }
+
+  const views = readStoryViews()
+    .filter((v) => v.storyId === storyId)
+    .sort((a, b) => b.viewedAt.localeCompare(a.viewedAt));
+  const reactions = readReactions().filter((r) => r.storyId === storyId);
+  const viewers: StoryViewerRow[] = [];
+  for (const view of views) {
+    const meta = await resolveOwnerMeta("user", view.viewerId);
+    viewers.push({
+      accountId: view.viewerId,
+      displayName: meta.displayName,
+      avatarUrl: meta.avatarUrl,
+      viewedAt: view.viewedAt,
+      reaction: reactions.find((r) => r.accountId === view.viewerId)?.emoji ?? null,
+    });
+  }
+  return { ok: true, viewers };
+}
+
+async function resolveStoryOwnerAccountId(
+  ownerType: ContentOwnerType,
+  ownerId: string
+): Promise<string | null> {
+  if (ownerType === "user") return ownerId;
+  if (isSupabaseConfigured()) {
+    const id = await sb.resolveCompanyOwnerAccountId(ownerId);
+    if (id) return id;
+  }
+  // Reverse lookup via getCompanyByAccountId is not available; owner replies for
+  // company stories require the companies.owner_account_id column in Supabase.
+  return null;
+}
+
+export async function replyToStory(
+  storyId: string,
+  actorId: string,
+  text: string
+): Promise<{ ok: true; conversationId: string } | { ok: false; error: string }> {
+  const story = await getStoryForActor(storyId);
+  if (!story || !isStoryActive(story)) return { ok: false, error: "Story not found" };
+  if (!(await canViewOwnedContent(actorId, story.ownerType, story.ownerId, story.visibility))) {
+    return { ok: false, error: "Forbidden" };
+  }
+  if (!(await canInteractWithOwnedContent(actorId, story.ownerType, story.ownerId))) {
+    return { ok: false, error: "Only followers can reply to stories" };
+  }
+  if (!text.trim()) return { ok: false, error: "Reply text is required" };
+
+  const targetAccountId = await resolveStoryOwnerAccountId(story.ownerType, story.ownerId);
+  if (!targetAccountId) return { ok: false, error: "Could not resolve story owner" };
+  if (targetAccountId === actorId) {
+    return { ok: false, error: "Cannot reply to your own story" };
+  }
+
+  const conv = await getOrCreateConversation(actorId, targetAccountId);
+  if (!conv) {
+    return { ok: false, error: "Messaging is not available with this account" };
+  }
+
+  const content = encodeStoryReply({
+    storyId: story.id,
+    mediaUrl: story.mediaUrl,
+    mediaType: story.mediaType,
+    text: text.trim(),
+  });
+  const file: MessageAttachment = {
+    url: story.mediaUrl,
+    name: story.mediaType === "video" ? "story.mp4" : "story.jpg",
+    size: 0,
+    mimeType: story.mimeType,
+    mediaType: story.mediaType === "video" ? "video" : "image",
+    durationSeconds: story.durationSeconds,
+  };
+  const msg = await sendMessage(actorId, conv.id, content, file);
+  if (!msg) return { ok: false, error: "Failed to send reply" };
+  return { ok: true, conversationId: conv.id };
 }

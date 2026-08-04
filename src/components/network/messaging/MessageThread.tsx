@@ -4,11 +4,13 @@ import { useEffect, useRef } from "react";
 import type { ChatMessage, ConversationPreview, MessageAttachment } from "@/types/network";
 import { CallControls } from "@/components/calls/CallControls";
 import { CallEventBubble } from "@/components/calls/CallEventBubble";
+import { StoryReplyBubble } from "@/components/stories/StoryReplyBubble";
 import { MessageInput } from "@/components/network/messaging/MessageInput";
 import { ChatMessageMedia } from "@/components/network/messaging/ChatMessageMedia";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PresenceIndicator } from "@/components/ui/PresenceIndicator";
 import { parseCallEvent } from "@/lib/calls/call-events";
+import { parseStoryReply } from "@/lib/albums-stories/story-reply-events";
 import { useCurrentProfile } from "@/hooks/use-current-profile";
 import { useCallOptional } from "@/providers/CallProvider";
 import { getProfileUrl } from "@/lib/network/urls";
@@ -114,7 +116,37 @@ export function MessageThread({
                 );
               }
 
+              const storyReply = parseStoryReply(msg.content);
               const isOwn = msg.senderId === currentUserId;
+
+              if (storyReply) {
+                return (
+                  <li
+                    key={msg.id}
+                    className={`flex items-end gap-2 ${isOwn ? "justify-end" : "justify-start"}`}
+                  >
+                    {!isOwn && (
+                      <UserAvatar
+                        photoUrl={conversation.participant.profilePhotoUrl}
+                        gender={conversation.participant.gender}
+                        name={conversation.participant.fullName}
+                        className="h-8 w-8 shrink-0"
+                      />
+                    )}
+                    <div className="max-w-[min(85%,360px)]">
+                      <StoryReplyBubble event={storyReply} isOwn={isOwn} />
+                      <p
+                        className={`mt-1 flex items-center gap-1 px-1 text-[10px] ${
+                          isOwn ? "justify-end text-slate-400" : "text-slate-400"
+                        }`}
+                      >
+                        <span>{formatMessageTime(msg.createdAt)}</span>
+                      </p>
+                    </div>
+                  </li>
+                );
+              }
+
               return (
                 <li
                   key={msg.id}

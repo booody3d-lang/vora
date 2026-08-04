@@ -61,6 +61,8 @@ export function CompanyPageView({
                 avatarUrl={company.logoUrl}
                 slug={company.slug}
                 className="-mt-10 md:-mt-12"
+                isOwner={isOwner}
+                canInteract={isOwner || initiallyFollowing}
               >
                 {company.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element

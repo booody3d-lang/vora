@@ -2,6 +2,7 @@ import type { ConversationPreview } from "@/types/network";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PresenceIndicator } from "@/components/ui/PresenceIndicator";
 import { callEventLabelKey, parseCallEvent } from "@/lib/calls/call-events";
+import { parseStoryReply } from "@/lib/albums-stories/story-reply-events";
 import { useTranslations } from "@/i18n/use-translations";
 import { cn } from "@/lib/utils";
 
@@ -44,9 +45,12 @@ export function ConversationList({
       {conversations.map((conv) => {
         const hasUnread = conv.unreadCount > 0;
         const callEvent = parseCallEvent(conv.lastMessage);
+        const storyReply = parseStoryReply(conv.lastMessage);
         const preview = callEvent
           ? `${callEvent.mode === "video" ? "📹" : "🎙️"} ${t(callEventLabelKey(callEvent.kind))}`
-          : conv.lastMessage;
+          : storyReply
+            ? `↩️ ${t("stories.repliedToStory")}`
+            : conv.lastMessage;
         return (
           <li key={conv.id}>
             <button

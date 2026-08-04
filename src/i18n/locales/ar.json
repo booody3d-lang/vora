@@ -1261,7 +1261,16 @@
     "comments": "تعليقات",
     "comment": "تعليق",
     "commentPlaceholder": "اكتب تعليقاً…",
-    "followersOnlyInteract": "يُسمح للمتابعين فقط بالإعجاب أو التعليق على صور الألبوم."
+    "followersOnlyInteract": "يُسمح للمتابعين فقط بالإعجاب أو التعليق على صور الألبوم.",
+    "rename": "إعادة تسمية",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "deleteAlbum": "حذف الألبوم",
+    "deletePhoto": "حذف الصورة",
+    "confirmDeleteAlbum": "حذف هذا الألبوم وجميع صوره؟",
+    "confirmDeletePhoto": "حذف هذه الصورة من الألبوم؟",
+    "open": "فتح",
+    "close": "إغلاق"
   },
   "stories": {
     "title": "القصص",
@@ -1271,7 +1280,19 @@
     "expiresIn24h": "تختفي خلال 24 ساعة",
     "visibilityPublic": "عام",
     "visibilityFollowers": "المتابعون فقط",
-    "unsupportedMedia": "استخدم صورة أو فيديو بحد أقصى 15 ثانية."
+    "unsupportedMedia": "استخدم صورة أو فيديو بحد أقصى 15 ثانية.",
+    "delete": "حذف القصة",
+    "viewers": "المشاهدون",
+    "views": "مشاهدة",
+    "noViewers": "لا مشاهدين بعد",
+    "cancel": "إلغاء",
+    "close": "إغلاق",
+    "reply": "إرسال",
+    "replyPlaceholder": "الرد على القصة…",
+    "replySent": "تم إرسال الرد إلى المراسلة",
+    "followersOnly": "يُسمح للمتابعين فقط بالتفاعل أو الرد",
+    "repliedToStory": "رد على قصتك",
+    "replyKeepsThumbnail": "تبقى الصورة المصغرة حتى بعد انتهاء القصة"
   },
   "calls": {
     "startVideo": "مكالمة فيديو",

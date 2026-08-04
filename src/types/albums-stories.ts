@@ -1,6 +1,7 @@
 export type ContentOwnerType = "user" | "company";
 export type ContentVisibility = "public" | "followers_only";
 export type StoryMediaType = "image" | "video";
+export type StoryReactionEmoji = "like" | "love" | "laugh" | "wow" | "sad" | "fire";
 
 export interface Album {
   id: string;
@@ -49,6 +50,17 @@ export interface StoryItem {
   expiresAt: string;
   createdAt: string;
   viewedByMe?: boolean;
+  viewCount?: number;
+  reactions?: Partial<Record<StoryReactionEmoji, number>>;
+  myReaction?: StoryReactionEmoji | null;
+}
+
+export interface StoryViewerRow {
+  accountId: string;
+  displayName: string;
+  avatarUrl?: string;
+  viewedAt: string;
+  reaction?: StoryReactionEmoji | null;
 }
 
 export interface StoryOwnerGroup {
@@ -78,3 +90,12 @@ export interface CreateStoryInput {
   durationSeconds?: number;
   visibility: ContentVisibility;
 }
+
+export const STORY_REACTION_EMOJI: Record<StoryReactionEmoji, string> = {
+  like: "👍",
+  love: "❤️",
+  laugh: "😂",
+  wow: "😮",
+  sad: "😢",
+  fire: "🔥",
+};

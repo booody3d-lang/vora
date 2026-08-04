@@ -73,6 +73,8 @@ export function ProfileHeader({
                 gender={profile.gender}
                 slug={profile.slug}
                 className="-mt-12 md:-mt-14"
+                isOwner={Boolean(isOwnProfile)}
+                canInteract={Boolean(initiallyAccepted || isOwnProfile)}
               >
                 <UserAvatar
                   photoUrl={profile.profilePhotoUrl}

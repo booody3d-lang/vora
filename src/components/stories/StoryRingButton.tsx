@@ -13,6 +13,8 @@ interface StoryRingButtonProps {
   gender?: "male" | "female" | null;
   slug?: string;
   className?: string;
+  isOwner?: boolean;
+  canInteract?: boolean;
   children: ReactNode;
 }
 
@@ -24,6 +26,8 @@ export function StoryRingButton({
   gender,
   slug,
   className,
+  isOwner = false,
+  canInteract = false,
   children,
 }: StoryRingButtonProps) {
   const [group, setGroup] = useState<StoryOwnerGroup | null>(null);
@@ -84,7 +88,13 @@ export function StoryRingButton({
       {open && group && (
         <StoryViewer
           group={group}
+          isOwner={isOwner}
+          canInteract={canInteract || isOwner}
           onClose={() => setOpen(false)}
+          onDeleted={() => {
+            setHasActive(false);
+            setOpen(false);
+          }}
           onExhausted={() => {
             setHasUnseen(false);
             setOpen(false);

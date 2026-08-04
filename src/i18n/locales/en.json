@@ -1261,7 +1261,16 @@
     "comments": "comments",
     "comment": "Comment",
     "commentPlaceholder": "Write a comment…",
-    "followersOnlyInteract": "Only followers can like or comment on album photos."
+    "followersOnlyInteract": "Only followers can like or comment on album photos.",
+    "rename": "Rename",
+    "save": "Save",
+    "cancel": "Cancel",
+    "deleteAlbum": "Delete album",
+    "deletePhoto": "Delete photo",
+    "confirmDeleteAlbum": "Delete this album and all its photos?",
+    "confirmDeletePhoto": "Delete this photo from the album?",
+    "open": "Open",
+    "close": "Close"
   },
   "stories": {
     "title": "Stories",
@@ -1271,7 +1280,19 @@
     "expiresIn24h": "Disappears in 24 hours",
     "visibilityPublic": "Public",
     "visibilityFollowers": "Followers only",
-    "unsupportedMedia": "Use an image or a video up to 15 seconds."
+    "unsupportedMedia": "Use an image or a video up to 15 seconds.",
+    "delete": "Delete story",
+    "viewers": "Viewers",
+    "views": "views",
+    "noViewers": "No viewers yet",
+    "cancel": "Cancel",
+    "close": "Close",
+    "reply": "Send",
+    "replyPlaceholder": "Reply to story…",
+    "replySent": "Reply sent to messages",
+    "followersOnly": "Only followers can react or reply",
+    "repliedToStory": "Replied to your story",
+    "replyKeepsThumbnail": "Thumbnail stays even after the story ends"
   },
   "calls": {
     "startVideo": "Video call",

@@ -543,3 +543,151 @@ export async function purgeExpiredStoriesInSupabase(): Promise<number> {
   }
   return data?.length ?? 0;
 }
+
+export async function enrichStoryEngagementInSupabase(
+  story: StoryItem,
+  viewerId?: string | null
+): Promise<StoryItem> {
+  if (tablesMissing) return story;
+  const admin = createAdminClient();
+
+  const [{ count: viewCount }, { data: reactions }, myReaction] = await Promise.all([
+    admin
+      .from("story_views")
+      .select("id", { count: "exact", head: true })
+      .eq("story_id", story.id),
+    admin.from("story_reactions").select("emoji").eq("story_id", story.id),
+    viewerId
+      ? admin
+          .from("story_reactions")
+          .select("emoji")
+          .eq("story_id", story.id)
+          .eq("account_id", viewerId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const reactionCounts: NonNullable<StoryItem["reactions"]> = {};
+  for (const row of reactions ?? []) {
+    const key = row.emoji as keyof NonNullable<StoryItem["reactions"]>;
+    reactionCounts[key] = (reactionCounts[key] ?? 0) + 1;
+  }
+
+  return {
+    ...story,
+    viewCount: viewCount ?? 0,
+    reactions: reactionCounts,
+    myReaction: (myReaction.data?.emoji as StoryItem["myReaction"]) ?? null,
+  };
+}
+
+export async function setStoryReactionInSupabase(
+  storyId: string,
+  accountId: string,
+  emoji: string | null
+): Promise<{
+  reactions: NonNullable<StoryItem["reactions"]>;
+  myReaction: StoryItem["myReaction"];
+} | null> {
+  if (tablesMissing) return null;
+  const admin = createAdminClient();
+
+  await admin
+    .from("story_reactions")
+    .delete()
+    .eq("story_id", storyId)
+    .eq("account_id", accountId);
+
+  if (emoji) {
+    const { error } = await admin.from("story_reactions").insert({
+      story_id: storyId,
+      account_id: accountId,
+      emoji,
+    });
+    if (error) {
+      markMissing(error);
+      return null;
+    }
+  }
+
+  const { data: reactions } = await admin
+    .from("story_reactions")
+    .select("emoji")
+    .eq("story_id", storyId);
+  const reactionCounts: NonNullable<StoryItem["reactions"]> = {};
+  for (const row of reactions ?? []) {
+    const key = row.emoji as keyof NonNullable<StoryItem["reactions"]>;
+    reactionCounts[key] = (reactionCounts[key] ?? 0) + 1;
+  }
+  return {
+    reactions: reactionCounts,
+    myReaction: (emoji as StoryItem["myReaction"]) ?? null,
+  };
+}
+
+export async function listStoryViewersInSupabase(
+  storyId: string
+): Promise<
+  | {
+      accountId: string;
+      displayName: string;
+      viewedAt: string;
+      reaction?: string | null;
+    }[]
+  | null
+> {
+  if (tablesMissing) return null;
+  const admin = createAdminClient();
+  const { data: views, error } = await admin
+    .from("story_views")
+    .select("viewer_id, viewed_at")
+    .eq("story_id", storyId)
+    .order("viewed_at", { ascending: false });
+  if (error) {
+    markMissing(error);
+    return null;
+  }
+
+  const { data: reactions } = await admin
+    .from("story_reactions")
+    .select("account_id, emoji")
+    .eq("story_id", storyId);
+  const reactionByAccount = new Map(
+    (reactions ?? []).map((r) => [String(r.account_id), String(r.emoji)])
+  );
+
+  const rows: {
+    accountId: string;
+    displayName: string;
+    viewedAt: string;
+    reaction?: string | null;
+  }[] = [];
+
+  for (const view of views ?? []) {
+    const accountId = String(view.viewer_id);
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("full_name")
+      .eq("id", accountId)
+      .maybeSingle();
+    rows.push({
+      accountId,
+      displayName: (profile?.full_name as string) || "User",
+      viewedAt: String(view.viewed_at),
+      reaction: reactionByAccount.get(accountId) ?? null,
+    });
+  }
+  return rows;
+}
+
+export async function resolveCompanyOwnerAccountId(
+  companyId: string
+): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("companies")
+    .select("owner_account_id")
+    .eq("id", companyId)
+    .maybeSingle();
+  return (data?.owner_account_id as string | undefined) ?? null;
+}
